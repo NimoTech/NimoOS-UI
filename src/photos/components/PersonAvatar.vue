@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// Task 5 (SP7-P5 people): generic person avatar — shared by T6 (people home) / T7 (merge dialog
-// candidates) / T8 (merge suggestion banner) / T10 / T13. Vue2 copy-pastes this three-level
+// Generic person avatar — shared by the people home page / merge dialog
+// candidates / merge suggestion banner / person detail and related tabs. Vue2 copy-pastes this three-level
 // fallback structure in 5 places (PhotosPeopleView.vue:135-145, 254, 314, 391, 409;
 // PhotosPersonDetail.vue:9-19); consolidated to one component here.
 //
@@ -27,7 +27,7 @@ const props = withDefaults(
     size?: number
     dashed?: boolean
     fav?: boolean
-    // Task 8 additive extension (SP7-P5 people, MergeReviewDialog): Vue2's merge suggestion
+    // Additive extension for MergeReviewDialog: Vue2's merge suggestion
     // review dialog has square avatars on both sides (border-radius:12px + aspect-ratio:1);
     // only place in the whole area with square avatars (PhotosPeopleView.vue:387, 390, 405, 408).
     // Default still 'circle', does not change rendering of any existing call sites — only when
@@ -62,12 +62,12 @@ const avatarUrl = computed(() =>
   props.personId === null ? '' : service.photos.personFaceThumbnailUrl(props.personId, props.ver),
 )
 const initial = computed(() => personInitial(props.name))
-// Initial letter font size = size * 0.32 rounded down (brief explicit formula).
+// Initial letter font size = size * 0.32 rounded down (matches the design's explicit formula).
 const initialFontSize = computed(() => Math.floor(props.size * 0.32))
 
 // data-fav on root element (copy Vue2 photos-people.scss:132 `.ring[data-fav="true"]`):
-// parent needs a selector hook to draw accent inner ring around favorite avatars. Review
-// Important 2: original parent (PhotosPeople.vue) **unconditionally** drew rings around all
+// parent needs a selector hook to draw accent inner ring around favorite avatars. Note: the
+// original parent (PhotosPeople.vue) **unconditionally** drew rings around all
 // avatars under .face-grid-lg — current semantics equivalent (Pinned section only renders
 // favorites), but this grid class once reused would draw rings on non-favorites too. Move
 // condition back to the data itself.
@@ -78,7 +78,7 @@ const initialFontSize = computed(() => Math.floor(props.size * 0.32))
 // corresponds size=124 (scss:118 .ring is 124px). Thus ratio = 24/124 and 34/124; substituting
 // back to 124 precisely reproduces 24px / 34px.
 //
-// Why only this one 124 anchor point (review Important correction): scss:165
+// Why only this one 124 anchor point: scss:165
 // `.face-grid-md … .fav-mark { transform: translateX(20px) }` is **dead code** in Vue2 —
 // .face-grid-md only appears in Named section, whose data source is `others = filteredNamed
 // .filter(p => !p.favorite)`, and stars themselves are `v-if="p.favorite"`, that tier never
@@ -152,30 +152,29 @@ function onImgError(): void {
 </template>
 
 <style scoped>
-/* Task 5 (Plan D) shadowing cleanup — audited, nothing to shrink here (and deliberately no
-   class renames): unlike the other five components in this task, this one has no single Vue2
-   ancestor to align to. It replaces FIVE different pieces of Vue2 markup that each use their
+/* Audited, nothing to shrink here (and deliberately no
+   class renames): unlike other components that have a single Vue2 ancestor to align to, this one
+   has no single Vue2 ancestor either. It replaces FIVE different pieces of Vue2 markup that each use their
    own class names for what is structurally the same three-tier avatar (real image / initial /
    icon fallback): `.face-card .ring` (people list), `.rel-row .av` (co-appear list — this
-   parity selector was itself a confirmed zero-consumer orphan, deleted in Plan H Task 15;
+   parity selector was itself a confirmed zero-consumer orphan, since deleted;
    named here only for the historical Vue2 shape this component replaces, not as a live
    anchor), `.coappear-card .ring` (person-detail timeline strip), `.detail-hero .avatar`
    (hero), and the merge
    dialog's own avatar markup. Parity anchors each of those five shapes to its own selector
    path with its own sizing/border — this component can't literally *be* `.ring` and `.av` and
    `.detail-hero .avatar` at once without either duplicating itself per call site or accepting
-   a variant-name prop (out of scope: "props/emits/logic untouched"). The already-established
-   pattern (see PhotosPeople.vue's Task 2 survivor comments) is the opposite direction: keep
+   a variant-name prop (out of scope: props/emits/logic are meant to stay untouched). The
+   established pattern (see PhotosPeople.vue's own comments on this) is the opposite direction: keep
    this component's own class names (`.person-avatar-img` etc.) stable, and let each *consumer*
    add its own `:deep()` override for the one Vue2 shape it needs. PersonHero.vue and
-   PersonRelationsTab.vue (both touched by this task) were checked against this same rule — see
-   task-5-report.md. Nothing here duplicates a parity anchor (there isn't one to duplicate),
+   PersonRelationsTab.vue were checked against this same rule. Nothing here duplicates a parity anchor (there isn't one to duplicate),
    and the `--card-border`/`--avatar-fallback`/`--overlay-bg`/`--star-fg` tokens below are this
    app's own theme.css tokens (not parity's private set), left as-is: since there is no single
    parity anchor this component's own class names should adopt, there's also no reason to
    switch its token vocabulary — that decision belongs to whichever consumer's `:deep()`
-   override, if any, needs to match a specific parity anchor (see PhotosPeople.vue's Task 2
-   survivors for the established pattern). */
+   override, if any, needs to match a specific parity anchor (see PhotosPeople.vue's own
+   comments for the established pattern). */
 .person-avatar {
   position: relative;
   flex-shrink: 0;
@@ -185,7 +184,7 @@ function onImgError(): void {
   height: 100%;
   border-radius: 50%;
   overflow: hidden;
-  /* Review Minor correction: Vue2's .face-card .ring (photos-people.scss:124) **unconditionally**
+  /* Note: Vue2's .face-card .ring (photos-people.scss:124) **unconditionally**
      has a 1px solid hairline border; originally only added border on is-dashed — Named section's
      84px avatars therefore missing outline ring (Pinned 124px hidden by accent glow). Here changed
      to default solid, dashed state overrides. */
@@ -193,12 +192,12 @@ function onImgError(): void {
 }
 /* --line / --line-stronger don't exist in this repo's theme.css (grep confirmed, neither token
    in either theme block) — uniformly reuse --card-border which is actually defined in both themes
-   (card outline); registered as substitute for Vue2/brief literal token names, not new or
+   (card outline); registered as a substitute for Vue2's literal token names, not new or
    fabricated. */
 .person-avatar.is-dashed .person-avatar-ring {
   border-style: dashed;
 }
-/* Task 8 additive extension: square-with-rounded-corners variant (default still circular
+/* Additive extension: square-with-rounded-corners variant (default still circular
    border-radius:50%; see rule above); only used for MergeReviewDialog's side-by-side comparison
    avatars. */
 .person-avatar.is-square .person-avatar-ring {
@@ -228,7 +227,7 @@ function onImgError(): void {
 }
 /* theme-exception: --avatar-fallback is not pure accent solid (dark theme mixes 55% black —
    see same-name token in theme.css), --on-accent defaults to dark teal in dark theme — layered
-   on this dim gradient results in dark bottom, dark text (review Critical correction — precedent
+   on this dim gradient results in dark bottom, dark text (same precedent as
    PhotosAlbumDetail.vue:733 tile-cover-btn). Shifting ~10% contrast along gradient diagonal axis
    drops below small-text 4.5:1 threshold — glyph strokes already fall outside this offset range —
    circular clipping can't eliminate this risk — merge-candidate rows and similar small avatars
@@ -240,7 +239,7 @@ function onImgError(): void {
 }
 /* Geometry mirrors Vue2 photos-people.scss:150-164 .fav-mark: upper-right of ring, not lower-
    right. Size and horizontal offset injected via :style (both scale proportionally with size; see
-   favSize/favOffset comments in script). Top reference frame conversion (review Minor correction):
+   favSize/favOffset comments in script). Top reference frame conversion:
    Vue2's .fav-mark hangs on .face-card, which has padding:6px (scss:112), so its top:4px actually
    equals "2px **above** ring top edge"; this component's positioning parent is the ring itself; to
    restore same visual position must write -2px; directly copying 4px would be 6px lower than Vue2. */

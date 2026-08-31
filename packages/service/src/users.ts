@@ -32,9 +32,9 @@ export function createUsers(http: AxiosInstance) {
       return unwrap<UserStatus>(res.data)
     },
 
-    // ── SP9-P4: users domain completion for the account tab ───────────────────────────────
-    // Envelope depth is hardcoded per endpoint; auto-detection is forbidden (P1 proved depth varies per endpoint under the same prefix).
-    // The 3 GETs below were verified via curl on a real device 2026-08-01: **all use the standard envelope
+    // ── Users domain completion for the account tab ───────────────────────────────
+    // Envelope depth is hardcoded per endpoint; auto-detection is forbidden (depth was proven to vary per endpoint under the same prefix).
+    // The 3 GETs below were verified via curl on a real device: **all use the standard envelope
     // {success,message,data}**.
 
     /** GET /v1/users/current — the currently logged-in user. Standard envelope, verified. */
@@ -62,11 +62,11 @@ export function createUsers(http: AxiosInstance) {
     },
 
     /** PUT /v1/users/current — update user profile.
-     *  ⚠️ **Not verified via curl** (write endpoint; SP9-P4 sends none of those). Types are based on the Go struct
+     *  ⚠️ **Not verified via curl** (write endpoint; this batch of work sent none of those). Types are based on the Go struct
      *  UserDBModel (service/model/o_user.go:15-25) + handler user.go:338-371:
      *  empty fields are backfilled by the backend with current values; username colliding with an existing user → HTTP 400 + success:10002.
      *  ⚠️ **No consumers** — the Vue2 entry point (AccountPanel state 2 "change username") has zero calls repo-wide,
-     *  it is dead code. Included only for domain completeness per spec §5.7. */
+     *  it is dead code. Included only for domain completeness. */
     async setUserInfo(data: Partial<UserInfo>): Promise<UserInfo> {
       const res = await http.put('/users/current', data)
       return unwrap<UserInfo>(res.data)
@@ -145,9 +145,9 @@ export function createUsers(http: AxiosInstance) {
       await http.delete(`/users/members/${memberId}/folders?perm_id=${permId}`)
     },
 
-    // ── SP11 wallpaper: user image endpoints ────────────────────────────────
-    // These two were explicitly kept out of the package during SP9-P4 ("not part
-    // of the account tab"); SP11 is the consumer that pays that debt off.
+    // ── Wallpaper: user image endpoints ────────────────────────────────
+    // These two were explicitly kept out of the package during the earlier account-tab
+    // work ("not part of the account tab"); this is the consumer that pays that debt off.
 
     /** POST /v1/users/current/image/{key} -- multipart upload.
      *  Standard envelope. Writes to {UserDataPath}/{userId}/{key}{ext}, so it

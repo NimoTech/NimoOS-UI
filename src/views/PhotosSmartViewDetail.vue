@@ -1,46 +1,56 @@
 <script setup lang="ts">
-// SP7-P7a-T6: PhotosSmartViewDetail.vue —— 智能视图详情页外壳(路由 /photos/smart-views/:id)。
-// 本期架构关键任务:证明 §7e-2 的核心修复(T2 store 的 byId(id))成立。
+// PhotosSmartViewDetail.vue -- smart view detail page shell (route /photos/smart-views/:id).
+// This cycle's key architectural task: prove that §7e-2's core fix (the store's byId(id)) holds.
 //
-// ★★★ 与 Vue2 最重要的架构性差异,必须读完才能理解本文件为什么这么短 ★★★
-// Vue2 详情页(src/views/Photos/PhotosSmartViewDetail.vue)把整个 sv 对象当
-// **prop** 持有(:285 `props: { sv: { type: Object, required: true } }`),而列表侧
-// UPDATE_SMART_VIEW mutation 用 `splice(i, 1, {...})` 换成**新对象**——这意味着编辑/暂停/
-// 改名之后,Vue2 详情页手里那份 prop 引用已经过期,界面读不出变化,直到用户重新打开详情页。
-// 为了压制这个真 bug,Vue2 搭了一整套本地状态同步机制:本地 `thresh`/`paused`/
-// `includeVideos` + `syncingSv` 标志 + 三个 watcher(:288-291、:345-371)——`sv` prop 变化时
-// 把新值复制进本地 state,同时用 syncingSv 挡住"复制进本地 state"这个动作反过来触发本地
-// watcher 再发一次 PATCH 请求的死循环。
+// *** The most important architectural difference from Vue2 -- read this fully to understand why this file is so short ***
+// The Vue2 detail page (src/views/Photos/PhotosSmartViewDetail.vue) holds the entire sv object as
+// a **prop** (:285 `props: { sv: { type: Object, required: true } }`), while the list side's
+// UPDATE_SMART_VIEW mutation swaps in a **new object** via `splice(i, 1, {...})` -- meaning that
+// after an edit/pause/rename, the Vue2 detail page's prop reference has already gone stale, and
+// the UI shows no change until the user reopens the detail page.
+// To paper over this real bug, Vue2 built an entire local-state sync mechanism: local `thresh`/
+// `paused`/`includeVideos` state + a `syncingSv` flag + three watchers (:288-291, :345-371) --
+// when the `sv` prop changes, the new value is copied into local state, while `syncingSv` blocks
+// that same copy from re-triggering the local watchers and firing another PATCH request in an
+// infinite loop.
 //
-// New-UI 走真路由:`sv = computed(() => store.byId(String(route.params.id)))`,每次渲染
-// 都从 store 数组现取,数据来源只有一份。**这个 bug 结构性消失**——store 更新数组项之后,
-// 任何读 `sv.value` 的地方(包括这个 computed 本身)都会立刻拿到新对象,不需要任何本地
-// state 副本、不需要 syncingSv、不需要三个 watcher。`paused` 直接是
-// `computed(() => !sv.value?.live)` 的**派生量**,不是本地 state——这是本任务测试套件里
-// "§7e-2 主守卫"那条用例专门钉住的行为(直接改 store 里的 sv.live,不重新 mount,pill 文案
-// 自动跟着变;删码验证①把 byId 换成本地 ref 缓存一份 sv 对象,这条用例就会变红)。
+// New-UI goes through real routing: `sv = computed(() => store.byId(String(route.params.id)))`,
+// re-reading from the store array on every render, with a single source of data. **This bug
+// structurally disappears** -- once the store updates an array entry, anywhere that reads
+// `sv.value` (including this computed itself) immediately gets the new object, with no need for
+// any local state copy, no `syncingSv`, and no three watchers. `paused` is simply a **derived
+// value** via `computed(() => !sv.value?.live)`, not local state -- this is exactly the behaviour
+// this task's test suite's "§7e-2 main guard" case pins down (mutate `sv.live` directly on the
+// store, without remounting, and the pill copy follows automatically; deletion-check ① -- swapping
+// byId for a local ref caching a copy of the sv object -- turns this case red).
 //
-// 本文件范围(结构规格 1-9):壳 + header(标题编辑 / live-paused pill /
-// 统计四格)+ 操作栏三菜单(暂停恢复 / 在搜索中细化[T16 已接线,见 refineInSearch] /
-// 导出[ZIP 修 401 + 静态相册] / more[重命名/复制/删除])+ 删除确认弹窗 +
-// 两段照片网格(最近添加 / 全部匹配)。
-// T7(加条件弹层)与 T8(右栏阈值/设置/统计/活动流)只留挂载点,见下方 TODO 注释。
+// This file's scope (structural spec 1-9): the shell + header (title editing / live-paused pill /
+// four stat tiles) + the action row's three menus (pause/resume / refine in search [wired up as of
+// T16, see refineInSearch] / export [ZIP fixes 401 + static album] / more [rename/duplicate/
+// delete]) + the delete confirmation dialog + the two-section photo grid (recently added / all
+// matches).
+// T7 (add-condition popover) and T8 (right-column threshold/settings/stats/activity feed) only get
+// mount points here -- see the TODO comment below.
 //
-// ── 偏离登记(brief 已预先要求登记的几处)──────────────────────────────────────
-//  1)「找不到」空态(listLoaded && !sv):Vue2 不存在这个路径——它的详情页只在父组件
-//     `v-if="openSv"` 时才渲染,`openSv` 恒是一个真实对象,不可能出现"有 id 但查无此项"。
-//     New-UI 是真路由,用户手改地址栏 / 点开旧书签会走到这里,New-UI 新增。
-//  2) live/paused pill:Vue2 只有 `role="button"`,无键盘可达性。这里补 `tabindex="0"` +
-//     `@keydown.enter`。
-//  3) commitTitle 失败:Vue2 `:512-513` 无 catch(乐观地假设 PATCH 总成功)。这里 catch →
-//     toast + 保持编辑态(不擅自退出,以免用户以为改名生效了)。
-//  4) 「在搜索中细化」T6 阶段曾临时 disabled(搜索路由 /photos/search 那时还没建)。
-//     T16 已把搜索路由建好并接线(见下方 refineInSearch),按钮不再 disabled。
-//  5) `smartViewId` 死参数不迁:Vue2 `:520` 的 refineInSearch payload 是
-//     `{ q: sv.name, smartViewId: sv.id }`,但全 Vue2 仓库 grep `smartViewId` 只有这一处
-//     写入、零消费方(`grep -rn smartViewId` 在 Vue2 全仓只命中这一行)。T16 接线只传
-//     `q`,不带这个死参数。
-//  6) SP15-P2a final review, finding 4 — an excluded tile is inert while selecting.
+// -- Registered deviations (deliberate, documented here) ---------------------------------------
+//  1) The "not found" empty state (listLoaded && !sv): this path does not exist in Vue2 -- its
+//     detail page only renders when the parent component's `v-if="openSv"` is true, and `openSv`
+//     is always a real object, so "has an id but the lookup misses" can never happen there.
+//     New-UI uses real routing, so a user editing the address bar / opening a stale bookmark can
+//     land here -- new to New-UI.
+//  2) The live/paused pill: Vue2 only has `role="button"`, with no keyboard accessibility. Added
+//     `tabindex="0"` + `@keydown.enter` here.
+//  3) A commitTitle failure: Vue2 `:512-513` has no catch (optimistically assuming the PATCH
+//     always succeeds). Here it's caught -> toast + stays in edit mode (does not silently exit,
+//     so the user does not think the rename took effect).
+//  4) "Refine in search" was temporarily disabled during the T6 stage (the /photos/search route
+//     did not exist yet). T16 has since built the search route and wired it up (see refineInSearch
+//     below), and the button is no longer disabled.
+//  5) The dead `smartViewId` parameter is not ported over: Vue2's `:520` refineInSearch payload is
+//     `{ q: sv.name, smartViewId: sv.id }`, but grepping the entire Vue2 repo for `smartViewId`
+//     turns up only this one write, with zero consumers (`grep -rn smartViewId` hits only this one
+//     line across all of Vue2). T16's wiring passes only `q`, without this dead parameter.
+//  6) An excluded tile is inert while selecting.
 //     Vue 2 :167 wires `restoreOne` onto the excluded tiles unconditionally, so in
 //     selection mode every tile on the page toggles a checkmark except an excluded one,
 //     which silently writes to the server instead. The user taps expecting selection and
@@ -50,12 +60,14 @@
 //     selecting: the click is a no-op. This is one of Vue 2's own defects being fixed and
 //     registered rather than copied, per this branch's porting rule.
 //
-// Plan C Task 2(公共换壳):壳从 AreaShell + `.photos-layout` flex-row 换成 Photos.vue 的
-// Vue2 结构 `.photos-root[themeClass] > .app[data-collapsed] > PhotosSidebar + main.main`
-// ——`collapsed` 改用共享 composable useSidebarCollapse()。内层滚动链已经完整
-// (`.sv-detail-main`/`.sv-detail-side` 两个网格格子各自 overflow-y:auto),换壳不影响滚动
-// 行为。已知遗留(同 PhotosAlbums.vue 的换壳注释,不逐页重复):移动端窄屏下没有 AreaShell
-// 的 hamburger 入口去开侧栏抽屉,brief 明确本任务不越权补,详见 task-2-report.md。
+// Common shell swap: the shell went from AreaShell + `.photos-layout` flex-row to Photos.vue's
+// Vue2 structure `.photos-root[themeClass] > .app[data-collapsed] > PhotosSidebar + main.main`
+// -- `collapsed` now uses the shared composable useSidebarCollapse(). The inner scroll chain was
+// already complete (`.sv-detail-main`/`.sv-detail-side`, each its own grid cell with its own
+// overflow-y:auto), so the shell swap does not affect scroll behaviour. Known remaining gap (same
+// shell-swap note as PhotosAlbums.vue's, not repeated page by page): on narrow mobile widths there
+// is no AreaShell hamburger entry point to open the sidebar drawer; deliberate decision:
+// filling this in was out of this task's scope.
 import '../photos/styles/vue2-parity'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -80,7 +92,7 @@ import { useToast } from '../stores/toast'
 import { isConflict } from '../photos/util/httpErrors'
 import { useLightbox } from '../photos/lightbox/useLightbox'
 import { relTime } from '../photos/util/relTime'
-// SP15-P2c Task 6: reused, not re-implemented. Despite the name this is a plain photo
+// Reused, not re-implemented. Despite the name this is a plain photo
 // comparator keyed off a string mode (util/albumView.ts:74) -- its 'taken' branch is
 // byte-for-byte the comparator Vue2 writes inline here as `sortedByMode` (33b05636
 // :577-587). Task 7 fold-in, finding (e): the fallback branch does not return the list
@@ -116,10 +128,10 @@ const { themeClass } = usePhotosTheme()
 // (same as Photos.vue/PhotosAlbums.vue).
 const { collapsed, toggle: onToggleCollapse } = useSidebarCollapse()
 
-// 唯一的归一点(铁律:按 id 找对象一律 String() 比较)。
+// The single normalization point (hard rule: always compare ids via String()).
 const svId = computed(() => String(route.params.id))
 
-// Fix-1 item 1: PhotosTopbar's title/sub. This is the SMART ALBUM detail (saved search /
+// PhotosTopbar's title/sub. This is the SMART ALBUM detail (saved search /
 // conds+threshold+live) -- Vue2 nests it inside PhotosAlbumsView, under activeNav==='albums',
 // the exact same nesting as the manual-album detail a few lines above it in that file
 // (the Vue 2 panel's PhotosAlbumsView.vue:3-45). So the topbar here is identical to
@@ -132,32 +144,33 @@ const topbarSub = computed(() => {
   const totalVideos = albums.albums.reduce((sum, a) => sum + (Number((a as Record<string, unknown>).videoCount) || 0), 0)
   return t('photosCountSummary', { photos: totalPhotos.toLocaleString(), videos: totalVideos.toLocaleString() })
 })
-// ★ §7e-2 核心修复:每次渲染都从 store 数组现取,不持有对象引用。
+// * §7e-2 core fix: re-read from the store array on every render, never hold an object reference.
 const sv = computed(() => store.byId(svId.value))
 
 function fmtNum(n: number): string {
   return n.toLocaleString(locale.value.replace('_', '-'))
 }
 
-// 包一层 ref 而非直接在模板里裸调 Date.now():测试可以在 mount 前用
-// vi.useFakeTimers()/setSystemTime 固定这个值,而组件代码本身仍是"就用当前时间"的
-// 正常写法(不是 workflow 脚本,允许用 Date.now())。
+// Wrapped in a ref rather than calling Date.now() bare in the template: a test can pin this
+// value before mounting with vi.useFakeTimers()/setSystemTime, while the component code itself
+// still reads as the normal "just use the current time" pattern (this is not a workflow script,
+// so using Date.now() directly here is fine).
 const now = ref(Date.now())
 const lastUpdated = computed(() => (sv.value?.evaluatedAt ? relTime(sv.value.evaluatedAt, now.value, t, locale.value) : '—'))
 
-// ── 加载(结构规格 1)────────────────────────────────────────────────────────
+// ── Loading (structural spec 1) ────────────────────────────────────────────────────
 onMounted(async () => {
   if (!store.listLoaded) await store.fetchSmartViews()
   await store.loadDetail(svId.value)
   void store.loadExcluded(svId.value)
-  // Fix-1 item 1: the topbar's album-aggregate sub needs the full album list, which this page
+  // The topbar's album-aggregate sub needs the full album list, which this page
   // otherwise never fetches (unlike PhotosAlbumDetail.vue, which already does for its own
   // reasons) -- same guarded fetch-once shape as that sibling page.
   if (!albums.albumsLoaded) void albums.fetchAlbums()
 })
 watch(() => route.params.id, (raw) => {
-  if (raw === undefined) return // 已离开本路由(同 PhotosPersonDetail.vue 的既有先例)
-  // SP15-P2a: everything the manual actions hold is keyed to the id we are leaving, so it all
+  if (raw === undefined) return // Already left this route (same existing precedent as PhotosPersonDetail.vue)
+  // Everything the manual actions hold is keyed to the id we are leaving, so it all
   // resets here. `edit`/`selectedIds` are the pair with a write consequence —
   // removeSelected() reads svId.value at call time, so a selection carried across an :id
   // change would send view A's asset ids to view B's remove endpoint, under a bar counting
@@ -186,7 +199,7 @@ watch(() => route.params.id, (raw) => {
   void store.loadExcluded(String(raw))
 })
 
-// ── 标题编辑(结构规格 3、8)───────────────────────────────────────────────
+// ── Title editing (structural spec 3, 8) ───────────────────────────────────────────────
 const titleEdit = ref(false)
 const titleDraft = ref('')
 const titleInputRef = ref<HTMLInputElement | null>(null)
@@ -209,7 +222,8 @@ async function commitTitle(): Promise<void> {
   const s = sv.value
   if (!s) { titleEdit.value = false; return }
   const v = titleDraft.value.trim()
-  // 未改动或清空 → 直接退出,不发请求(照 Vue2 :511 的 `if (v && v !== this.sv.name)`)。
+  // Unchanged or cleared -> exit directly without sending a request (matches Vue2 :511's
+  // `if (v && v !== this.sv.name)`).
   if (!v || v === s.name) {
     titleEdit.value = false
     return
@@ -217,27 +231,30 @@ async function commitTitle(): Promise<void> {
   try {
     await store.updateSmartView(s.id, { name: v })
     toast.show(t('photosSvSmartViewRenamed'))
-    // 退出编辑态交给下面的 watch(sv.name):成功后 store 回写新名 → sv.value.name 变化 →
-    // watch 触发 → titleEdit = false。失败时 name 不变,watch 不触发,titleEdit 保持 true
-    // (偏离登记 3:Vue2 无 catch,这里失败要留在编辑态,不能悄悄退出让用户以为改名生效了)。
+    // Exiting edit mode is left to the watch(sv.name) below: on success the store writes back
+    // the new name -> sv.value.name changes -> the watch fires -> titleEdit = false. On failure
+    // name is unchanged, the watch does not fire, and titleEdit stays true (registered
+    // deviation 3: Vue2 has no catch here -- on failure this must stay in edit mode rather than
+    // silently exiting and letting the user think the rename took effect).
   } catch (e) {
     console.error('[photos-smartviews] commitTitle', e)
     toast.show(t('photosSvRenameFailed'))
   }
 }
-// 删码验证②的主体:去掉这个 watch,「成功后退出编辑态」这条用例会红(名字变了但 titleEdit
-// 永远不会被这里置回 false;“未改动”分支不受影响,因为那条路径在 commitTitle 内部就同步
-// 退出了,不依赖这个 watch)。
+// Deletion-check ②: remove this watch and the "exits edit mode on success" case goes red (the
+// name changes, but titleEdit is never set back to false here; the "unchanged" branch is
+// unaffected, since that path already exits synchronously inside commitTitle without relying on
+// this watch).
 watch(() => sv.value?.name, () => {
   if (titleEdit.value) titleEdit.value = false
 })
 
-// ── paused:派生量,不是本地 state(结构规格 8,§7e-2 的最大简化)───────────────
+// ── paused: a derived value, not local state (structural spec 8, §7e-2's biggest simplification) ───────────────
 const paused = computed(() => !sv.value?.live)
 async function togglePaused(): Promise<void> {
   const s = sv.value
   if (!s) return
-  const nextLive = paused.value // paused===true ⇔ 当前 !live,切换即取反 = paused 本身
+  const nextLive = paused.value // paused===true <=> currently !live, so toggling is just negating paused itself
   try {
     await store.updateSmartView(s.id, { live: nextLive })
   } catch (e) {
@@ -249,21 +266,22 @@ function onPillKeydown(e: KeyboardEvent): void {
   if (e.key === 'Enter') void togglePaused()
 }
 
-// T16 兑现(结构规格 23):「在搜索中细化」→ 跳到搜索页,用该智能视图的名字作查询词。
-// 只传 q——Vue2 :520 的 smartViewId 是全仓零消费方的死参数(见文件头偏离登记 5)。
+// T16 delivered (structural spec 23): "Refine in search" -> jumps to the search page, using this
+// smart view's name as the query term.
+// Only `q` is passed -- Vue2 :520's smartViewId is a dead parameter with zero consumers across
+// the whole repo (see registered deviation 5 in the file header).
 function refineInSearch(): void {
   const s = sv.value
   if (!s) return
   void router.push({ path: '/photos/search', query: { q: s.name } })
 }
 
-// ── T7 wiring, shrunk by SP15-P2c Task 8 (structure spec T7) ────────────────────
+// ── T7 wiring (structure spec T7) ────────────────────
 // Ported from the Vue 2 panel's PhotosSmartViewDetail.vue:26-30 +
-// :700-710 ("用户追加需求" -- a deliberate product decision, not an oversight): the
+// :700-710 ("user-added requirement" -- a deliberate product decision, not an oversight): the
 // "Add condition" entry (button + popover) is deleted along with the four Vue2 methods
 // that only served it, and this repo's equivalents inside the now-deleted, formerly
-// separate condition-editor component (see task-8-report.md for the exact names on both
-// sides). The function that translated the editor's "add" emit into a store call went
+// separate condition-editor component. The function that translated the editor's "add" emit into a store call went
 // with it -- it had no other caller. `removeCond` survives (Vue2 keeps "existing
 // condition, click to remove") and is now called directly from this page's own template
 // instead of via the deleted component's "remove" emit.
@@ -306,12 +324,12 @@ async function onSidePatch(patch: { threshold?: number; live?: boolean; includeV
   }
 }
 
-// ── header 统计四格(结构规格 3)──────────────────────────────────────────────
+// ── header's four stat tiles (structural spec 3) ──────────────────────────────────────────────
 const newCount = computed(() => sv.value?.addedThisWeek || 0)
 const median = computed(() => sv.value?.median || 0)
 const storageText = computed(() => formatMB(sv.value?.storageBytes || 0))
 
-// ── SP15-P2c Task 6: sort capsule + density pair (target :49-90) ─────────────────────────
+// ── sort capsule + density pair (target :49-90) ─────────────────────────
 // New construction: this page never had either control. Both are display-only preferences --
 // they change what the two grids show and in what order, and send nothing to the backend
 // (Vue2's own note at :457-459).
@@ -356,10 +374,9 @@ const recentSet = computed(() => sortAlbumPhotos(store.recentAssets, sortBy.valu
 // replaces the other.
 const moreOpen = ref(false)
 const confirmDeleteOpen = ref(false)
-// SP15-P2b Task 8: smart album -> regular album, the reverse of Task 7's
-// AlbumConvertToSmartDialog. Inline in this file rather than a new component (Vue2 inlines
-// its lb-confirm-* version too, and this page already owns a confirmation of the same
-// shape for delete).
+// Smart album -> regular album, the reverse of the AlbumConvertToSmartDialog flow. Inline in
+// this file rather than a new component (Vue2 inlines its lb-confirm-* version too, and this
+// page already owns a confirmation of the same shape for delete).
 const convertToAlbumOpen = ref(false)
 const convertingToAlbum = ref(false)
 const convertError = ref('')
@@ -381,7 +398,7 @@ function onDocumentMouseDown(e: MouseEvent): void {
     const w = morePopRef.value
     if (w && !w.contains(target)) moreOpen.value = false
   }
-  // SP15-P2c Task 6: the sort menu closes on an outside click the same way (Vue2 :545-548
+  // The sort menu closes on an outside click the same way (Vue2 :545-548
   // adds its own click-outside for exactly this popup).
   if (sortMenuOpen.value) {
     const s = sortMenuRef.value
@@ -391,16 +408,16 @@ function onDocumentMouseDown(e: MouseEvent): void {
 
 // Hard constraint: when multiple overlays are open, one Escape must close them all -- four
 // independent ifs (five before Task 7 removed the export menu's own), no early return
-// (deletion-check 8: adding `return` inside the first if turns that test red). SP15-P2b Task 8 adds convertToAlbumOpen: this branch routes through
-// closeConvertToAlbum() rather than setting the flag directly, or Escape could dismiss the
-// dialog mid-flight while the Cancel button's own guard refuses to (closeConvertToAlbum
-// defined below).
+// (deletion-check 8: adding `return` inside the first if turns that test red). The
+// convertToAlbumOpen branch routes through closeConvertToAlbum() rather than setting the flag
+// directly, or Escape could dismiss the dialog mid-flight while the Cancel button's own guard
+// refuses to (closeConvertToAlbum defined below).
 function onDocumentKeydown(e: KeyboardEvent): void {
   if (e.key !== 'Escape') return
   if (moreOpen.value) moreOpen.value = false
   if (confirmDeleteOpen.value) confirmDeleteOpen.value = false
   if (convertToAlbumOpen.value) closeConvertToAlbum()
-  // SP15-P2c Task 6. Vue2 gives the sort popup a click-outside but no Escape; PhotosAlbumDetail
+  // Vue2 gives the sort popup a click-outside but no Escape; PhotosAlbumDetail
   // .vue:539 already closes its own sort menu on Escape, and a popup that ignores the key its
   // three neighbours on this same page answer reads as broken. Registered deviation, added as
   // a fifth independent `if` so it does not disturb the "one Escape closes everything" rule.
@@ -419,21 +436,22 @@ onBeforeUnmount(() => {
   if (toastTimer) clearTimeout(toastTimer)
 })
 
-// ── 导出(结构规格 5、6)──────────────────────────────────────────────────────
+// ── Export (structural spec 5, 6) ──────────────────────────────────────────────────────
 interface ExportToast { icon: 'download' | 'plus'; text: string }
 const exportToast = ref<ExportToast | null>(null)
 let toastTimer: ReturnType<typeof setTimeout> | null = null
 function showExportToast(icon: ExportToast['icon'], text: string): void {
   exportToast.value = { icon, text }
   if (toastTimer) clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => { exportToast.value = null }, 2800) // 照搬 Vue2 :499
+  toastTimer = setTimeout(() => { exportToast.value = null }, 2800) // copied verbatim from Vue2 :499
 }
 
-// exportSmartViewUrl 走的 /v1/photos/smart-views/:id/export 不在后端 mediaGetSkip
-// 豁免表里(只有 /favorites/export 后缀被豁免),且 Photos 的 JWT 中间件只从
-// Authorization 头取 token、没有 query 通路 —— 所以 Vue2 的 window.location.href
-// 必然 401(plan Global Constraints §7e-1,已回源实证 NimoOS-Photos/route/router.go)。
-// 这里改成带 Authorization 的 fetch + blob 下载。
+// exportSmartViewUrl's /v1/photos/smart-views/:id/export is not on the backend's mediaGetSkip
+// exemption list (only the /favorites/export suffix is exempted), and Photos' JWT middleware
+// only reads the token from the Authorization header -- there is no query-string path -- so
+// Vue2's window.location.href navigation is guaranteed to 401 (plan Global Constraints §7e-1,
+// verified against the source, NimoOS-Photos/route/router.go).
+// Switched here to a fetch with an Authorization header + blob download instead.
 async function downloadZip(): Promise<void> {
   const s = sv.value
   // Task 7: this used to close the export menu (`exportOpen`); ZIP is now the unified menu's
@@ -442,16 +460,19 @@ async function downloadZip(): Promise<void> {
   if (!s) return
   try {
     const url = service.photos.exportSmartViewUrl(String(s.id), 'zip')
-    // ⚠ 不要加 'Bearer ' 前缀 —— 本仓存的是裸 token:共享包拦截器是
-    // `cfg.headers.Authorization = token`(shared service package src/http.ts:59-60),token 来自
-    // `localStorage.getItem('access_token')`(main.ts:24 的 getToken 回调),全仓 grep 不到
-    // 任何 'Bearer' 字面量。后端 `strings.TrimPrefix(auth, "Bearer ")` 对裸 token 是恒等的,
-    // 两种都能过,但这里与共享包保持同一口径(删码验证⑤的主体)。
-    // fix round 1 · C1(Critical,已回源实证):这个端点 `route/v1/smartviews.go:34` 只注册了
-    // `g.POST(...)`,全仓 grep `"/smart-views/:id/export"` 只有这一条、没有 GET 版本——
-    // `fetch` 默认 GET 会被 Echo 拒成 405(不是 401,但同样 100% 不通)。必须显式
-    // `method: 'POST'`。不需要 body——handler(`smartviews.go:208-215`)优先取 query 的
-    // `format`,`exportSmartViewUrl` 已经把 `?format=zip` 拼进 URL 里了。
+    // Do NOT add a 'Bearer ' prefix -- this repo stores a bare token: the shared package's
+    // interceptor does `cfg.headers.Authorization = token` (shared service package
+    // src/http.ts:59-60), and the token comes from `localStorage.getItem('access_token')`
+    // (main.ts:24's getToken callback) -- a repo-wide grep finds no 'Bearer' literal anywhere.
+    // The backend's `strings.TrimPrefix(auth, "Bearer ")` is a no-op on a bare token, so either
+    // form would pass, but this keeps the same convention as the shared package
+    // (deletion-check ⑤'s main point).
+    // This endpoint (`route/v1/smartviews.go:34`) only registers `g.POST(...)` -- a repo-wide
+    // grep for `"/smart-views/:id/export"` finds only this one route, no GET version --
+    // verified against the source. `fetch`'s default GET would be rejected by Echo as 405 (not
+    // 401, but equally 100% broken). `method: 'POST'` must be explicit. No body is needed --
+    // the handler (`smartviews.go:208-215`) reads `format` from the query string, and
+    // `exportSmartViewUrl` has already appended `?format=zip` to the URL.
     const res = await fetch(url, { method: 'POST', headers: { Authorization: localStorage.getItem('access_token') ?? '' } })
     if (!res.ok) throw new Error(`export ${res.status}`)
     const blob = await res.blob()
@@ -462,7 +483,7 @@ async function downloadZip(): Promise<void> {
     document.body.appendChild(a)
     a.click()
     a.remove()
-    URL.revokeObjectURL(href) // 删码验证⑥的主体
+    URL.revokeObjectURL(href) // deletion-check ⑥'s main point
     showExportToast('download', t('photosSvPreparingZipNPhotos', { n: fmtNum(s.count) }))
   } catch (e) {
     console.error('[photos-smartviews] downloadZip', e)
@@ -473,8 +494,8 @@ async function downloadZip(): Promise<void> {
 // Task 7: `exportAlbumAction` ("Save as static album" / sv-export-album) is deleted, not
 // re-homed into the unified menu. This is an empirically-verified capability removal, not a
 // guess: the Vue2 target's own final state (933a7d3a comment restated at 33b05636
-// :184-189) records that Vue2 killed the identical button ("Save as static Album 子项整体
-// 删除", i.e. "the Save as static Album entry is deleted entirely") in the same commit range
+// :184-189) records that Vue2 killed the identical button ("the Save as static Album entry is
+// deleted entirely") in the same commit range
 // that produced the five-entry menu, keeping only the backend
 // endpoint (`photosService.exportSmartViewAlbum`) as a capability with no frontend caller.
 // This page's Convert entry (`askConvertToAlbum` below) already does the equivalent job --
@@ -499,25 +520,32 @@ async function doDelete(): Promise<void> {
   try {
     const result = await store.deleteSmartView(s.id)
     if (!result) return
-    // SP15-P2b Task 5: smart albums now live inside Albums (Tasks 3/4), so a deleted
+    // Smart albums now live inside Albums, so a deleted
     // smart view's owner list is the Albums page, not this now-Moments-only route.
     void router.push('/photos/albums')
-    // 撤销键复用 P3 回收站已有的既定「撤销」键(grep 本仓 zh_cn.ts 已确认
-    // photosTrashUndo = '撤销' / photosPersonUndo 同值,取前者——两者语义都是通用的
-    // "撤销"文案,不新增)。duration 5000 照 P5「5 秒可撤销」的既有口径。
+    // The undo label reuses P3 Trash's existing established "Undo" key (grepping this repo's
+    // zh_cn.ts confirms photosTrashUndo = '撤销' and photosPersonUndo shares the same value --
+    // the former is used, since both are the generic "undo" copy and no new key is needed).
+    // duration 5000 follows P5's existing "5 seconds to undo" convention.
     toast.show(t('photosSvSmartViewNameDeleted', { name: s.name }), 5000, {
       label: t('photosTrashUndo'),
-      // fix 波 F3(终审必修项):`void store.restoreSmartView(...)` 把失败 reject 直接吞成
-      // 未处理的 promise rejection——store 的 restoreSmartView 失败时是 throw(smartViews.ts
-      // :303-304 的 catch 只 console.error 再原样抛出),`void` 调用不接这个 throw,
-      // 界面上什么反馈都不会出现。真实时序:用户点删除 → 已被上面 `router.push` 送回
-      // 列表页(这条智能视图已从列表 splice 掉)→ 5 秒内点撤销 → 后端失败 → 原实现下
-      // 界面毫无反应,这条智能视图就永久从列表消失了(后端其实还在,刷新页面才会重新出现)。
-      // 违反 Global Constraints「向上抛出的 action 保持抛出(视图层 catch → toast)」——
-      // 同文件 doDelete 自己是 try/catch + 失败 toast,只有这个 undo 回调漏了这层。
-      // 文案复用:grep 全仓已确认没有专门的"撤销智能视图失败"键;`photosTrashRestoreFailed`
-      // (P3 回收站,PhotosTrash.vue:121/171 同款"撤销恢复失败"场景,duration 同为 4500)
-      // 语义完全对得上"恢复/撤销这个动作失败了",复用它,不新增键。
+      // The undo callback used to be `void store.restoreSmartView(...)`, which swallowed a
+      // failed reject straight into an unhandled promise rejection -- the store's
+      // restoreSmartView throws on failure (smartViews.ts :303-304's catch only
+      // console.error's before re-throwing), and a `void` call does not catch that throw, so
+      // the UI shows no feedback at all. The real sequence: the user clicks delete -> the
+      // `router.push` above already sent them back to the list page (this smart view has
+      // already been spliced out of the list) -> they click undo within 5 seconds -> the
+      // backend call fails -> under the original implementation the UI shows nothing at all,
+      // and this smart view is permanently gone from the list (it is actually still on the
+      // backend -- it would reappear on a page refresh). This violated Global Constraints'
+      // "an action thrown upward stays thrown (view layer catches -> toast)" -- doDelete itself
+      // in this same file is try/catch + a failure toast; only this undo callback missed that
+      // layer.
+      // Copy reuse: a repo-wide grep confirms there is no dedicated "undo smart view failed"
+      // key; `photosTrashRestoreFailed` (P3 Trash, PhotosTrash.vue:121/171's own "undo restore
+      // failed" scenario, same 4500 duration) is semantically an exact match for "this
+      // restore/undo action failed", so it is reused rather than adding a new key.
       onClick: () => {
         store.restoreSmartView(result as DeletedSmartView).catch((e: unknown) => {
           console.error('[photos-smartviews] undo delete', e)
@@ -549,8 +577,8 @@ async function duplicateSv(): Promise<void> {
   }
 }
 
-// SP15-P2b Task 8 (Vue2 939a7d3a diff's askConvertToAlbum/closeConvertToAlbum/
-// doConvertToAlbum): the reverse of Task 7's convertFromAlbum. Freezes the current matches
+// (Vue2 939a7d3a diff's askConvertToAlbum/closeConvertToAlbum/
+// doConvertToAlbum): the reverse of the convertFromAlbum flow. Freezes the current matches
 // into a regular album and drops the smart view's conditions/live-updating -- not dressed up
 // as reversible.
 function askConvertToAlbum(): void {
@@ -595,9 +623,9 @@ async function doConvertToAlbum(): Promise<void> {
   }
 }
 
-// ── 两段照片网格(结构规格 10)─────────────────────────────────────────────────
+// ── Two-section photo grid (structural spec 10) ─────────────────────────────────────────────
 // The lightbox's browsing range is scoped to this smart view's full match set (not the whole
-// library). Both grids share this one handler, but SP15-P2c Task 9 (target 33b05636 :96/:107
+// library). Both grids share this one handler, but (target 33b05636 :96/:107
 // `onTileClick(p, list)`) stopped always forwarding `store.matchedAssets`: each grid now passes
 // in *its own* currently-sorted display order (`recentSet`/`matchedSet`, already run through
 // sortBy) from the template's v-for scope, and this just forwards it on to `lb.openAt`. E8's
@@ -614,9 +642,11 @@ function onTileClick(p: Photo, list: Photo[]): void {
     return
   }
   const r = store.recentAssets.find((x) => String(x.id) === String(p.id))
-  // 就地改 recentAssets 里那个元素的属性(不是替换数组/新建对象):店内乐观清除,提前隐藏
-  // "New" 角标——真实浏览记录由 lb.openAt 内部的 recordView 之类的动作在后端异步落地,
-  // 这里只是即时反馈,刻意写注释说明这处直接改 store ref 元素属性是有意为之。
+  // Mutates that element's property in place inside recentAssets (not replacing the array or
+  // creating a new object): an optimistic in-place clear that hides the "New" badge early --
+  // the actual view record lands asynchronously on the backend via something like lb.openAt's
+  // own internal recordView action; this is just immediate feedback, and the comment is here
+  // deliberately to flag that mutating a store ref's element property directly is intentional.
   if (r && r.isNew) r.isNew = false
   // The third arg is startMs (only meaningful for isVideo), not an index -- openAt computes the
   // index itself from the photo's position in `list` (useLightbox.ts's photoIndexById), so this
@@ -628,7 +658,7 @@ function onTileClick(p: Photo, list: Photo[]): void {
 // never mounted a `<PhotoLightbox>` of its own -- `useLightbox` is a module-level singleton, so
 // the state flipped open (its network calls fired) with nothing on THIS page's own tree to
 // render it; the previous page's own mounted lightbox (if any) would pick up the stale `open`
-// state the next time it re-rendered, which is why the owner saw the photo appear only after
+// state the next time it re-rendered, which is why the photo appeared only after
 // navigating back. Vue2's own SmartViewDetail component doesn't own a lightbox instance either
 // (it `$emit('open-photo', p, list)`s up to its single-page parent, which owns the one shared
 // lightbox and all its wiring) -- New-UI's per-route architecture has no such parent to hoist
@@ -658,12 +688,12 @@ function openAlbumPicker(ids: Array<string | number>): void {
 }
 function onAlbumPickerAdded(): void {}
 
-// ── SP15-P2a: manual asset actions (Vue2 :456-534) ───────────────────────────────────────
+// ── Manual asset actions (Vue2 :456-534) ───────────────────────────────────────
 // A smart view's membership is generated from its conditions; these four actions are the
 // annotations layered on top of it — pin a photo the conditions missed, remove one (which
 // either unpins it or flags it excluded), and put an excluded one back.
 const pickerOpen = ref(false)
-// SP15-P2c Task 6 -- state decision, registered as the brief asks. P2a's `selecting` is REUSED
+// A deliberate state decision. The earlier `selecting` flag is REUSED
 // and renamed `edit` rather than a second flag being added beside it. Vue2 made the identical
 // call and said so at :449-451 ("behaviour unchanged, only the name and the entry point"): the
 // flag Edit/Done drives is the same one that suppresses the lightbox, draws the tile checkmarks
@@ -720,7 +750,7 @@ async function onPickPhotos(assetIds: Array<string | number>): Promise<void> {
     const n = await store.pinAssets(id, ids)
     // `null` means the store dropped the call because another write was still in flight —
     // nothing was sent, so nothing is reported and the picker keeps the user's selection
-    // (final review, finding 5: this used to toast "已钉住 0 张到此视图" and close).
+    // (final review, finding 5: this used to toast "0 pinned to this view" and close).
     if (n === null) return
     toast.show(t('photosSvPinnedNToView', { n }))
     pickerOpen.value = false
@@ -795,7 +825,7 @@ async function onExcludedTileClick(id: string): Promise<void> {
           @toggle-collapse="onToggleCollapse"
         />
        <div class="photos-main">
-        <!-- 门控①:列表还没加载完 → 骨架(New-UI 新增,Vue2 没有这层概念) -->
+        <!-- Gate 1: the list hasn't finished loading yet -> skeleton (New-UI addition, Vue2 has no such concept) -->
         <div v-if="!store.listLoaded" class="sv-skeleton" data-test="sv-skeleton">
           <div class="sv-skel-bar" />
           <div class="sv-skel-header" />
@@ -804,7 +834,7 @@ async function onExcludedTileClick(id: string): Promise<void> {
           </div>
         </div>
 
-        <!-- 门控②:列表加载完了,但 byId 查无此项(偏离登记 1:New-UI 新增路径) -->
+        <!-- Gate 2: the list finished loading, but byId finds nothing (registered deviation 1: a New-UI-only path) -->
         <div v-else-if="!sv" class="sv-not-found" data-test="sv-not-found">
           <div class="sv-not-found-title">{{ t('photosSvNotFound') }}</div>
           <button
@@ -813,10 +843,10 @@ async function onExcludedTileClick(id: string): Promise<void> {
           >{{ t('photosAlbumBack') }}</button>
         </div>
 
-        <!-- 门控③:正常内容 -->
+        <!-- Gate 3: normal content -->
         <template v-else>
           <div class="sv-detail-bar">
-            <!-- Deviation from Vue 2, registered. 939a7d3a:PhotosSmartViewDetail.vue:5 still
+            <!-- A registered departure from Vue 2. 939a7d3a:PhotosSmartViewDetail.vue:5 still
                  labels this button "All Smart Views" even though #112 made its @back return to
                  the Albums list -- Vue 2 shipped a button whose label lies about where it goes.
                  A misleading label is a user-visible defect rather than a styling choice, so
@@ -834,10 +864,13 @@ async function onExcludedTileClick(id: string): Promise<void> {
             <span class="sv-last-updated">{{ t('photosSvLastUpdatedTime', { time: lastUpdated }) }}</span>
           </div>
 
-          <!-- fix round 1 · M2:Vue2 :10-11 两层容器(sv-detail-layout grid 1fr/320px +
-               sv-detail-main),第一版漏建,`.sv-detail-side` 自创了一个挂在网格下面的空壳
-               margin——T8 一填内容就会出现在网格下方而不是右栏,是一次可预见的结构返工。
-               本轮补建,aside 内部仍是 T8 的空挂载点,不提前实现内容。 -->
+          <!-- Vue2 :10-11's two-layer container (sv-detail-layout grid 1fr/320px +
+               sv-detail-main) was missing from the first version -- `.sv-detail-side` had
+               invented its own empty-shell margin sitting below the grid instead, so the
+               moment T8 filled it with content, that content would appear below the grid
+               rather than in the right column -- a foreseeable structural rework. Built in
+               here; the aside's inside is still T8's empty mount point, not implemented ahead
+               of time. -->
           <div class="sv-detail-layout">
           <div class="sv-detail-main">
           <div class="sv-header">
@@ -858,12 +891,11 @@ async function onExcludedTileClick(id: string): Promise<void> {
                 ><span class="live-dot" /> {{ t(paused ? 'photosSvPaused' : 'photosSvLive') }}</span>
               </h1>
 
-              <!-- SP15-P2c Task 8: "Add condition" button + popover deleted here (ported from
-                   the Vue 2 panel's PhotosSmartViewDetail.vue:26-30, "用户追加需求") --
+              <!-- "Add condition" button + popover deleted here (ported from
+                   the Vue 2 panel's PhotosSmartViewDetail.vue:26-30, "user-added requirement") --
                    only the removable chips survive. This used to mount a dedicated
                    condition-editor component; once `add` was gone it was down to a
-                   bare v-for with no local state, so it folded back in here (see
-                   task-8-report.md for the reasoning). -->
+                   bare v-for with no local state, so it folded back in here. -->
               <div class="sv-header-conds" data-test="sv-header-conds">
                 <span
                   v-for="c in sv.conds" :key="c" class="sv-cond sv-cond-removable" data-test="sv-cond-chip"
@@ -884,7 +916,7 @@ async function onExcludedTileClick(id: string): Promise<void> {
               </div>
             </div>
 
-            <!-- SP15-P2c Task 6 (target :49-90). The row reads: Sort label -> capsule ->
+            <!-- (target :49-90). The row reads: Sort label -> capsule ->
                  separator -> Pause/Resume -> Edit/Done -> separator -> density. Sort and
                  density render outside edit mode only; Pause and Edit are unconditional, so in
                  edit mode those two are all that is left and Edit is how you get back out. Each
@@ -968,7 +1000,7 @@ async function onExcludedTileClick(id: string): Promise<void> {
 
           <!-- "Recently added" band: rendered only while newCount > 0. Its tiles read
                `recentSet` -- store.recentAssets in the order the Sort capsule currently asks
-               for (SP15-P2c Task 6). -->
+               for. -->
           <template v-if="newCount > 0">
             <div class="sv-section-head" data-test="sv-recent-head">
               {{ t('photosSvRecentlyAdded') }} <span class="pill">{{ t('photosSvNNewThisWeek', { n: newCount }) }}</span>
@@ -981,7 +1013,7 @@ async function onExcludedTileClick(id: string): Promise<void> {
               >
                 <img :src="service.photos.thumbnailUrl(p.id, 'large')" alt="" loading="lazy">
                 <div v-if="p.isNew" class="new-tag">{{ t('photosSvNew') }}</div>
-                <!-- SP15-P2a (Vue2 :146-147): pin badge on the right, selection check on the
+                <!-- (Vue2 :146-147): pin badge on the right, selection check on the
                      left, so the two never collide on the same tile. Both grids carry both. -->
                 <div v-if="p.pinned" class="sv-pin-tag" data-test="sv-pin-tag">
                   <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-6.3 7-11a7 7 0 10-14 0c0 4.7 7 11 7 11z" /><circle cx="12" cy="10" r="2.2" /></svg>
@@ -994,7 +1026,7 @@ async function onExcludedTileClick(id: string): Promise<void> {
           </template>
 
           <!-- "All matches" band: tiles read `matchedSet` -- store.matchedAssets in the order
-               the Sort capsule currently asks for (SP15-P2c Task 6). -->
+               the Sort capsule currently asks for. -->
           <div class="sv-section-head" data-test="sv-all-head">
             {{ t('photosSvAllMatches') }} <span class="pill">{{ fmtNum(sv.count) }}</span>
           </div>
@@ -1014,8 +1046,10 @@ async function onExcludedTileClick(id: string): Promise<void> {
             </div>
           </div>
 
-          <!-- SP15-P2a 「已排除」分节(Vue2 :161-172):整块只在有排除项时出现,且默认折叠——
-               它是过去决定的记录,不是这个视图的内容。点一张即恢复,没有二次确认。 -->
+          <!-- The "Excluded" section (Vue2 :161-172): the whole block only appears when there
+               are excluded items, and is collapsed by default -- it is a record of a past
+               decision, not this view's actual content. Clicking a tile restores it, with no
+               second confirmation. -->
           <template v-if="store.excluded.length">
             <div
               class="sv-section-head sv-excluded-head" data-test="sv-excluded-head"
@@ -1037,7 +1071,7 @@ async function onExcludedTileClick(id: string): Promise<void> {
           </template>
           </div>
 
-          <!-- T8 兑现:右栏(阈值滑块 / 设置开关 / 统计四格 / 匹配分布)+ 活动流。 -->
+          <!-- T8 delivered: right column (threshold slider / settings toggles / four stat tiles / match distribution) + activity feed. -->
           <aside class="sv-detail-side" data-test="sv-side-mount">
             <!-- Task 7 (target 33b05636 :127-225). The "..." menu's target home -- moved here
                  from the header's .sv-actions, where Task 6 parked it unchanged (mounting it
@@ -1079,10 +1113,10 @@ async function onExcludedTileClick(id: string): Promise<void> {
                 type="button" class="sv-action-btn" data-test="sv-action-refine"
                 @click="refineInSearch"
               >
-                <!-- fix wave F7 (final-review add-on): the magnifying-glass handle used to be
+                <!-- The magnifying-glass handle used to be
                      `M21 21l-4.3-4.3` here -- a repo-wide outlier; the other 4 occurrences
-                     (PhotosTopbar.vue/PhotosSearch.vue/PlaceCoverPicker.vue ×2; Plan F Task 1,
-                     2026-08-15: the original list's PhotosSearchBar.vue has since been retired,
+                     (PhotosTopbar.vue/PhotosSearch.vue/PlaceCoverPicker.vue ×2 --
+                     the original list's PhotosSearchBar.vue has since been retired,
                      its occurrence is now PhotosTopbar.vue's own `.search` icon, the count stays
                      4) all use `m20 20-3.5-3.5` (the circle params cx=11 cy=11 r=7 were already
                      identical across all four, only the handle length differed). Clicking
@@ -1126,43 +1160,44 @@ async function onExcludedTileClick(id: string): Promise<void> {
                       <div class="sv-export-desc">{{ t('photosSvNPhotosMbMb', { n: fmtNum(sv.count), mb: fmtNum(Math.round(sv.count * 3.2)) }) }}</div>
                     </div>
                   </button>
-                  <!-- SP15-P2b Task 8 (Vue2 939a7d3a diff): grouped with rename/duplicate/zip
+                  <!-- (Vue2 939a7d3a diff): grouped with rename/duplicate/zip
                        above the destructive separator, not beside Delete -- this is not a
                        destructive action, it freezes the current matches into a regular
                        album. -->
                   <button type="button" class="sv-export-item" data-test="sv-more-convert" @click="askConvertToAlbum">
                     <div class="sv-export-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="14" rx="2" /><path d="M12 11v6M9 14h6" /><path d="M8 7V5a2 2 0 012-2h4a2 2 0 012 2v2" /></svg></div>
                     <div>
-                      <!-- Task 7 review fix: the target shortened both this title and Delete's
+                      <!-- The target shortened both this title and Delete's
                            below specifically so the two "matching" detail pages' menus read the
                            same (33b05636 :143-147's own comment on the change). This entry used
-                           `photosSvConvertToAlbum` ("转为普通相册"), the long form Task 8 wrote
-                           before this page had a sibling to match against -- the album page's
-                           own Convert entry (Task 5) already reuses `photosAlbumMenuConvert`
-                           ("转换", the target's exact short copy), so this switches to the same
+                           `photosSvConvertToAlbum` ("Convert to regular album"), the long form
+                           written before this page had a sibling to match against -- the album
+                           page's own Convert entry already reuses `photosAlbumMenuConvert`
+                           ("Convert", the target's exact short copy), so this switches to the same
                            key rather than coining a new SV-specific one. The confirm dialog's
                            own submit button (further down this file) still reads
-                           `photosSvConvertToAlbum` unchanged -- that button predates this task,
+                           `photosSvConvertToAlbum` unchanged -- that button predates this fix,
                            is not one of the two rows the reviewer flagged, and the target itself
                            gives it the same short "Convert" copy too, so revisiting it is a
                            separate, larger cleanup outside this fix's scope. -->
                       <div class="sv-export-title">{{ t('photosAlbumMenuConvert') }}</div>
                       <!-- Desc intentionally NOT realigned to the target's shorter
-                           "停止自动更新,固化当前照片": `photosSvConvertToAlbumHint`
-                           ("停止自动更新，固化当前已匹配的照片") is semantically identical and
-                           was a deliberate registration back in SP15-P2b (this page's Convert
-                           entry existed before this task). Only the two titles were shortened
-                           in the target's own commit for cross-page parity; the descs were
-                           left alone there too ("Vue2 :119-123 三处内联的那个珊瑚红字面量" note
-                           below shows Vue2 continuing to carry its own full desc copy
-                           unchanged). Realigning this desc now would be scope creep onto a
-                           different task's registered decision for a wording difference with
-                           no user-visible parity gap -- recorded here rather than changed. -->
+                           "stop auto-updating, freeze the current photos": `photosSvConvertToAlbumHint`
+                           ("stop auto-updating, freeze the currently matched photos") is
+                           semantically identical and was a deliberate registration made earlier
+                           (this page's Convert entry existed before this fix). Only the two
+                           titles were shortened in the target's own commit for cross-page parity;
+                           the descs were left alone there too (the note below on Vue2 :119-123's
+                           three inline coral-red literals shows Vue2 continuing to carry its own
+                           full desc copy unchanged). Realigning this desc now would be scope
+                           creep onto a different task's registered decision for a wording
+                           difference with no user-visible parity gap -- recorded here rather than
+                           changed. -->
                       <div class="sv-export-desc">{{ t('photosSvConvertToAlbumHint') }}</div>
                     </div>
                   </button>
                   <div class="sv-export-sep" />
-                  <!-- Vue2 :119-123 三处内联的那个珊瑚红字面量全部改 --remove-fg 家族(见样式块)。 -->
+                  <!-- All three of Vue2 :119-123's inline coral-red literals switched to the --remove-fg family (see the style block). -->
                   <button type="button" class="sv-export-item sv-export-item-danger" data-test="sv-more-delete" @click="openDeleteConfirm">
                     <div class="sv-export-icon sv-export-icon-danger"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg></div>
                     <div>
@@ -1198,22 +1233,24 @@ async function onExcludedTileClick(id: string): Promise<void> {
        `.photos-root .sv-select-bar` / `.photos-root .lb-confirm-scrim` (photos-smartview.scss:
        550-567/675, photos.scss:620) -- a CSS descendant combinator only matches real DOM
        descendants, and "declared after `.photos-root`'s closing tag in the same template" does
-       not qualify (identical root cause to Fix-1 item 3's "New album" modal bug,
-       acceptance-fix-report.md §F1, and the same bug PhotosAlbumDetail.vue's own copy of this
+       not qualify (identical root cause to the "New album" modal bug also fixed elsewhere,
+       and the same bug PhotosAlbumDetail.vue's own copy of this
        tail section had). Outside `.photos-root`, `position: fixed` / the scrim background /
        centering / z-index / the toast's dark-glass fill never applied. Moved back inside
-       `.photos-root`, as a sibling of `.app` (matching Vue2's own single-shell nesting and F1
-       item 3's precedent) -- none of these are affected by `.app`'s own
+       `.photos-root`, as a sibling of `.app` (matching Vue2's own single-shell nesting and that
+       same precedent) -- none of these are affected by `.app`'s own
        `height:100vh;overflow:hidden`, since they are `position: fixed` or don't need
        viewport-relative sizing, and `.photos-root` itself sets no
        transform/filter/perspective/`contain` that would create a new containing block for
-       `position: fixed` (same reasoning F1 item 3 already verified).
+       `position: fixed` (same reasoning already verified there).
 
-       导出结果的页内浮条(结构规格 7):Vue2 这是页内定位的浮条(scss:458-476),与全局
-       useToast 的位置不同,信息层级不一样——照 Vue2 自绘,不复用 useToast。
-       Plan C Task 2 曾把它放到 `.photos-root` 的同级(此前是 AreaShell 插槽里
-       `.photos-layout` 的同级,脱壳后原样上移一层);Fix-2 item 5 现在移回 `.app` 的同级、
-       仍在 `.photos-root` 内部。 -->
+       The export-result in-page floating bar (structural spec 7): in Vue2 this is a
+       page-positioned floating bar (scss:458-476), at a different position and information
+       level than the global useToast -- drawn to match Vue2's own, not reusing useToast.
+       This used to sit as a sibling of `.photos-root` (before that, a sibling inside the
+       AreaShell slot's `.photos-layout`, shifted up one level unchanged after the shell was
+       removed); it now moves back to being a sibling of `.app`,
+       still inside `.photos-root`. -->
   <transition name="sv-toast-fade">
       <div v-if="exportToast" class="sv-toast" data-test="sv-export-toast">
         <svg v-if="exportToast.icon === 'download'" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14" /></svg>
@@ -1222,7 +1259,7 @@ async function onExcludedTileClick(id: string): Promise<void> {
       </div>
     </transition>
 
-    <!-- Edit-mode bottom bar (target :318-333). SP15-P2c Task 6 reshapes P2a's version into the
+    <!-- Edit-mode bottom bar (target :318-333). Reshapes the earlier version into the
          target's three elements — hint, Remove, Add photos — and re-gates it on `edit` alone
          instead of `edit && selectedIds.length`. The gate has to change: the bar now carries
          the hint line that speaks for the empty selection, and Add photos, which would be
@@ -1230,8 +1267,8 @@ async function onExcludedTileClick(id: string): Promise<void> {
          Remove request impossible is now the button's own `disabled` (plus removeSelected's own
          early return), which is where the album page puts it too.
          `&& sv` guards the same hole PhotosAlbumDetail.vue:1005 does: this bar sits outside the
-         `v-else` that requires a smart view (Plan C Task 2 had it as a sibling of `.photos-root`
-         itself; Fix-2 item 5, see the correction note above, moved it back to being a sibling of
+         `v-else` that requires a smart view (this used to be a sibling of `.photos-root`
+         itself; see the correction note above, it was moved back to being a sibling of
          `.app`, still inside `.photos-root`), so without the `&& sv` guard the bar would float
          over the not-found state if the view vanished without the id changing. -->
     <div v-if="edit && sv" class="sv-select-bar" data-test="sv-select-bar">
@@ -1252,14 +1289,14 @@ async function onExcludedTileClick(id: string): Promise<void> {
       </button>
     </div>
 
-    <!-- SP15-P2a library picker (Vue2 :283-291). Title reuses photosAlbumPickerTitle --
+    <!-- Library picker (Vue2 :283-291). Title reuses photosAlbumPickerTitle --
          Vue2 already feeds one string to two pickers.
          submit-label: Vue2 :288 passes this picker a static `$t('Add selected')`, not the
          count-bearing `Add ({count})` the two album pages use. The first version passed the
-         album pages' count function here and cited PhotosLibraryPicker deviation b -- but
-         that deviation is about keeping the album pages' existing consumers unchanged, and
-         says nothing about which form a **new** consumer should use (final review, finding
-         3). Reverted to the static label, reusing P1's existing photosMoAddSelected (the
+         album pages' count function here and cited PhotosLibraryPicker's documented exception
+         (b) -- but that exception is about keeping the album pages' existing consumers
+         unchanged, and says nothing about which form a **new** consumer should use (final
+         review, finding 3). Reverted to the static label, reusing P1's existing photosMoAddSelected (the
          same Vue2 copy, no new key); the two album pages still pass the function. -->
     <PhotosLibraryPicker
       v-model:open="pickerOpen"
@@ -1330,7 +1367,7 @@ async function onExcludedTileClick(id: string): Promise<void> {
        `@add-to-album`, same shape as PhotosAlbumDetail.vue's own `AlbumPickerDialog` mount --
        nested inside `.photos-root` (its own panel background is `var(--surface-2)`, a
        `.photos-root`-local token with no fallback, per the F1/F4 lesson class); the lightbox
-       just below joins it there too as of Plan F Task 5. -->
+       just below joins it there too. -->
   <AlbumPickerDialog v-model:open="albumPickerOpen" :asset-ids="albumPickerIds" @added="onAlbumPickerAdded" />
 
   <!-- PhotoLightbox re-nested in Plan F: the re-skin (Tasks 3-4) removed the scoped-vs-parity cascade tie that F8-r4 guarded against. -->
@@ -1355,27 +1392,27 @@ async function onExcludedTileClick(id: string): Promise<void> {
 </template>
 
 <style scoped>
-/* Plan C Task 2: the flex-row shell + the transitional `.sidebar { flex... }` width pin are
+/* The flex-row shell + the transitional `.sidebar { flex... }` width pin are
    gone — the `.app` CSS Grid (parity scss photos.scss:116-129) now owns both the sidebar's
-   width and the height cap, same as Photos.vue since its own Task 3 re-skin. This file's
+   width and the height cap, same as Photos.vue since its own re-skin. This file's
    source no longer contains a `.photos-layout` rule — photosLayoutHeightCap.test.ts's
    CAPPED list has been updated to drop this page accordingly. */
 .photos-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; min-height: 0; }
 
-/* ── 骨架(New-UI 新增)── */
+/* ── Skeleton (New-UI addition) ── */
 .sv-skeleton { display: flex; flex-direction: column; gap: 14px; padding: 16px 32px; }
 .sv-skel-bar { height: 20px; width: 200px; border-radius: 6px; background: var(--skeleton-bg); }
 .sv-skel-header { height: 90px; border-radius: var(--radius-sm); background: var(--skeleton-bg); }
 .sv-skel-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 6px; }
 .sv-skel-tile { aspect-ratio: 1; border-radius: 6px; background: var(--skeleton-bg); }
 
-/* ── 找不到(偏离登记 1,New-UI 新增)── */
+/* ── Not found (registered deviation 1, New-UI addition) ── */
 .sv-not-found { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 80px 20px; color: var(--text-2); text-align: center; }
 .sv-not-found-title { font-size: 15px; font-weight: 600; color: var(--text-1); }
 .sv-not-found-back { height: 34px; padding: 0 16px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--line); color: var(--text-1); font: inherit; font-size: 13px; cursor: pointer; }
 .sv-not-found-back:hover { background: var(--surface-3); }
 
-/* Plan C Task 5 re-skin (shadowing pass, same doctrine as Task 3/4): the already-imported
+/* Re-skin (shadowing pass, same doctrine as previous passes): the already-imported
    global parity stylesheet (`import '../photos/styles/vue2-parity'`, line 59) carries its own
    `.photos-root .sv-detail-bar` / `.sv-header` / `.live-pill` / `.sv-actions` / `.sv-export-*` /
    `.sv-grid-photos` / `.sv-select-bar` / `.sv-toast` etc (photos-smartview.scss, imported
@@ -1426,9 +1463,10 @@ async function onExcludedTileClick(id: string): Promise<void> {
 /* .sv-header / .sv-header h1 deleted -- identical shape to parity (smartview.scss:364-372),
    parity wins. */
 .sv-title { cursor: text; color: var(--text-1); }
-/* Vue2 :22 内联 style 逐属性对照:font-size:28px(已在 h1 上)/font-weight:600(同)/
-   letter-spacing:-0.02em(同)/min-width:300px/background/border/border-radius/padding/
-   color/font/outline。No parity class name (Vue2's input has no class at all), kept. */
+/* Property-by-property match against Vue2 :22's inline style: font-size:28px (already on h1) /
+   font-weight:600 (same) / letter-spacing:-0.02em (same) / min-width:300px / background /
+   border / border-radius / padding / color / font / outline.
+   No parity class name (Vue2's input has no class at all), kept. */
 .sv-title-input {
   background: var(--surface-2); border: 1px solid var(--accent); border-radius: 8px;
   padding: 2px 10px; color: var(--text-1); font: inherit; font-size: 28px; font-weight: 600;
@@ -1443,7 +1481,7 @@ async function onExcludedTileClick(id: string): Promise<void> {
    the shared `photos-pulse` (photos.scss:203, imported globally) driving the breathing dot;
    this file's own private `sv-pulse` keyframe had no other consumer and is gone with it. */
 
-/* T7 兑现:Vue2 scss:252 的容器布局(T6 只留了 min-height 占位)。 min-height:4px is a
+/* T7 delivered: Vue2 scss:252's container layout (T6 only left a min-height placeholder). min-height:4px is a
    New-UI-only addition (keeps the row from collapsing when `sv.conds` is empty) -- parity's
    own `.sv-header-conds` (smartview.scss:415) has no such property, everything else here
    duplicates it, so only the addition survives. */
@@ -1530,7 +1568,7 @@ async function onExcludedTileClick(id: string): Promise<void> {
    token" precedent for PhotosAlbumDetail.vue's `.album-sort-check`). */
 .albums-sort-item .sv-sort-check { width: 12px; flex-shrink: 0; color: var(--accent-hi); }
 
-/* ── 导出 / more 菜单(scss:499-544)── */
+/* ── Export / more menu (scss:499-544) ── */
 /* .sv-export-menu deleted -- identical shape to parity, parity wins. */
 .sv-more-menu { min-width: 220px; }
 /* .sv-export-item(base+:hover)/.sv-export-icon/.sv-export-title/.sv-export-desc/.sv-export-sep
@@ -1538,26 +1576,27 @@ async function onExcludedTileClick(id: string): Promise<void> {
    which rule wins the danger row's own cssCascade guard below: `.sv-export-item.sv-export-item
    -danger:hover`'s compound selector was already the higher-specificity winner regardless of
    whether the base `:hover` rule was also present. */
-/* Vue2 :119-123 三处内联的那个珊瑚红字面量 → --remove-fg 家族。 No parity class name for the
+/* Vue2 :119-123's three inline coral-red literals -> the --remove-fg family. No parity class name for the
    danger row (Vue2 expresses it with inline style literals), kept. */
 .sv-export-item-danger, .sv-export-item-danger .sv-export-title { color: var(--danger); }
 .sv-export-icon-danger { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); }
-/* fix round 1:复合选择器 (0,3,0) 稳赢基类 `.sv-export-item:hover` 的 (0,2,0),不靠书写顺序。 */
+/* The compound selector's (0,3,0) specificity reliably beats the base class's `.sv-export-item:hover` (0,2,0) -- not relying on source order. */
 .sv-export-item.sv-export-item-danger:hover { background: color-mix(in srgb, var(--danger) 14%, transparent); }
 
-/* fix round 1 · I2:Vue2 :79/:102 各包一层 `<transition name="sv-menu">`,规则在
-   scss:546-547(opacity 0.14s + translateY(-4px) scale(0.97),140ms 缩放淡入)。 Kept as-is
+/* Vue2 :79/:102 each wrap a `<transition name="sv-menu">`, with the rule at
+   scss:546-547 (opacity 0.14s + translateY(-4px) scale(0.97), a 140ms scale-fade-in). Kept as-is
    (same "necessary Vue3 transition-name translation" precedent T4 kept for its own identical
    copy): parity's own Vue2-spelled `-enter`/`-leave-to` selectors are unusable verbatim under
    Vue3's `<Transition>`, which requires `-enter-from`. Values here already match parity's. */
 .sv-menu-enter-active, .sv-menu-leave-active { transition: opacity 0.14s ease, transform 0.16s cubic-bezier(0.2, 0.8, 0.2, 1); transform-origin: top right; }
 .sv-menu-enter-from, .sv-menu-leave-to { opacity: 0; transform: translateY(-4px) scale(0.97); }
 
-/* ── 两段网格(scss:572-671)── */
+/* ── Two-section grid (scss:572-671) ── */
 /* .sv-section-head(+.pill) deleted -- identical shape to parity, parity wins. */
 /* .sv-grid-photos deleted -- identical shape to parity, parity wins. */
-/* Vue2 :136 内联 `padding-bottom:18px` 只加在"最近添加"段的网格上(全部匹配段没有这条),
-   给该段留出与下方"全部匹配"标题的呼吸间距。No parity class name for this modifier -- kept,
+/* Vue2 :136's inline `padding-bottom:18px` is only added on the "recently added" section's
+   grid (the all-matches section does not have it), giving that section breathing room against
+   the "all matches" heading below it. No parity class name for this modifier -- kept,
    also test-locked (PhotosSmartViewDetail.test.ts asserts this exact rule body verbatim). */
 .sv-grid-photos-recent { padding-bottom: 18px; }
 /* .sv-grid-photos.is-compact deleted -- identical shape to parity (smartview.scss:606-608),
@@ -1568,8 +1607,9 @@ async function onExcludedTileClick(id: string): Promise<void> {
    was silently losing to this file's own more-specific duplicate). Parity's own narrow
    override here is just `aspect-ratio: 1` (smartview.scss:609), layered on top of the global
    `.tile` base -- that's all this selector needs to add. */
-/* Vue2 scss:610-617 在 accent 边框内侧还叠一圈半透明黑色内阴影,作用是在浅色照片上把 accent
-   环压出对比。Identical shape to parity (colour literal too) -- but kept verbatim rather than
+/* Vue2 scss:610-617 also layers a translucent black inset shadow on the inside of the accent
+   border, whose job is to push the accent ring's contrast up over light-colored photos.
+   Identical shape to parity (colour literal too) -- but kept verbatim rather than
    deleted: PhotosSmartViewDetail.test.ts asserts this exact selector+box-shadow property in
    this file's own raw source (a pre-existing guard, written before parity was wired in as a
    *global* import). Deleting it would only remove a now-redundant, harmless, pixel-identical
@@ -1620,35 +1660,44 @@ async function onExcludedTileClick(id: string): Promise<void> {
    618-629) out-specifies this file's bare/compound local copy regardless, and it already sets
    its own literal white text colour, so no addition is needed. */
 
-/* fix round 1 · M2(task-8 评审:T6 挂的账,本任务真正引入了 4 段可滚动内容,现在结账):
-   Vue2 scss:315-320(sv-detail-layout)+ :321-326(sv-detail-main)+ :341-348(sv-detail-side
-   基础外观)。--line → --divider、--surface-1 → --panel-bg-solid(先例
-   PlaceDetailPanel.vue:38/312:同类"内容旁的常驻实底侧栏",不用 --popup-bg——那是浮层专用)。
-   **决定(维持不变,不因本次遮蔽清理动摇):不移植 Vue2 scss:324-361 的
-   `::-webkit-scrollbar`/`scrollbar-width`/`scrollbar-color` 滚动条美化,`.sv-detail-main`/
-   `.sv-detail-side` 都只走 `overflow-y: auto` 交给浏览器默认滚动条。** 理由不变:本分支惯例
-   是滚动条只隐藏(`scrollbar-width: none` / `display: none`)不重画,已有先例
-   `PhotosGrid.vue:420`、`PhotoFilmstrip.vue`、`PhotosPersonDetail.vue:1041`;
-   `theme.css` 已有全局细滚动条兜底;且 SP5-P6 实证过 Chrome 121+ 一旦元素吃到标准
-   `scrollbar-width`/`scrollbar-color`,浏览器就会整体禁用该元素上的
-   `::-webkit-scrollbar` 定制族——照搬 Vue2 那套等于引入死代码。这条布局本身与 T4 已建立
-   的"PhotosAlbumDetail.vue 沿用 PhotosSmartViewDetail.vue 既有先例"互为映证,这里就是那条
-   先例的原始出处,继续保持不变。测试锁定(:1357-1362、768px 媒体查询 :1364-1372)。 */
+/* This settles up a debt this task's structural review flagged: T6 introduced this page's
+   first 4 scrollable sections, and this fills in the layout for them:
+   Vue2 scss:315-320 (sv-detail-layout) + :321-326 (sv-detail-main) + :341-348 (sv-detail-side's
+   base appearance). --line -> --divider, --surface-1 -> --panel-bg-solid (the precedent is
+   PlaceDetailPanel.vue:38/312, the same category of "solid-backed sidebar that sits beside
+   content", not --popup-bg -- that one is reserved for floating overlays).
+   **Decision (holds unchanged, not disturbed by this shadowing cleanup): Vue2 scss:324-361's
+   `::-webkit-scrollbar`/`scrollbar-width`/`scrollbar-color` scrollbar styling is NOT ported --
+   `.sv-detail-main`/`.sv-detail-side` both just use `overflow-y: auto` and leave it to the
+   browser's default scrollbar.** The reasoning is unchanged: this branch's convention is to
+   only ever hide a scrollbar (`scrollbar-width: none` / `display: none`), never repaint one --
+   existing precedent at `PhotosGrid.vue:420`, `PhotoFilmstrip.vue`, `PhotosPersonDetail.vue:1041`;
+   `theme.css` already provides a global thin-scrollbar fallback; and it has already been
+   verified that once an element picks up the standard `scrollbar-width`/`scrollbar-color`
+   properties, Chrome 121+ disables that element's entire `::-webkit-scrollbar` customization
+   family -- porting Vue2's approach as-is would just add dead code. This layout is itself
+   mutually confirmed with the precedent already established elsewhere that "PhotosAlbumDetail.vue
+   follows PhotosSmartViewDetail.vue's existing precedent" -- this is that precedent's original
+   source, and it stays unchanged. Test-locked (:1357-1362, the 768px media query at :1364-1372). */
 .sv-detail-layout { display: grid; grid-template-columns: 1fr 320px; flex: 1 1 auto; min-height: 0; }
 .sv-detail-main { min-width: 0; overflow-y: auto; padding-bottom: 60px; }
-/* 底色订正(真机截图:整条右栏在玻璃壳上显示成一块黑板)。原先按 T6 的映射走
-   `--surface-1` → `--panel-bg-solid`,援引的先例是 PlaceDetailPanel —— 但那条先例是
-   **功能性**的:它压在 PlacesMap 的画布上,半透会把地图网格点透上来(P6b 真机验收反馈)。
-   本栏底下没有地图、只有区域壳,不透明实底就只剩"与自己所在的区域不一致"这一个效果:
-   同区常驻侧栏 PhotosSidebar:119 / PlacesRail:200 / PhotoInfoPanel:175 / PersonPlacesTab:188
-   全是 `var(--surface-1)`。改用玻璃底,与它们一致。
-   `--panel-bg-solid` 的消费方白名单见 views/__tests__/photosGlassSurfaces.test.ts。 */
+/* Background-colour correction (from a real-device screenshot: the whole right column showed up
+   as a solid black slab against the glass shell). This previously followed T6's mapping of
+   `--surface-1` -> `--panel-bg-solid`, citing PlaceDetailPanel as precedent -- but that
+   precedent is a **functional** one: it sits over the PlacesMap canvas, and translucency would
+   let the map's grid lines show through (found in on-device testing). This
+   column has no map underneath, only the area shell, so an opaque solid background has only one
+   effect: looking inconsistent with the area it actually sits in -- the other persistent
+   sidebars in the same area (PhotosSidebar:119 / PlacesRail:200 / PhotoInfoPanel:175 /
+   PersonPlacesTab:188) are all `var(--surface-1)`. Switched to the glass background to match
+   them.
+   `--panel-bg-solid`'s consumer allowlist is in views/__tests__/photosGlassSurfaces.test.ts. */
 .sv-detail-side {
   border-left: 1px solid var(--line); background: var(--surface-1);
   overflow-y: auto; padding: 20px 18px 40px; min-height: 4px;
 }
 
-/* ── 导出结果浮条(scss:550-570)── */
+/* ── Export-result floating bar (scss:550-570) ── */
 /* `.sv-toast` itself is deleted -- this file's own bare selector used to shadow parity's own
    theme-*invariant* dark-glass toast (a literal dark rgba + blur(12px), independent of light/
    dark mode -- ONLY this page uses this idiom) with this repo's ordinary theme-dependent glass

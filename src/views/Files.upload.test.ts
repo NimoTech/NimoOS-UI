@@ -225,7 +225,7 @@ describe('Files.vue upload wiring', () => {
     expect(showSpy).toHaveBeenCalledWith(zh.filesBatchRefillNoMatch)
   })
 
-  // Code review finding: cancelling the native folder-picker dialog never fires `change`,
+  // Cancelling the native folder-picker dialog never fires `change`,
   // so nothing would clear refillPending on its own. The next ordinary upload — through the
   // normal folder chip, drag-drop, or paste — must not be silently filtered against a stale
   // missing list. This drives the real DOM entry point (the toolbar chip's real @click
@@ -265,7 +265,7 @@ describe('Files.vue upload wiring', () => {
     ])
   })
 
-  // Code review finding: the browse.isSnapshotView early return sits before the pending
+  // The browse.isSnapshotView early return sits before the pending
   // read, so an early return while a refill is pending used to leave the flag set for
   // whatever unrelated upload happens next, once the user leaves the read-only view.
   it('refill: a stale flag does not survive an early return in the snapshot-guard branch', async () => {

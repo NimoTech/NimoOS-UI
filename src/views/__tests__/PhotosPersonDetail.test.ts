@@ -7,8 +7,8 @@
 // Seven dialogs = six from the required checklist + Vue2 promptDialog's info mode
 // (:845-851 "No photos available").
 //
-// Test strategy (one deliberate strengthening over the brief's suggestion, recorded in
-// the report): the brief suggested "mock the shared package and usePersonDetail". Here
+// Test strategy (one deliberate strengthening): rather than mocking both the shared
+// package and usePersonDetail, here
 // only the shared package (service) is mocked — **usePersonDetail uses the real
 // implementation** — because the optimistic-update (photo disappears immediately after
 // detach), reconciliation refetch (load gets called again), and avatar-ver-change
@@ -197,8 +197,8 @@ describe('PhotosPersonDetail.vue — four-state gate (skeleton / load failed+ret
     expect(router.currentRoute.value.path).toBe('/photos/people')
   })
 
-  // Task 6 fix round 1 (coordinator finding, plain coverage addition — code already verified
-  // correct, so this is GREEN immediately, no RED theater): the not-found state's description
+  // A plain coverage addition — code already verified
+  // correct, so this is GREEN immediately, no RED theater: the not-found state's description
   // line was untested.
   it('the person-not-found state renders the photosPersonNotFoundHint description copy', async () => {
     svc.photos.getPerson.mockResolvedValue({ person: null, relations: [] })
@@ -218,7 +218,7 @@ describe('PhotosPersonDetail.vue — four-state gate (skeleton / load failed+ret
     expect(w.find('[data-test="person-skeleton"]').exists()).toBe(false)
   })
 
-  // Task 6 fix round 1 (coordinator finding, plain coverage addition): the load-failed state's
+  // A plain coverage addition: the load-failed state's
   // description line was untested.
   it('the load-failed state renders the photosPersonLoadFailedHint description copy', async () => {
     svc.photos.getPerson.mockRejectedValue(new Error('network down'))
@@ -268,15 +268,15 @@ describe('PhotosPersonDetail.vue — four-state gate (skeleton / load failed+ret
   })
 })
 
-// Plan D Task 3 (re-shell + re-home overlays): the shell became the same
+// The shell became the same
 // `.photos-root > .app > PhotosSidebar + main.main > PhotosTopbar + .photos-main` as
 // PhotosPeople.vue/PhotosAlbums.vue; every overlay (the selection-state floating bar / the seven
-// person-dialog-scrim dialogs / AlbumPickerDialog) moved inside .photos-root. Plan F Task 5
-// (2026-08-15) joins PhotoLightbox to them -- the re-skin (Tasks 3-4) removed the scoped-vs-
+// person-dialog-scrim dialogs / AlbumPickerDialog) moved inside .photos-root. PhotoLightbox
+// joins them too -- the re-skin removed the scoped-vs-
 // parity cascade tie that used to make nesting it unsafe (F8-r4).
 
-describe('PhotosPersonDetail.vue — re-shell + overlay re-homing (Plan D Task 3)', () => {
-  // Fix round 1 (controller ruling on Deviation A, 2026-08-14): the plan's original
+describe('PhotosPersonDetail.vue — re-shell + overlay re-homing', () => {
+  // The plan's original
   // `back = true` was a defect in the plan itself — Vue2's source (the authority here),
   // PhotosPeopleTopbar.vue:6-9/36, always shows only title+sub on the People detail-state topbar,
   // never a back chevron; the back affordance lives in the hero instead (Vue2's own
@@ -299,14 +299,14 @@ describe('PhotosPersonDetail.vue — re-shell + overlay re-homing (Plan D Task 3
     w.findComponent(PersonAssetGrid).vm.$emit('toggle-select', 'a1')
     await w.vm.$nextTick()
     expect(w.find('.photos-root .selection-bar').exists()).toBe(true)
-    // Plan F Task 5 (2026-08-15): PhotoLightbox re-nested INSIDE .photos-root.
+    // PhotoLightbox re-nested INSIDE .photos-root.
     const rootEl = w.find('.photos-root').element
     const lbComp = w.findComponent({ name: 'PhotoLightbox' })
     expect(rootEl.contains(lbComp.element)).toBe(true)
   })
 
-  // Plan D Task 4 (dialog class-name rework): the seven dialogs' outer scrim class has been
-  // re-anchored from .pd-scrim to Vue2's own .person-dialog-scrim, and still hangs inside
+  // The dialog class-name rework re-anchored the seven dialogs' outer scrim class
+  // from .pd-scrim to Vue2's own .person-dialog-scrim, and it still hangs inside
   // .photos-root (Task 3's re-shell/re-home-overlays structure is unchanged).
   it('once a dialog opens, its scrim hangs inside .photos-root and carries the Vue2 anchor class person-dialog-scrim', async () => {
     const { w } = await mountView('7')
@@ -411,8 +411,8 @@ describe('PhotosPersonDetail.vue — co-appearance strip', () => {
     expect(w.findAll('[data-test="coappear-card"]')).toHaveLength(0)
   })
 
-  // Task 6 fix round 1 (coordinator finding, plain coverage addition — code already verified
-  // correct against Vue2 PR#137, so this is GREEN immediately, no RED theater): the co-appear
+  // A plain coverage addition — code already verified
+  // correct against Vue2 PR#137, so this is GREEN immediately, no RED theater: the co-appear
   // card's Unnamed-person fallback (PhotosPersonDetail.vue:718) had no covering assertion.
   it('a co-appearing person with an empty name → the card renders the Unnamed person fallback copy', async () => {
     svc.photos.getPerson.mockResolvedValue({
@@ -426,7 +426,7 @@ describe('PhotosPersonDetail.vue — co-appearance strip', () => {
   })
 })
 
-describe('PhotosPersonDetail.vue — favorite toggle (deviation record 3)', () => {
+describe('PhotosPersonDetail.vue — favorite toggle (divergence record 3)', () => {
   it('success: optimistic patch takes effect', async () => {
     const { w } = await mountView('7')
     w.findComponent(PersonHero).vm.$emit('toggle-fav')
@@ -460,7 +460,7 @@ describe('PhotosPersonDetail.vue — favorite toggle (deviation record 3)', () =
   })
 })
 
-describe('PhotosPersonDetail.vue — relation grouping (deviation record 4)', () => {
+describe('PhotosPersonDetail.vue — relation grouping', () => {
   it('success: optimistic patch takes effect', async () => {
     const { w } = await mountView('7')
     w.findComponent(PersonHero).vm.$emit('pick-relation', 'family')
@@ -947,7 +947,7 @@ describe('PhotosPersonDetail.vue — delete person', () => {
 
     expect(showSpy).toHaveBeenCalledTimes(1)
     const [text, duration, arg] = showSpy.mock.calls[0]
-    // SP8-P6-T3 merge point: show()'s third arg is now a discriminated union
+    // show()'s third arg is now a discriminated union
     // (string = tier / object = action); narrow back to action via typeof.
     const action = typeof arg === 'string' ? undefined : arg
     expect(text).toContain('妈妈')
@@ -980,7 +980,7 @@ describe('PhotosPersonDetail.vue — delete person', () => {
 
   // Review Minor 6: the body text has two dimming tiers — the second sentence sits in its
   // own <span> (only that way can it take the dimmer token).
-  // Plan D Task 4: after the class-name rework the selector is now person-dialog-body-dim
+  // After the class-name rework the selector is now person-dialog-body-dim
   // (formerly .pd-body-dim; the class name is now re-anchored to Vue2's person-dialog-* family,
   // .pd-body-dim no longer exists in the template/scoped styles).
   it('the delete dialog body splits into two tiers: the body sentence + the dimmer "undoable within 5 seconds"', async () => {
@@ -1298,7 +1298,7 @@ describe('PhotosPersonDetail.vue —— icons inside buttons (must have everythi
     expect(w.find('[data-test="person-merge-confirm"] svg').exists()).toBe(true)
   })
 
-  // Plan D Task 4: after the class-name rework the video-badge selector is now .tile-vid (the
+  // After the class-name rework the video-badge selector is now .tile-vid (the
   // Vue2 anchor, the same class PersonAssetGrid reuses; the former .hero-picker-vid no longer
   // exists in the template/scoped styles).
   it('the background-picker grid\'s video badge has a ▶ + duration (Vue2 :352; the same element as T11\'s PersonAssetGrid)', async () => {

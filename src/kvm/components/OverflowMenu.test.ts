@@ -5,7 +5,7 @@ import { i18n } from '../../i18n'
 import type { KvmVM } from '@nimotech/nimoos-service'
 
 // Brief draft Chinese assertions corrected against actual zh_cn.sp9.ts values (grep checked before work start,
-// see task-5-report.md): kvmAreYouSure draft "确定吗?" → actual "你确定吗？" (full-width punctuation, added "你")
+//: kvmAreYouSure draft "确定吗?" → actual "你确定吗？" (full-width punctuation, added "你")
 // kvmAutoStart draft "开机自启" → actual "自动启动"
 // kvmResume draft "继续" → actual "恢复"
 // Others (force shutdown/force restart/pause/wakeup/start/delete) verified to match draft, no changes made.

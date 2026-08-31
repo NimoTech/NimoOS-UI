@@ -65,7 +65,7 @@ export function mapVolumes(groups: unknown, raidMountPoints: Set<string> = new S
   const flat: Array<RawChild & { _disk: string; _diskName: string }> = []
   for (const g of arr) {
     for (const c of g?.children || []) {
-      if (raidMountPoints.has(c?.mount_point || '')) continue // RAID volumes belong to /storage/raid (P3)
+      if (raidMountPoints.has(c?.mount_point || '')) continue // RAID volumes belong to /storage/raid
       flat.push({ ...c, _disk: g?.path || '', _diskName: g?.disk_name || '' })
     }
   }

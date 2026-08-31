@@ -31,7 +31,7 @@ describe('isConflict', () => {
     expect(isConflict('plain string error')).toBe(false)
   })
 
-  it('P8a-T10: word-boundary alignment matching isNotFound — do not misjudge 4090 / 1409 as 409', () => {
+  it('word-boundary alignment matching isNotFound — do not misjudge 4090 / 1409 as 409', () => {
     expect(isConflict(new Error('code 4090'))).toBe(false)
     expect(isConflict(new Error('req 1409 failed'))).toBe(false)
     expect(isConflict(new Error('HTTP 409'))).toBe(true)

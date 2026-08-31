@@ -37,7 +37,7 @@ describe('channelsFormat', () => {
   })
 })
 
-// [SP8-P2b acceptance round 3, user decision 2026-07-30] When adding a bot failed, the interface directly
+// Feedback from an earlier review: when adding a bot failed, the interface directly
 // displayed the raw backend response `{"detail":"bot token rejected"}`. User requirement: use human-readable
 // text, do not show JSON, and support multiple languages. Thus we add this mapping: normalize backend detail
 // to **i18n keys** (pure function does not call t(), same division as other functions in this file),

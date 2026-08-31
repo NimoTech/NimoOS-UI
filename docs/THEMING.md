@@ -1,11 +1,10 @@
-# NimoOS-New-UI 配色主题参考（Theming）
+# NimoOS Web UI 配色主题参考（Theming）
 
 本文件是 NimoOS Web UI（Vue 3 + TS + Vite，服务于站点根路径）**配色系统的权威参考**。它记录一套
 可切换的颜色 token 体系，以及「一切可见颜色必须走 token」这条贯穿后续开发的约定。
 
 - 源代码真相：`src/styles/theme.css`（token 定义）。本文的「蓝色（现值）」列逐条对应该文件
   `:root` 块的**当前实际值**；改 `theme.css` 后须同步本表。
-- 设计依据：`docs/superpowers/specs/2026-07-10-new-ui-theme-system-design.md`（下称「spec」）。
 
 ---
 
@@ -27,8 +26,8 @@
      马赛克色板、`DRIVE_PALETTE` 的按盘取色）——不代表任何语义状态，两套主题都原样保留。
 
   这四类是「刻意跳过 token」，不是「忘了 token 化」。完整例外清单见 §6（现 8 行）。
-- 落地保障：`NimoOS-New-UI/CLAUDE.md` 写入同一强约束（自动注入后续会话）；本文件
-  提供完整 token 目录，作为开发者与 AI 的查阅入口。
+- 落地保障：`src/styles/color-guard.test.ts` 在测试里自动执法同一强约束；本文件
+  提供完整 token 目录，作为查阅入口。
 
 ---
 
@@ -212,11 +211,11 @@ setTheme(t):  documentElement.dataset.theme = (t === 'blue' ? '' : t)   // blue 
 | `--grad-a` | 渐变左/起点色 | `#7a98ff` | `#4c6fe8` |
 | `--grad-b` | 渐变右/终点色 | `#b79bff` | `#6e5ae0` |
 | `--album-cover-fallback` | 相册无封面渐变占位（PhotosAlbums/PhotosAlbumDetail 共用） | `linear-gradient(135deg, color-mix(in srgb, var(--accent) 35%, var(--panel-bg)), var(--accent))` | 同公式（两套主题各自的 `--accent`/`--panel-bg`） |
-| `--avatar-fallback` | 人物头像三级兜底渐变实底（`PersonAvatar.vue`，SP7-P5；对齐 Vue2 5 处重复的紫渐变，统一成一份 token） | `linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #000))` | `linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 70%, #000))`（mix 百分比更高，避免纸感主题的深蓝 accent 糊成近黑） |
+| `--avatar-fallback` | 人物头像三级兜底渐变实底（`PersonAvatar.vue`，对齐 Vue2 5 处重复的紫渐变，统一成一份 token） | `linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #000))` | `linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 70%, #000))`（mix 百分比更高，避免纸感主题的深蓝 accent 糊成近黑） |
 | `--accent-soft` | 强调软底（最浅） | `rgba(138,180,255,0.14)` | `rgba(59,91,219,0.11)` |
 | `--accent-soft-2` | 强调软底（中浅） | `rgba(138,180,255,0.24)` | `rgba(59,91,219,0.2)` |
 | `--accent-soft-bd` | 强调软底描边 | `rgba(138,180,255,0.36)` | `rgba(59,91,219,0.3)` |
-| `--place-row-bg` | 地点 rail 选中城市行背景（`PlacesRail.vue`，P6a-T5；Vue2 该视图仅有深色设计，蓝值精确复刻 `photos-places.scss:153`，白值按 accent 家族深→浅收敛惯例约 ×0.83 推导，无原件可照） | `rgba(138,180,255,0.10)` | `rgba(59,91,219,0.08)` **†**（无 Vue2 白色原件，按 accent 家族深→浅收敛惯例推算） |
+| `--place-row-bg` | 地点 rail 选中城市行背景（`PlacesRail.vue`，Vue2 该视图仅有深色设计，蓝值精确复刻 `photos-places.scss:153`，白值按 accent 家族深→浅收敛惯例约 ×0.83 推导，无原件可照） | `rgba(138,180,255,0.10)` | `rgba(59,91,219,0.08)` **†**（无 Vue2 白色原件，按 accent 家族深→浅收敛惯例推算） |
 | `--place-row-border` | 地点 rail 选中城市行边框色（同上，蓝值复刻 `:154`） | `rgba(138,180,255,0.30)` | `rgba(59,91,219,0.25)` **†**（同上，无原件，按惯例推算） |
 | `--place-thumb-active` | 地点 rail 选中城市行缩略图遮罩（同上，蓝值复刻 `:163`） | `rgba(138,180,255,0.18)` | `rgba(59,91,219,0.15)` **†**（同上，无原件，按惯例推算） |
 > **`--pin-*`(七个地图图钉 token,`PlacesMap.vue`)已迁出本表(Review I3,Plan E final-fix)**——
@@ -225,10 +224,10 @@ setTheme(t):  documentElement.dataset.theme = (t === 'blue' ? '' : t)   // blue 
 > `.photos-root.is-light { }` 局部作用域,值与本表原记录逐字相同。
 
 | `--place-current-trip` | 当前行程标记色（同上，复刻 `:375` 的 `#34c759`，两套主题同值——不用 `--good`，那是本仓的青绿 `#5fe3b0`/`#15754c`，与 iOS 绿是近似而非精确复刻，已因此返工过一次） | `#34c759` | `#34c759` |
-| `--place-home-base` | 「常驻地」标记色（`PlaceDetailPanel.vue`，P6b-T3；精确复刻 Vue2 photos-places.scss 内联 `style="color:#c4b8ff"`，:1078。**偏离登记**：task-3-brief 字面要求深浅两套主题给不同值（深色浅紫、浅色改深色向，同 `--accent-text` 的做法），这里改成两套主题**同值**——它与紧邻的 `--place-current-trip` 用在完全相同的语境（`.ttl-region` 内，叠在 hero 固定暗化封面渐变之上，该遮罩本身恒为深色、与 app 是深色还是纸感皮肤无关），若照字面给浅色主题一个深紫版本，会在浅色 app 主题下把深紫字压在恒暗的照片渐变上，直接违反本任务"hero 前景色红线"的对比度要求，同 `--place-current-trip` 的既有先例） | `#c4b8ff` | `#c4b8ff` |
+| `--place-home-base` | 「常驻地」标记色（`PlaceDetailPanel.vue`，精确复刻 Vue2 photos-places.scss 内联 `style="color:#c4b8ff"`，:1078。**有意偏离**:原设计字面要求深浅两套主题给不同值（深色浅紫、浅色改深色向，同 `--accent-text` 的做法），这里改成两套主题**同值**——它与紧邻的 `--place-current-trip` 用在完全相同的语境（`.ttl-region` 内，叠在 hero 固定暗化封面渐变之上，该遮罩本身恒为深色、与 app 是深色还是纸感皮肤无关），若照字面给浅色主题一个深紫版本，会在浅色 app 主题下把深紫字压在恒暗的照片渐变上，直接违反本任务"hero 前景色红线"的对比度要求，同 `--place-current-trip` 的既有先例） | `#c4b8ff` | `#c4b8ff` |
 | `--panel-bg-solid` | 完全不透明的侧栏大面板底（`PlaceDetailPanel.vue`，P6b 真机验收反馈；该面板绝对定位压在地图画布上，`--panel-bg` 的半透白会把地图网格点透上来、正文糊掉。取值 = `--popup-bg` 去掉 alpha 的同色实底，保持与弹层同一观感。左侧 `.map-rail` 在 grid 流内、底下只有 `--app-bg`，不受影响，仍用 `--panel-bg`） | `linear-gradient(157deg,#1e2234,#10131e 62%)` | `#ffffff` |
-| `--map-dot-bg-fallback` | 地图陆地点阵底色的 CSS 回落值（`PlacesMap.vue`，P6a-T6 评审 I1；精确复刻 Vue2 `photos-places.scss:347` 的字面量 `rgba(255,255,255,0.10)`，theme-invariant——Vue2 最常见的两条路径`dotBg` 都是 `null`，即都吃这条 CSS 回落，不是罕见分支。不能用 `--fg-faint` 顶替：深色档是 `rgba(255,255,255,0.52)`，会亮到盖过已访问点；浅色档是不透明暖灰 `#9a958a`，铺在地图黑底画布上会变成一块不透明色块） | `rgba(255,255,255,0.10)` | `rgba(255,255,255,0.10)` |
-| `--float-bg` | 浮动药丸工具条底（`PlacesZoomBar.vue`，P6a-T8；精确复刻 Vue2 `photos.scss:49`/`:84` 的字面量——本仓之前无等价 token，`--panel-bg`(0.1)/`--popup-bg`(渐变)/`--tool-bg`(不透明)量级都对不上这个扁平 0.85） | `rgba(20,20,28,0.85)` | `rgba(255,255,255,0.85)` |
+| `--map-dot-bg-fallback` | 地图陆地点阵底色的 CSS 回落值（`PlacesMap.vue`，精确复刻 Vue2 `photos-places.scss:347` 的字面量 `rgba(255,255,255,0.10)`，theme-invariant——Vue2 最常见的两条路径`dotBg` 都是 `null`，即都吃这条 CSS 回落，不是罕见分支。不能用 `--fg-faint` 顶替：深色档是 `rgba(255,255,255,0.52)`，会亮到盖过已访问点；浅色档是不透明暖灰 `#9a958a`，铺在地图黑底画布上会变成一块不透明色块） | `rgba(255,255,255,0.10)` | `rgba(255,255,255,0.10)` |
+| `--float-bg` | 浮动药丸工具条底（`PlacesZoomBar.vue`，精确复刻 Vue2 `photos.scss:49`/`:84` 的字面量——本仓之前无等价 token，`--panel-bg`(0.1)/`--popup-bg`(渐变)/`--tool-bg`(不透明)量级都对不上这个扁平 0.85） | `rgba(20,20,28,0.85)` | `rgba(255,255,255,0.85)` |
 | `--zb-hover-bg` | 缩放条按钮悬停底（同上；Vue2 用 `rgba(var(--ink),0.08)` 做"跟随文字色的透明度斜坡"，本仓无 `--ink` 三元组 token，alpha 精确复刻 0.08，RGB 改取本仓 `--fg` 的真实分解值，不照抄 Vue2 light `--ink` 的 `(35,37,43)` 近似值） | `rgba(255,255,255,0.08)` | `rgba(28,27,25,0.08)` |
 | `--zb-track-bg` | 缩放条轨道底（同上，alpha 精确复刻 `rgba(var(--ink),0.12)`） | `rgba(255,255,255,0.12)` | `rgba(28,27,25,0.12)` |
 | `--zb-thumb-shadow` | 缩放条滑块把手投影第二层（同上；Vue2 `photos-places.scss:281` 的 `rgba(0,0,0,0.4)` 从未随主题变化，theme-invariant，两套主题同值） | `rgba(0,0,0,0.4)` | `rgba(0,0,0,0.4)` |
@@ -245,7 +244,7 @@ setTheme(t):  documentElement.dataset.theme = (t === 'blue' ? '' : t)   // blue 
 | `--hit-fg` | 点击/高亮 文 | `#ffe08a` | `#5a4a12` |
 | `--success` | 成功指示色 | `#5fe3b0` | `#15754c` |
 | `--hl-star` | 高光星标（特殊标记） | `#e8c06a` | `#c9992f` |
-| `--warn-fg` | 警告/降级语义 文（人脸识别关闭、Photos AI 后端离线横幅，SP7-P5；对齐 Vue2 `#FF9F0A`，浅色主题按 `--dem-fg` 惯例压暗保对比度） | `#ff9f0a` | `#96610a` |
+| `--warn-fg` | 警告/降级语义 文（人脸识别关闭、Photos AI 后端离线横幅，对齐 Vue2 `#FF9F0A`，浅色主题按 `--dem-fg` 惯例压暗保对比度） | `#ff9f0a` | `#96610a` |
 | `--warn-bg` | 警告/降级语义 背 | `rgba(255,159,10,0.08)` | `#fdf3e2` |
 | `--warn-border` | 警告/降级语义 描边 | `rgba(255,159,10,0.32)` | `#f0d7a6` |
 | `--remove-fg` | 危险/删除态文字（区别于 `--remove-bg`） | `#ff8a8a` | `#c0392b` |
@@ -355,7 +354,6 @@ setTheme(t):  documentElement.dataset.theme = (t === 'blue' ? '' : t)   // blue 
 - `src/home/components/ThemeToggle.vue` —— 顶栏切换 UI。
 - `src/home/components/SearchDialog.vue` —— 白色纸感调色板来源（`#f7f5ef` / `#ffffff` /
   `#1c1b19` / `#e7e3d9` / `#3b5bdb` / `#6e5ae0`）。
-- `docs/superpowers/specs/2026-07-10-new-ui-theme-system-design.md` —— 设计与决策记录。
 
 ---
 
@@ -377,7 +375,7 @@ setTheme(t):  documentElement.dataset.theme = (t === 'blue' ? '' : t)   // blue 
 | AI 区搜索结果全屏层 | 9999 / 10000 | `SearchFullResults.vue`（9999）、`SearchImageLightbox.vue` / `SearchFileDrawer.vue`（10000） |
 | **Toast** | **10100** | `AppToast.vue` `.toast-stack` |
 
-> **SP8-P6 合流后本表已重写。** 旧表把 toast 记作 1100 并写着「不要在 1100 及以上落座」——
+> **本表已重写。** 旧表把 toast 记作 1100 并写着「不要在 1100 及以上落座」——
 > AI 区随合流进入主干后，1100 及以上实际已有四档（1100 / 9999 / 10000 / 10100），
 > 那句话与现状矛盾。toast 相应抬到 **10100**，仍是全仓唯一的最高档。
 
@@ -387,7 +385,7 @@ setTheme(t):  documentElement.dataset.theme = (t === 'blue' ? '' : t)   // blue 
 `src/components/AppToast.zIndex.test.ts` 会把这条约定钉死——它读 `.vue` 的 `<style>` 原文
 **以及 `.css` / `.scss` 全文**比较数值，新加的遮罩若高过 toast，测试即红。
 🔴 该守卫读独立样式表**必须走 `node:fs`**：vitest 的 CSSEnablerPlugin 把 css/scss 一律替换成
-空串且不看查询串，`?raw` 恒空——SP8-P6 之前它就是这么在 5 个 `.css` 上空转的（只看得见
+空串且不看查询串，`?raw` 恒空——之前它就是这么在 5 个 `.css` 上空转的（只看得见
 `.vue`）。守卫里另有一条「取数有效」断言钉住这点，空壳化会立刻打红。
 
 ---

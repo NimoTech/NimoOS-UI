@@ -1,4 +1,5 @@
-// SP8-P6 合流:AI 区文案分片 —— 拆分理由与结构说明见 zh_cn.ai.ts 的文件头注释(两语言逐条成对)。
+// AI section copy slice — see the file-header comment in zh_cn.ai.ts for the rationale behind the
+// split and the structure (the two language files are kept in matching key-for-key pairs).
 export default {
   // ── AI Agent shell (Sidebar/Topbar) + empty-state suggestion cards ──
   aiUntitled: '(Untitled)',
@@ -10,7 +11,7 @@ export default {
   aiCopy: 'Copy',
   aiCopied: 'Copied',
   aiThinking: 'Thinking',
-  // SP8-P1c2 Task 8 — ThinkingBar (verbatim port of Vue2 shell/ThinkingBar.vue, 105 lines).
+  // ThinkingBar (verbatim port of Vue2 shell/ThinkingBar.vue, 105 lines).
   aiThinkingLabel: 'Thinking',
   aiThinkingIntensity: 'Intensity',
   aiThinkingLow: 'Low',
@@ -35,10 +36,10 @@ export default {
   aiEmptyScriptExample: 'Build a small tool or automation',
   aiConfirm: 'Delete',
   aiCancel: 'Cancel',
-  // aiSettingsComingSoon retired in SP8-P2a Task 12 (all three "open settings"
+  // aiSettingsComingSoon retired in an earlier phase (all three "open settings"
   // entry points now push /ai/settings for real; grep confirmed no other
   // references before deletion).
-  // SP8-P2a Task 3 — Settings section navigation config (sections.ts).
+  // Settings section navigation config (sections.ts).
   // English values per Vue2 en_US.json or source code literals.
   aiCfgGroupModel: 'Models',
   aiCfgGroupAgent: 'Agent',
@@ -58,19 +59,19 @@ export default {
   aiCfgMcpConnections: 'MCP connections',
   aiCfgMcpTokens: 'Expose as MCP server',
   aiCfgChannels: 'Channels',
-  // SP8-P2a Task 7 — SettingsRail header / account card. Verbatim from Vue2
+  // SettingsRail header / account card. Verbatim from Vue2
   // production en_US.json's matching key.
   aiCfgPersonalize: 'Personalize',
   aiCfgBackToNimo: 'Back to Nimo',
   aiCfgYou: 'You',
   aiCfgLocalAccount: 'Local account · NAS',
-  // SP8-P2a Task 5 fix (review Important) — settingsStore.js:211 saveProvider
+  // A fix (review Important) — settingsStore.js:211 saveProvider
   // validation error text. ProvidersSection.vue:175-182 shows e.message first
   // (`e.message || t('Save failed')`), so a hardcoded literal would leak
   // English into a Chinese UI — must go through i18n. Verbatim from Vue2
   // production en_US.json['Name and Base URL are required'].
   aiCfgProviderNameUrlRequired: 'Name and Base URL are required',
-  // SP8-P2a Task 8 — SettingsPage topbar / scroll-spy / placeholder panel.
+  // SettingsPage topbar / scroll-spy / placeholder panel.
   // Verbatim from Vue2 production en_US.json's matching keys (Settings.vue:23/26/29).
   aiCfgDetails: 'Details',
   aiCfgRefresh: 'Refresh',
@@ -80,7 +81,7 @@ export default {
   aiCfgParserRunning: 'Running · pending: {pending} · concurrency: {concurrency}',
   aiCfgSectionDeferred: 'This section will be enabled in a later phase',
   aiCfgPlaceholderBody: 'This section has not been migrated yet — coming in a later phase.',
-  // SP8-P2a Task 9 — ModelsSection (local models). Verbatim from Vue2
+  // ModelsSection (local models). Verbatim from Vue2
   // production en_US.json's matching keys (all 39 $t() call sites verified,
   // see task report's "self-authored copy" list — it's empty).
   // aiCfgLocalModels / aiCfgRefresh reuse the existing Task 3/8 keys (Vue2
@@ -131,10 +132,10 @@ export default {
   aiCfgSearchFailed: 'Search failed',
   aiCfgImportStartedFor: 'Import started for {file}',
 
-  // SP8-P2a Task 10 — ProvidersSection (cloud providers). Values reuse Vue2
+  // ProvidersSection (cloud providers). Values reuse Vue2
   // production en_US.json literals where present (see zh_cn.ts sibling
   // comment for the lookup method); ad-hoc ones are listed in the report's
-  // "自拟文案清单".
+  // "self-authored copy list".
   // aiCfgCloudProviders (title) reuses the existing Task 3 key, not redefined here.
   aiCfgProvidersDesc: 'Configure OpenAI-compatible cloud model services. Effective only when the privacy policy allows cloud requests.',
   aiCfgConfiguredProviders: 'Configured providers',
@@ -172,7 +173,7 @@ export default {
   aiCfgApiKey: 'API Key',
 
   aiNoModelsAvailable: 'No models available. Go to Settings to add a local model or enable a cloud provider.',
-  // SP8-P1c2 Task 9 — ModelPicker (Vue2 shell/ModelPicker.vue) + AI rename
+  // ModelPicker (Vue2 shell/ModelPicker.vue) + AI rename
   // button (Vue2 shell/AgentTopbar.vue:26-29) + model fallback notice (Vue2
   // Agent.vue:133-142). English values are Vue2's exact literal strings
   // (Vue2 uses raw English text as i18n keys, e.g. src/assets/lang/en_US.json).
@@ -187,9 +188,9 @@ export default {
   aiNoModelAvailable: 'no model available',
   aiSessionNotFound: 'Session not found — it may have been deleted',
   aiRename: 'AI rename',
-  // SP8-P1b Task 11 — localized wrapper text for ?search= auto-send (aligns with Vue2 Agent.vue:174).
+  // Localized wrapper text for ?search= auto-send (aligns with Vue2 Agent.vue:174).
   'ai.searchMyNas': 'Search my NAS for "{query}".',
-  // SP8-P1b Task 8 —— block renderer batch A (confirm/mcp cards), verbatim Vue2 strings.
+  // Block renderer batch A (confirm/mcp cards), verbatim Vue2 strings.
   aiMcpConnectFailed: 'MCP server {server} failed to connect: {error}',
   aiConfirmRequiredTitle: 'Confirmation required: {action}',
   aiHighRiskOperation: 'High-risk operation',
@@ -258,7 +259,7 @@ export default {
   aiRegister: 'Register',
   aiPhotoSearch: 'Photo search',
   aiNoMatchingPhotos: 'No matching photos',
-  // SP8-P1b Task 9 —— SearchImageLightbox / SearchFileDrawer / SearchFullResults / SemanticSearchCard
+  // SearchImageLightbox / SearchFileDrawer / SearchFullResults / SemanticSearchCard
   aiOpenInPhotos: 'Open in Photos',
   aiLightboxClose: 'Close',
   aiPrevious: 'Previous',
@@ -294,7 +295,7 @@ export default {
   aiViewAllFiles: 'View all {n} files',
   aiViewAllSemanticPassages: 'View all {n} semantic passages',
   aiViewAllResults: 'View all results',
-  // SP8-P1b Task 10 — ProcessStrip (merged thinking+tool step strip) / TimelineMinimap
+  // ProcessStrip (merged thinking+tool step strip) / TimelineMinimap
   aiProcWorking: 'Working',
   aiProcProcessed: 'Processed',
   aiProcThinkingWord: 'thinking',
@@ -303,9 +304,9 @@ export default {
   aiProcTool: 'Tool',
   aiProcNoDetails: 'No details',
   aiTimelineYou: 'You',
-  // SP8-P1c1 Task 6 — ContextUsageBar (context usage ring)
+  // ContextUsageBar (context usage ring)
   aiCtxLabel: 'Context',
-  // SP8-P1c1 Task 7 — MentionPopover (@ mention / file-drawer drill-down panel),
+  // MentionPopover (@ mention / file-drawer drill-down panel),
   // verbatim English strings from Vue2 src/views/AI/Agent/shell/MentionPopover.vue
   // template lines 1-80.
   aiMentionAllDrives: 'All drives',
@@ -326,12 +327,12 @@ export default {
   aiMentionKbdSelect: 'Select',
   aiMentionKbdUp: 'Up',
   aiMentionKbdClose: 'Close',
-  // SP8-P1c1 Task 8 — SlashMenu (`/init` slash panel), verbatim English strings
+  // SlashMenu (`/init` slash panel), verbatim English strings
   // from Vue2 src/views/AI/Agent/shell/SlashMenu.vue template lines 1-23
   // (the `/init` literal itself is not translated).
   aiSlashInitDesc: 'Generate agent.md for a directory',
   aiSlashNoFolders: "No visible directories — use {'@'} to select one first",
-  // SP8-P1c1 patch task 2 — SlashPopover (inline slash-command panel matching
+  // SlashPopover (inline slash-command panel matching
   // the @ panel's look, replacing the rejected full-screen SlashMenu above),
   // command-stage empty state + footer key-hint strings.
   aiSlashNoCommand: 'No matching command',
@@ -339,7 +340,7 @@ export default {
   aiSlashKbdSelect: 'Select',
   aiSlashKbdClose: 'Close',
   aiSlashKbdBack: 'Back',
-  // SP8-P1c1 Task 9 — AgentComposer (input skeleton: chips + textarea + toolbar).
+  // AgentComposer (input skeleton: chips + textarea + toolbar).
   // aiComposerPlaceholder reuses the existing English string from Vue2
   // src/assets/lang/en_US.json's agent.composerPlaceholder key, verbatim.
   aiComposerPlaceholder: "Ask Nimo, or type {'@'} to reference a file…",
@@ -355,7 +356,7 @@ export default {
   // helper shared by removeChip/pickItem/onBrowserPick, mapping to Vue2 en_US.json's
   // "Authorization failed: {msg}" key verbatim (not a "remove"-specific string).
   aiAuthFailed: 'Authorization failed: {msg}',
-  // SP8-P1c1 Task 10 — AgentComposer attachment pipeline. All English strings are
+  // AgentComposer attachment pipeline. All English strings are
   // the literal source text Vue2 passes to this.$t(...) (AgentComposer.vue) —
   // en_US.json is an identity map (key === value) for these, so quoting the Vue2
   // source verbatim is equivalent to reusing the shipped translation.
@@ -389,7 +390,7 @@ export default {
   aiAttachHint7: 'Single file limit 500 MB, session total 50 files',
   aiAttachTooLarge: '{name} exceeds 500 MB limit',
   aiAttachSessionFailed: 'Failed to create session: {err}',
-  // SP8-P1c1 Task 11 — AgentComposer @mention/slash wiring, gitignore 409 confirm
+  // AgentComposer @mention/slash wiring, gitignore 409 confirm
   // (AlertDialog replaces Vue2's window.confirm, see the pickItem comment in
   // AgentComposer.vue). aiGitignoreBlockedMsg is Vue2's exact source string
   // (AgentComposer.vue:398/631, en_US.json is an identity map for it).
@@ -397,7 +398,7 @@ export default {
   // never had one.
   aiGitignoreBlockedTitle: 'Blocked by .gitignore',
   aiGitignoreBlockedMsg: '{path} is blocked by .gitignore. Authorize anyway?',
-  // SP8-P1c2 Task 10 — AgentRightPanel (4 tab buttons) + ActivityTab + ContextTab,
+  // AgentRightPanel (4 tab buttons) + ActivityTab + ContextTab,
   // verbatim port. These strings were never i18n'd in Vue2 (raw English literals
   // passed straight to $t with no zh_CN.json entry, so vue-i18n fell back to the
   // key itself) — English values here are those exact literals.
@@ -412,7 +413,7 @@ export default {
   aiActivityDone: 'Done',
   aiContextNotYet: 'Not available yet',
   aiContextDesc: 'Future support for adding files to conversation context so Agent can reference them directly.',
-  // SP8-P1c2 Task 11 — SystemTab. English values are Vue2's exact source
+  // SystemTab. English values are Vue2's exact source
   // literals (SystemTab.vue:5/48-51) except aiSysHeader/aiSysOf which are new
   // (no $t() call wrapped either in Vue2 — see zh_cn.ts comment for the
   // zh_CN.json reuse citations on the other four).
@@ -424,7 +425,7 @@ export default {
   aiSysLan: 'LAN',
   aiSysOf: 'of {n} GB',
   aiStorageUnavailable: 'Storage info unavailable',
-  // SP8-P1c2 Task 12 — ResourcesTab (authorized resources / attachments / staged
+  // ResourcesTab (authorized resources / attachments / staged
   // changes, three revert granularities). Verbatim port of Vue2's
   // tabs/ResourcesTab.vue; English values below are Vue2's exact source
   // literals (ResourcesTab.vue:5/9/29/33/41/49/54/64/68/72/74/80/90/92/100/104/
@@ -468,7 +469,7 @@ export default {
   aiResMinutesAgo: '{n}m ago',
   aiResHoursAgo: '{n}h ago',
   aiResDaysAgo: '{n}d ago',
-  // >>> SP8-P2a Task 11 —— PrivacySection + ThinkingDefaultsSection. English
+  // >>> PrivacySection + ThinkingDefaultsSection. English
   // values are the literal Vue2 source strings (the production zh_CN.json
   // English keys, verbatim).
   aiCfgPrivacyDesc: 'Control whether data leaves the device and which backend is used by default. Everything runs locally by default.',
@@ -487,8 +488,8 @@ export default {
   aiCfgThinkingBanner: 'These settings are used as the initial values for new sessions. Models that do not support thinking will ignore them.',
   aiCfgEnableThinkingDefault: 'Enable thinking by default',
   aiCfgDefaultIntensity: 'Default intensity:',
-  // <<< SP8-P2a Task 11
-  // >>> SP8-P2b Task 4 —— BlacklistSection(文件系统)
+  // <<<
+  // >>> BlacklistSection (filesystem)
   aiCfgBlacklistDesc: "No matter which folders you authorize, files matching these patterns are never readable or writable by the Agent. Built-in patterns can't be changed; below are the ones you added.",
   aiCfgBuiltinReadonly: 'Built-in (read-only)',
   aiCfgYourPatterns: 'Your patterns',
@@ -497,8 +498,8 @@ export default {
   aiCfgAddingPattern: 'Adding…',
   aiCfgNoCustomPatterns: 'No custom patterns yet.',
   aiCfgAddFailed: 'Failed to add',
-  // <<< SP8-P2b Task 4
-  // >>> SP8-P2b Task 5 —— ExecutionSection(执行步数)
+  // <<<
+  // >>> ExecutionSection (max steps per task)
   aiCfgExecutionDesc: 'Limit the maximum number of steps the Agent takes on a single task to avoid runaway long runs.',
   aiCfgMaxStepsPerTask: 'Max steps per task',
   aiCfgExecutionBanner: 'The maximum number of steps the Agent runs for one task (each tool or model call counts as one step). When the limit is reached it pauses and shows a Continue button. Unlimited may be slower and use more resources.',
@@ -507,8 +508,8 @@ export default {
   aiCfgSaving: 'Saving…',
   aiCfgSaved: 'Saved',
   aiCfgSaveFailed: 'Save failed',
-  // <<< SP8-P2b Task 5
-  // >>> SP8-P2b Task 6 —— MemorySection(AI 记忆)
+  // <<<
+  // >>> MemorySection (AI memory)
   aiCfgMemoryDesc: "Facts and preferences the assistant remembers about you across sessions. While memory is on, they're injected into the context at the start of every conversation.",
   aiCfgCrossSessionMemory: 'Cross-session memory',
   aiCfgMemoryOffBanner: 'Memory is off — nothing new is remembered or injected. Existing items are kept and can still be deleted.',
@@ -536,8 +537,8 @@ export default {
   // purpose, not merged; see the warning under the brief's table.
   aiCfgMemSourceTool: 'Saved',
   aiCfgMemSourceUser: 'Manual',
-  // <<< SP8-P2b Task 6
-  // >>> SP8-P2b Task 7 —— SearchSection. English values are the literal Vue2 source
+  // <<<
+  // >>> SearchSection. English values are the literal Vue2 source
   // strings (brief already reconciled against the production zh_CN.json). Reused keys
   // (not redefined here): aiCfgSearch/aiCfgSave/aiCopy/aiCopied/aiCfgDelete/
   // aiCfgSaved/aiCfgSaveFailed/aiFailed.
@@ -572,8 +573,8 @@ export default {
   aiCfgIndexBuilding: 'Building',
   aiCfgIndexDisabled: 'Disabled',
   aiCfgCopyFailed: 'Copy failed — please select manually',
-  // <<< SP8-P2b Task 7
-  // >>> SP8-P2b Task 8 —— ObservabilitySection (Agent monitoring / Phoenix). English
+  // <<<
+  // >>> ObservabilitySection (Agent monitoring / Phoenix). English
   // values are the literal Vue2 source strings (brief already reconciled against the
   // production zh_CN.json). Reused keys (not redefined here): aiCfgObservability/aiCancel.
   aiCfgObservabilityDesc: 'Trace and visualize every Agent run with a local Phoenix instance to debug prompt, tool, and memory usage.',
@@ -593,7 +594,7 @@ export default {
   aiCfgPhoenixRunning: 'Running',
   aiCfgPhoenixNotInstalled: 'Not installed',
   aiCfgPhoenixStopped: 'Stopped',
-  // <<< SP8-P2b Task 8
+  // <<<
   // >>> agent web tools —— WebSection (web_search / web_fetch settings). Reused keys
   // (not redefined here): aiCfgLoadFailed / aiCfgSaveFailed, the error-toast fallbacks.
   aiCfgWebAccess: 'Web access',
@@ -613,7 +614,7 @@ export default {
   aiCfgWebFetchTitle: 'Reading web pages',
   aiCfgWebFetchDesc: 'Reading a page by URL needs no provider and is always available. The first time the assistant visits a host, you are asked to allow it.',
   // <<< agent web tools Task 9
-  // >>> SP8-P2b Task 10 —— McpTokensSection (Expose as MCP server). English values are the
+  // >>> McpTokensSection (Expose as MCP server). English values are the
   // literal Vue2 source strings (brief already reconciled against the production
   // zh_CN.json). Reused keys (not redefined here): aiCfgMcpTokens (nav h1, built by P2a) /
   // aiCopy/aiCopied/aiCfgCopyFailed/aiDone/aiCancel/aiCfgDelete/aiCfgDeleteFailed (found
@@ -647,8 +648,8 @@ export default {
   aiCfgTokenLabel: 'Label',
   aiCfgCreateFailed: 'Create failed',
   aiCfgDeleteTokenConfirm: 'Are you sure you want to delete this token?',
-  // <<< SP8-P2b Task 10
-  // >>> SP8-P2b Task 12 —— ChannelsSection (Channels). English values are the literal
+  // <<<
+  // >>> ChannelsSection (Channels). English values are the literal
   // Vue2 source strings (brief already reconciled against the production zh_CN.json).
   // Reused keys (not redefined here): aiCfgChannels (nav h1, built by P2a, value
   // "Channels" matches this table) / aiCancel/aiCopy/aiCopied/aiCfgCopyFailed/aiDone/
@@ -667,7 +668,7 @@ export default {
   aiCfgChannelsAdminHint: 'Administrator only. The bot serves every NimoOS user; each pairs their own account.',
   aiCfgChannelsAddBot: 'Add bot',
   aiCfgChannelsAddBotFailed: 'Could not add bot — check the token.',
-  // SP8-P2b acceptance round 3 (user, 2026-07-30): backend `detail` strings are mapped to
+  // Feedback from an earlier review: backend `detail` strings are mapped to
   // localized copy — see addBotErrorKey in channelsFormat.ts. These three mirror the
   // three 422 details in agent/main.py:417-424.
   aiCfgChannelsErrTokenRejected: "That token didn't pass validation. Make sure you pasted it in full with no extra spaces, and that the bot hasn't been deleted or reset.",
@@ -712,8 +713,8 @@ export default {
   aiCfgBackgroundModel: 'Background model',
   aiCfgBackgroundNotConfigured: 'Not configured (background jobs stay off)',
   aiCfgBackgroundOffHint: 'Document distillation will not run until a model is selected.',
-  // <<< SP8-P2b Task 12
-  // >>> SP8-P3a — skills section
+  // <<<
+  // >>> Skills section
   aiSkSearchPlaceholder: 'Search skills…',
   aiSkBuiltIn: 'Built-in skills',
   aiSkYours: 'Your skills',
@@ -751,8 +752,8 @@ export default {
   // <i18n-t> named slot with <code>; the value itself carries no markup.
   aiSkPendingBanner: 'Skill {name} is attached — it will apply to your next message',
   aiSkPendingDetach: 'Detach skill',
-  // <<< SP8-P3a
-  // >>> SP8-P3b Task 2 — skills section "write half": add/enable/disable/uninstall/
+  // <<<
+  // >>> Skills section "write half": add/enable/disable/uninstall/
   // delete/sandbox test. See zh_cn.ts for which lines are Vue2-less new copy.
   aiSkAddSkill: 'Add skill',
   aiSkDisable: 'Disable',
@@ -833,8 +834,8 @@ export default {
   aiSkTryDisabledBody:
     'A paused skill is not loaded, so trying it in chat will have no effect. Enable it first?',
   aiSkTryEnableAndTry: 'Enable and try',
-  // <<< SP8-P3b Task 2
-  // >>> SP8-P4 Task 4 —— MCP section (McpSection/Group/Detail/Modal). §4.2 values
+  // <<<
+  // >>> MCP section (McpSection/Group/Detail/Modal). §4.2 values
   // are Vue2's key literal (production en_US.json string, or the key itself where
   // en_US.json has no matching entry — 4 such cases per brief); §4.3 (14 keys) is
   // this period's new copy (D5/D8), no Vue2 counterpart.
@@ -922,7 +923,7 @@ export default {
   aiMcpSrvParseErrNoCommand: 'No runnable command found',
   aiMcpSrvParseErrOnlyEnv: 'Only environment variables — a command is missing',
   aiMcpSrvParseErrQuotes: 'Unbalanced quotes',
-  // <<< SP8-P4 Task 4
+  // <<<
   // >>> mcp-progressive-disclosure Task 20 — tool list & approval toggles, new copy, no Vue2 equivalent
   aiMcpSrvToolsTitle: 'Tools',
   aiMcpToolServerLevelLabel: 'Entire server',
@@ -938,11 +939,11 @@ export default {
   aiMcpToolStaleSchemaChanged: "This tool's interface changed — it needs to be re-approved.",
   aiMcpToolStaleStale: "This tool hasn't been seen on the server in a while.",
   // <<< mcp-progressive-disclosure Task 20 fix round
-  // >>> SP8-P5a Task 5 — knowledge base deferred placeholder page (K7), new copy, no Vue2 equivalent
+  // >>> Knowledge base deferred placeholder page (K7), new copy, no Vue2 equivalent
   aiKbDeferredTitle: 'Coming soon',
   aiKbDeferredHint: 'This page is still being migrated to the new UI.',
-  // <<< SP8-P5a Task 5
-  // >>> SP8-P5a Task 8 — knowledge base shell + dashboard copy (Vue2 KnowledgeLayout/DashboardView),
+  // <<<
+  // >>> Knowledge base shell + dashboard copy (Vue2 KnowledgeLayout/DashboardView),
   // values verified codepoint-by-codepoint against `git show main:src/assets/lang/{zh_CN,en_US}.json`
   aiKbKnowledgeBase: 'Knowledge Base',
   aiKbBrowse: 'Browse',
@@ -1038,10 +1039,10 @@ export default {
   aiKbSampleContract: 'contract from last year',
   aiKbSampleIphone: 'iPhone setup',
   aiKbSampleSkating: 'figure skating',
-  // <<< SP8-P5a Task 8
-  // >>> SP8-P5b Task 1 — queue page / indexed-files page copy (Vue2 QueueView/IndexedFilesView),
+  // <<<
+  // >>> Queue page / indexed-files page copy (Vue2 QueueView/IndexedFilesView),
   // en values = the literal $t() English key from the Vue2 source, verified against
-  // `git show main:src/assets/lang/zh_CN.json` (see p5b-task-1-i18n-verify.mjs, 95/95 MATCH).
+  // `git show main:src/assets/lang/zh_CN.json` (95/95 MATCH).
   aiKbAll: 'All',
   aiKbAllCaughtUp: 'All caught up',
   aiKbCancel: 'Cancel',
@@ -1147,12 +1148,12 @@ export default {
   // K20 (statusBadgeMap.indexing.en = 'Indexing' has no Vue2 zh_CN.json entry; vue-i18n
   // falls back to the raw English string there too — both locales fill 'Indexing'):
   aiKbStatusIndexing: 'Indexing',
-  // <<< SP8-P5b Task 1
-  // >>> SP8-P5c Task 1 — knowledge settings page / Parser details / Parser test sandbox /
+  // <<<
+  // >>> Knowledge settings page / Parser details / Parser test sandbox /
   // folder picker copy (Vue2 SettingsView.vue · ParserStatus.vue · ParserTest.vue ·
   // FolderBrowser.vue), 99 keys. en values = the literal $t() English key from the Vue2
   // source (verified identical to en_US.json, zero overrides); zh values verified against
-  // `git show main:src/assets/lang/zh_CN.json` (see p5c-task-1-i18n-verify.mjs, 99/99 MATCH).
+  // `git show main:src/assets/lang/zh_CN.json` (99/99 MATCH).
   // Coordinator ruling A-1: aiKbDeviceAuto is a NEW key, deliberately not reusing the
   // existing aiKbOriginAuto (same rendering today, but that key means "distill job origin").
   // Four Vue2-authentic collisions/mistranslations are copied verbatim (N21): aiKbResume vs
@@ -1260,8 +1261,8 @@ export default {
   aiKbSetSvcRunningDesc: 'Continuously monitoring and indexing new files',
   aiKbSetSvcRunningLine: '✅ Running',
   aiKbSwitchFailed: 'Switch failed',
-  // <<< SP8-P5c Task 1
-  // >>> SP8-P5d Task 1 —— knowledge-base notes area copy (Vue2 NotesView.vue /
+  // <<<
+  // >>> Knowledge-base notes area copy (Vue2 NotesView.vue /
   // NoteEditPane.vue / notesViewHelpers.js NOTE_TYPES/NOTE_SOURCES labelKey targets), 92
   // keys, all with a Vue2-authoritative value (zero new copy, zero dead keys this task).
   // Codepoint-verified (92/92 MATCH), values
@@ -1388,8 +1389,8 @@ export default {
   aiKbRelDaysAgo: '{n} d ago',
   aiKbRelHrAgo: '{n} h ago',
   aiKbRelMinAgo: '{n} min ago',
-  // <<< SP8-P5d Task 1
-  // >>> SP8-P5e Task 1 —— knowledge-base search area copy (Vue2 SearchView.vue /
+  // <<<
+  // >>> Knowledge-base search area copy (Vue2 SearchView.vue /
   // FileDetailDrawer.vue / KFileViewer.vue / searchAggregate.js), 54 new keys, all with a
   // Vue2-authoritative value (zero new copy, zero dead keys this task). 9 further aiKb*
   // keys are reused as-is and deliberately NOT re-declared in this block (Appendix A
@@ -1397,7 +1398,7 @@ export default {
   // aiKbStatusIndexed). Codepoint-verified
   // (54/54 + 9/9 MATCH); the values were generated by that script's map straight out of
   // `git show 7a6ee6b7:src/assets/lang/en_US.json` rather than hand-copied from the
-  // appendix — P5a-T8's lesson was that the appendix diffed clean and the *hand copy*
+  // appendix — the lesson was that the appendix diffed clean and the *hand copy*
   // introduced 5 punctuation typos.
   //
   // en is the en_US.json OVERRIDE value, never the $t() key.
@@ -1476,8 +1477,8 @@ export default {
   aiKbAdOpenInPhotos: 'Open in Photos',
   aiKbAdCaption: 'Matched description',
   aiKbAdTaken: 'Taken',
-  // <<< SP8-P5e Task 1
-  // >>> SP8-P5f Task 1 —— knowledge-base final three pages copy (Vue2 AllowlistView.vue /
+  // <<<
+  // >>> Knowledge-base final three pages copy (Vue2 AllowlistView.vue /
   // RootsView.vue / WikiView.vue), 79 new keys, all with a Vue2-authoritative value (zero
   // new copy, zero dead keys this task). 11 further aiKb* keys are reused as-is and
   // deliberately NOT re-declared in this block (Appendix A §A.2 minus ruling R3's three:
@@ -1486,7 +1487,7 @@ export default {
   // aiKbManageRoots). Codepoint-verified
   // (79/79 + 11/11 MATCH); the values were generated by that script's map straight out of
   // `git show 7a6ee6b7:src/assets/lang/en_US.json` rather than hand-copied from the appendix
-  // — P5a-T8's lesson was that the appendix diffed clean and the *hand copy* introduced 5
+  // — the lesson was that the appendix diffed clean and the *hand copy* introduced 5
   // punctuation typos.
   //
   // 🔴 R10 / E-44 — the en side is NEVER assumed to equal the $t() key. This batch measures
@@ -1572,7 +1573,7 @@ export default {
   aiKbWkSummaryUpdated: 'Summary updated {t}',
   aiKbWkTreeError: 'Failed to load the wiki tree',
   aiKbWkViewSource: 'View source',
-  // <<< SP8-P5f Task 1
+  // <<<
   // >>> Task 21 (2026-08-13 mcp-progressive-disclosure plan) -- cross-server
   // approvals overview + the delete confirmation's cascade warning, no Vue2
   // counterpart, newly authored this round

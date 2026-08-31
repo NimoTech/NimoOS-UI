@@ -31,7 +31,7 @@ export interface FolderEntry {
   // relies on it to exclude symlinks from target directories. Optional so existing construction sites don't break.
   is_symlink?: boolean
   // Present in real responses (measured 2026-08-03, GET /v1/folder?path=/DATA, on every entry; backend
-  // Path.Size int64 in NimoOS/model/zima.go:15-26). SP9-P6's OSSelector custom section
+  // Path.Size int64 in NimoOS/model/zima.go:15-26). The OSSelector custom section
   // uses it to display .iso file sizes. Optional so existing construction sites don't break.
   size?: number
 }
@@ -242,7 +242,7 @@ export interface ComposeAppWithStoreInfo {
   [k: string]: unknown
 }
 
-// ---- SP9-P1: sys domain (system info / migration / gateway / USB) ----
+// ---- sys domain (system info / migration / gateway / USB) ----
 export interface UpdateCheck {
   current_version: string
   latest_version?: string

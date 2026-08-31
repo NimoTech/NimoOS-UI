@@ -1,4 +1,4 @@
-// P6b-T2: one-time asset load for place detail panel "photos" tab.
+// One-time asset load for place detail panel "photos" tab.
 // Following Vue2 PhotosTimeline.vue:819-841 (_loadPlaceAssets): limit always 500, clear on failure
 // (intentionally different from store main data "keep on failure" policy — this is one-time query result,
 // keeping previous would mislead user, see comment in usePlaceAssets.ts).

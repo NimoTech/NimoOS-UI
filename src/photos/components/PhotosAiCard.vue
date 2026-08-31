@@ -1,21 +1,21 @@
 <!--
-  SP7-P8a-T4: Settings page AI card.
+  Settings page AI card.
   Source coordinates: Vue2 PhotosSettings.vue:129-192 (template), :283-291 (rebuildTask watcher),
   :332-370 (rebuildTask/indexing/indexedPct/coverageCount/lastBuiltText/featureRows),
   :458-486 (rebuildIndex/doRecluster).
 
-  Card does not emit toast itself — @toast unified by T5 container, same division of labor as PhotosStorageCard.vue (T3).
+  Card does not emit toast itself — @toast unified by the host container, same division of labor as PhotosStorageCard.vue.
 
-  Interface boundary notes (for T5 implementer):
-  - `about` not fetched in this card by fetchAbout() — reuse T3's division of labor, T5 container fetches once unified.
+  Interface boundary notes (for the host container):
+  - `about` not fetched in this card by fetchAbout() — same division of labor as PhotosStorageCard.vue, the host container fetches it once, unified.
     Before fetch completes, lastBuiltText shows 'never', coverageCount shows 0 (see computed below).
   - `rebuildTask` read from timeline store's `tasks`, card does not start separate task polling
     (consistent with settings.ts header comment "useTimelineStore() must be called inside setup").
 
-  Deviation logging (per project rule "Vue2's bugs not copied, correct logic and comment logging"):
+  Deviation logging (Vue2's bugs are not copied — logic is corrected and the change is documented here):
   1. lastBuiltText locale defect — Vue2 :346 `new Date(iso).toLocaleString()` does not pass
      locale parameter, result follows browser/system language not app's chosen language, Chinese UI shows English month abbreviations
-     (same defect type as spec §7c-2/§7e-4). Changed to explicitly follow i18n locale (adopting
+     (the same class of defect seen elsewhere in this app). Changed to explicitly follow i18n locale (adopting
      src/photos/util/relTime.ts:18-22, PlacesRail.vue:84, PlaceDetailPanel.vue:120,
      PersonHero.vue:113 existing pattern: locale.replace('_','-') convert to BCP-47 tag, pass to
      Intl.DateTimeFormat). Retained toLocaleString()'s "date+time" semantics (not
@@ -27,11 +27,11 @@
   Color tokens: card adds zero new tokens — all reuse existing semantic tokens (--accent/--accent2/
   --accent-soft/--sem-bg/--sem-fg/--sem-bd/--chip-bg/--chip-bg-hi/--border/--fg/
   --divider/--fg-muted). Theme exception: the AI-feature switch knob is literal `#fff` in both
-  on/off states per Plan H Task 13 owner ruling (see the switch rule's own comment further
+  on/off states by design (see the switch rule's own comment further
   below) — `--on-accent` is no longer used by this card. Privacy banner original color Vue2 is exact iOS green
   rgba(52,199,89,α)/#34C759, but this repo has generic "success/positive" semantic token --sem-*
-  (success badges, RAID health state used multiple places, hue is teal-green not Apple green) — following T3's precedent
-  of mapping Vue2 literal #6E5BFF closest to existing --accent-soft/--accent without adding token,
+  (success badges, RAID health state used multiple places, hue is teal-green not Apple green) — following the same precedent
+  as PhotosStorageCard.vue's mapping of Vue2 literal #6E5BFF closest to existing --accent-soft/--accent without adding a token,
   here similarly map to existing --sem-* triplet, not reinventing nearly-duplicate token for same "success/safety" semantic.
   Progress bar gradient original Vue2 is linear-gradient(#6E5BFF,#B8AAFF), here use
   linear-gradient(var(--accent), var(--accent2)) replicate "accent gradient" appearance, similarly no new tokens.
@@ -171,10 +171,10 @@ async function doRecluster(): Promise<void> {
           <div class="lbl">{{ f.label }}</div>
           <div class="desc">{{ f.desc }}</div>
         </div>
-        <!-- final review Minor 6: a11y debt logging — this switch only handles mouse click, no tabindex/keydown,
+        <!-- a11y debt logging — this switch only handles mouse click, no tabindex/keydown,
              keyboard/AT users cannot reach it. Vue2 PhotosSettings.vue:163 is bare div, no role; previously added
              role="switch" here but no keyboard accessibility support, equals telling AT "this is an operable control"
-             but cannot operate, worse than saying nothing. Per decision remove role, no keyboard handling added,
+             but cannot operate, worse than saying nothing. Role removed, no keyboard handling added,
              first restore bare div 1:1 from Vue2 — making entire settings page keyboard-navigable is independent
              work outside this cycle scope. -->
         <div
@@ -298,7 +298,7 @@ async function doRecluster(): Promise<void> {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  /* theme-exception: owner ruling (Plan H Task 13) -- the knob stays literal white in both
+  /* theme-exception: by design -- the knob stays literal white in both
      on/off states, matching Vue2 photos.scss:2963's own literal `background: white`. This
      supersedes the "follow this repo's --fg/--on-accent switch convention" comment that used
      to be here, aligning `.st-switch` with the `.sv-switch` family's own same-shaped ruling. */

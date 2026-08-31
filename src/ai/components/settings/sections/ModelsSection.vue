@@ -1,5 +1,5 @@
 <!--
-  SP8-P2a Task 9 — 1:1 port from Vue2
+  1:1 port from Vue2
   `src/views/AI/Settings/sections/ModelsSection.vue` (222 lines). Three cards:
 
     1. Installed models: card header (title + count + refresh) · download progress banners (one per
@@ -13,7 +13,7 @@
     reka-ui AlertDialogAction emits update:open(false) then confirm on click —
     deleteDlg packs open and target name in same ref; v-model:open only changes .open,
     confirm handler still reads correct name (same pattern as AgentSidebar.vue:111-120,
-    and lesson from InstalledAppsPage.vue:25-70 SP5-P1 noted in its header).
+    and lesson from InstalledAppsPage.vue:25-70 noted in its header).
   - $buefy.toast.open({type:'is-success'}) → toast.show(msg) (info tier).
   - type:'is-danger' → toast.show(msg, 1500, 'danger').
 

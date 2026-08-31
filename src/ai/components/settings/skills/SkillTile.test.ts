@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import SkillTile, { SKILL_COLOR_IDS } from './SkillTile.vue'
 
-// SP8-P3a Task 3 — aligned with Vue2 src/views/AI/Skills/SkillTile.vue (43 lines).
+// Aligned with Vue2 src/views/AI/Skills/SkillTile.vue (43 lines).
 // The color lookup table is no longer a literal gradient string; assertions check
 // for the token name var(--grad-sk-<id>). Convention documented in
 // src/ai/components/tabs/SystemTab.test.ts:52 (asserts the token string as-is in

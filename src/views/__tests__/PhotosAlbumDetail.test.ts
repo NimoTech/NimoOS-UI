@@ -202,7 +202,7 @@ describe('PhotosAlbumDetail.vue', () => {
     expect(w.text()).toContain('Trip')
     expect(w.text()).toContain('3')
     expect(w.text()).toContain('May 2026')
-    // SP15-P2c Task 3 re-home: the two cover-thumbnail assertions that used to sit here belonged
+    // The two cover-thumbnail assertions that used to sit here belonged
     // to the deleted hero background. Their subject moved to 'no longer renders the cover hero or
     // the toolbar band' below, which asserts no large cover thumbnail is requested at all now.
     // What stays here is where the three strings above land in the new skeleton.
@@ -510,7 +510,7 @@ describe('PhotosAlbumDetail.vue', () => {
     expect(coverSpy).toHaveBeenCalledWith('7', 'a')
   })
 
-  // SP15-P1-T9 · Step 0: the picker was generalised and no longer writes to the album itself —
+  // The picker was generalised and no longer writes to the album itself —
   // it emits `confirm(ids)` and this page performs the write, the toast, the close and the
   // refresh. Those four were previously asserted inside PhotosLibraryPicker.test.ts; they are
   // asserted here now, at their new home, so nothing that moved lost its coverage.
@@ -540,7 +540,7 @@ describe('PhotosAlbumDetail.vue', () => {
 
     expect(svc.photos.batchAddToAlbum).toHaveBeenCalledWith('7', ['x', 'y'])
     expect(fetchSpy).toHaveBeenCalledWith('7')
-    // fix round 1 · finding 4: exactly one toast, and it is the success one with the album name
+    // Exactly one toast, and it is the success one with the album name
     // and the count — a duplicate, or a stray danger toast alongside it, has to fail here.
     expect(showSpy).toHaveBeenCalledTimes(1)
     expect(showSpy).toHaveBeenCalledWith(
@@ -562,12 +562,12 @@ describe('PhotosAlbumDetail.vue', () => {
     picker.vm.$emit('confirm', ['x'])
     await flushPromises()
 
-    // fix round 1 · finding 4: only the danger toast, nothing else.
+    // Only the danger toast, nothing else.
     expect(showSpy).toHaveBeenCalledTimes(1)
     expect(showSpy).toHaveBeenCalledWith(zh.photosAlbumAddFailed)
     expect(picker.props('open')).toBe(true)
 
-    // fix round 1 · finding 1: the busy flag must come back down in the handler's `finally`, or
+    // The busy flag must come back down in the handler's `finally`, or
     // the user is left staring at a permanently disabled "Adding…" button with no way to retry.
     expect(picker.props('submitting')).toBe(false)
     picker.vm.$emit('confirm', ['x'])
@@ -578,7 +578,7 @@ describe('PhotosAlbumDetail.vue', () => {
     err.mockRestore()
   })
 
-  // fix round 1 · finding 2: before Step 0 the picker computed existingIds itself and its own
+  // Before this, the picker computed existingIds itself and its own
   // cross-type test proved the String() normalisation. The expression moved to this page, so the
   // proof moves with it: album assets come back from the API with **numeric** ids while timeline
   // photos carry strings, and without String() not one already-in photo would be recognised.
@@ -592,7 +592,7 @@ describe('PhotosAlbumDetail.vue', () => {
     expect(ids.has('5')).toBe(true)
   })
 
-  // Coordinator review, fix round 2 · Important: an *already-open* picker used to survive a
+  // An *already-open* picker used to survive a
   // route-id change untouched -- `:open="pickerOpen"` had no `album` gate of its own, the id
   // watcher never reset `pickerOpen`, and `onPickerConfirm` reads `albumId.value` fresh at call
   // time. Confirming after navigating away therefore wrote into whatever album the route now
@@ -651,7 +651,7 @@ describe('PhotosAlbumDetail.vue', () => {
     )
   })
 
-  // Coordinator review, fix round 2 · Minor: `edit` itself was never reset by the id watcher, so
+  // `edit` itself was never reset by the id watcher, so
   // navigating from album 7 mid-edit to a different, perfectly valid album 8 dropped the user
   // into edit mode on 8 without choosing it.
   it('leaves edit mode when the route id changes to a different album', async () => {
@@ -848,7 +848,7 @@ describe('PhotosAlbumDetail.vue', () => {
     expect(fetchAssetsSpy).not.toHaveBeenCalled() // what got added went to a different album, so this album doesn't refresh
   })
 
-  // Final-review must-fix 1: the lightbox hangs its keydown on window (PhotoLightbox.vue:144),
+  // The lightbox hangs its keydown on window (PhotoLightbox.vue:144),
   // while AlbumPickerDialog hangs its on document (:74). For a single Esc press, the bubble order
   // is document before window -- with no handling, document's listener closes the picker first,
   // then bubbling continues up to window and closes the lightbox too (T9's design explicitly
@@ -877,7 +877,7 @@ describe('PhotosAlbumDetail.vue', () => {
     expect(lb.open.value).toBe(true)
   })
 
-  // Final-review Minor 6: removeSelected doesn't disable itself while its request is in flight,
+  // removeSelected doesn't disable itself while its request is in flight,
   // so double-clicking fires two concurrent rounds of DELETE against the same batch of ids.
   it('Minor 6 regression: clicking "Remove selected" twice in a row -> removeAssetsFromAlbum is only called once (re-entrancy guard)', async () => {
     svc.photos.getAlbum.mockResolvedValue({ assets: [asset('a'), asset('b')] })
@@ -902,7 +902,7 @@ describe('PhotosAlbumDetail.vue', () => {
     await flushPromises()
   })
 
-  // Task 6: stats rail + more-menu reshape (SP15-P2b) -- aligns this page with the smart-view
+  // Stats rail + more-menu reshape -- aligns this page with the smart-view
   // detail page's own sidebar/menu idiom.
   //
   // Task 4 re-home: the target trims the stats rail from 4 cells to 2 (Span/Created moved to the
@@ -938,7 +938,7 @@ describe('PhotosAlbumDetail.vue', () => {
   it('keeps the rail out of the photo grid\'s scroll container', async () => {
     // Both columns scroll independently; if a shared wrapper scrolled instead, the rail would
     // scroll away with the photos (the exact defect PhotosMomentDetail was fixed for).
-    // SP15-P2c Task 3 re-home: the container is .sv-detail-layout now, not .album-detail-body,
+    // The container is .sv-detail-layout now, not .album-detail-body,
     // and it holds the columns apart with `min-height: 0` on a grid whose two cells each own an
     // `overflow-y: auto` -- so the assertion moves onto those two cells. The grid wrapper must
     // NOT have a scroller of its own any more, or the main column gets two nested scrollbars.
@@ -980,7 +980,7 @@ describe('PhotosAlbumDetail.vue', () => {
   })
 })
 
-// SP15-P2c Task 3: the cover hero and the toolbar band are gone; the page now wears the same
+// The cover hero and the toolbar band are gone; the page now wears the same
 // skeleton as the smart-view detail page (detail bar -> two-column layout -> sv-header with the
 // action row -> photo grid), and edit mode's two buttons live in a floating bottom bar.
 describe('P2c detail skeleton', () => {
@@ -1078,8 +1078,8 @@ describe('P2c detail skeleton', () => {
   })
 
   // ── Edit-mode bottom select bar ──
-  // Deviation from the brief, registered: the brief said the bar renders only with at least one
-  // selection. The target (33b05636:PhotosAlbumDetail.vue:326-327) renders it on `edit` alone and
+  // Deliberate decision: rather than rendering the bar only with at least one
+  // selection, the target (33b05636:PhotosAlbumDetail.vue:326-327) renders it on `edit` alone and
   // says so in its own comment, and it has to -- the bar carries the "Click to select · Drag to
   // reorder" hint (dead copy if it only appeared after a selection) and the Add photos button
   // (unreachable in an empty album otherwise). The Vue 2 source wins per the branch's 1:1 rule.
@@ -1107,7 +1107,7 @@ describe('P2c detail skeleton', () => {
   // cause as the "New album" modal bug elsewhere, now found in
   // this page's own edit-mode bar, delete-confirm dialog, library picker, lightbox, album
   // picker, and convert-to-smart dialog. Same fix: nest them back inside `.photos-root`.
-  describe('Fix-2 item 5: the edit-mode tail section is a real descendant of .photos-root', () => {
+  describe('the edit-mode tail section is a real descendant of .photos-root', () => {
     it('the select bar renders inside .photos-root (so parity .sv-select-bar can match)', async () => {
       const w = await mountDetail({ album: { id: 'a1', name: 'A' }, assets: [asset('a')] })
       await w.find('[data-test="album-edit-toggle"]').trigger('click')
@@ -1139,14 +1139,14 @@ describe('P2c detail skeleton', () => {
     })
   })
 
-  // Plan F Task 5 (2026-08-15): unlike Fix-8 round 4's own snapshot of this file (which kept
+  // Unlike an earlier snapshot of this file (which kept
   // `<PhotoLightbox>` deliberately OUTSIDE `.photos-root`, unlike every other element in the
-  // "Fix-2 item 5" block above), the lightbox now joins them as a descendant. Plan F Tasks 3-5
-  // re-skinned this component's DOM/CSS onto parity's own grid shape and then retired the local
-  // skeleton CSS that used to duplicate parity's rules (Task 5) -- there is no longer a
+  // edit-mode tail section above), the lightbox now joins them as a descendant. This
+  // re-skinned the component's DOM/CSS onto parity's own grid shape and then retired the local
+  // skeleton CSS that used to duplicate parity's rules -- there is no longer a
   // same-specificity cascade tie for parity's `.photos-root .lightbox`/`.lb-*` family to lose;
-  // it's now the sole source for those selectors. See task-5-report.md for the full sweep.
-  describe('Plan F Task 5: the lightbox is nested inside .photos-root (the re-skin removed the F8-r4 cascade tie)', () => {
+  // it's now the sole source for those selectors.
+  describe('the lightbox is nested inside .photos-root', () => {
     it('the lightbox renders INSIDE .photos-root', async () => {
       const w = await mountDetail({ album: { id: 'a1', name: 'A' }, assets: [asset('a')] })
       await w.find('.tile').trigger('click')
@@ -1220,8 +1220,7 @@ describe('P2c detail skeleton', () => {
     expect(w.find('.sv-select-bar').text()).toContain(zh.photosAlbumHintSelectDrag)
   })
 
-  // Task 3 review finding, folded into Task 4 (this task edits the file, so it inherits the
-  // fix): the select bar used to live inside the `v-else-if="album"` branch, so "no album ->
+  // The select bar used to live inside the `v-else-if="album"` branch, so "no album ->
   // no bar" came for free. Once the P2c skeleton pulled it out to a `v-if="edit"` sibling, the
   // route-id watcher clearing `selected`/the title draft (but never `edit`) left the bar floating
   // over the "Album not found" screen with Add photos still reachable. Reproduce exactly that
@@ -1552,7 +1551,7 @@ describe('P2c whole-branch review fixes', () => {
 // wraps both the list AND the detail-layer <photos-album-detail>, PhotosAlbumsView.vue:12-21).
 // PhotosTimeline's topbar therefore never changes while a detail is open under this nav: same
 // title ('Albums') and same album-aggregate sub as the list page.
-describe('Fix-1 item 1: PhotosTopbar restored (same title/sub as the Albums list, Vue2 truth)', () => {
+describe('PhotosTopbar restored (same title/sub as the Albums list, Vue2 truth)', () => {
   it('renders the topbar with title=Albums and the album-aggregate sub, no search box', async () => {
     svc.photos.listAlbums.mockClear().mockResolvedValue([
       rawAlbum(7, { name: 'Trip', photoCount: 40, videoCount: 2 }),

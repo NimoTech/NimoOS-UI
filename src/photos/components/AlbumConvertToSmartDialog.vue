@@ -1,8 +1,8 @@
 <script setup lang="ts">
-// Task 7 (SP15-P2b): AlbumConvertToSmartDialog.vue -- opened by the album detail page's more
-// menu "Convert to Smart Album" entry (Task 6's `convertOpen` stub). A manual album becomes a
-// smart album in place: the backend pins every existing member, deletes the album and hands
-// back the new smart view (usePhotosSmartViews().convertFromAlbum, T1).
+// AlbumConvertToSmartDialog.vue -- opened by the album detail page's more menu "Convert to
+// Smart Album" entry. A manual album becomes a smart album in place: the backend pins every
+// existing member, deletes the album and hands back the new smart view
+// (usePhotosSmartViews().convertFromAlbum).
 //
 // Ported from Vue2 939a7d3a:PhotosAlbumDetail.vue:142-206 (modal markup), :294-298
 // (convertChips), :310-345 (openConvertModal/closeConvert/confirmConvert). Structure follows
@@ -12,9 +12,9 @@
 // not cross SFCs in this repo, so every restated rule body below is copied verbatim from its
 // named source, not reinvented.
 //
-// Extracted as its own component per the owner's ruling for this area (every dialog here --
-// ClusterActionDialog, MergeReviewDialog, AlbumPickerDialog, PlaceSpotDialog -- lives in its
-// own file; PhotosAlbumDetail.vue is already past 1100 lines).
+// Extracted as its own component for consistency with this area's convention (every dialog
+// here -- ClusterActionDialog, MergeReviewDialog, AlbumPickerDialog, PlaceSpotDialog -- lives
+// in its own file; PhotosAlbumDetail.vue is already past 1100 lines).
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { usePhotosSmartViews, type SmartView } from '../stores/smartViews'
@@ -98,8 +98,8 @@ async function submit(): Promise<void> {
     console.error('[album-convert-to-smart] submit', e)
     // Inline, not a toast: this answers the button the user just pressed, so it belongs next
     // to it and must not time out. A 409 reuses the album pages' existing duplicate-name
-    // wording rather than adding a second phrasing of the same thing (Vue2's own final review
-    // round made the same call, per its comment at :294-298 above the chips preview).
+    // wording rather than adding a second phrasing of the same thing (Vue2 made the same call,
+    // per its comment at :294-298 above the chips preview).
     errorText.value = isConflict(e) ? t('photosAlbumNameExists') : t('photosAlbumConvertFailed')
   } finally {
     // Cleared even on failure -- the dialog stays open precisely so retry is one click.
@@ -278,7 +278,7 @@ async function submit(): Promise<void> {
   overflow: hidden;
 }
 /* Single column -- this dialog has no preview rail (unlike SmartViewCreateDialog's
-   1fr/280px), per the brief's explicit structural call. */
+   1fr/280px). */
 .act-modal-body {
   grid-template-columns: 1fr;
 }
@@ -323,8 +323,8 @@ async function submit(): Promise<void> {
 .sv-cond { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 99px; background: var(--surface-3); color: var(--text-2); font-size: 11.5px; }
 
 .sv-thresh-val { margin-left: auto; color: var(--accent-hi); font-weight: 600; font-variant-numeric: tabular-nums; font-size: 13px; }
-/* PhotosThreshSlider.vue owns the actual .sv-slider/.sv-slider-marks styles (T5 fix round 1 ·
-   I1 extraction) -- nothing to restate here for the slider itself. */
+/* PhotosThreshSlider.vue owns the actual .sv-slider/.sv-slider-marks styles (extracted into
+   its own component) -- nothing to restate here for the slider itself. */
 
 /* Vue2 :303 gives this hint a literal inline style="font-size:11.5px;line-height:1.5" --
    named class instead, same treatment SmartViewCreateDialog.vue gives its own

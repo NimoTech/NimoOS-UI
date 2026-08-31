@@ -1,17 +1,17 @@
-// SP8-P5a Task 6 —— 1:1 port from Vue2
+// 1:1 port from Vue2
 // the Vue 2 panel (main@7a6ee6b7) `src/views/AI/Knowledge/store/knowledgeStore.js` (363 lines).
 // This file carries only the **Parser group** (Dashboard/topbar, Jobs queue, Allowlist,
 // Control, Indexed Files five state blocks + corresponding actions + `toast`/`fmtAgo`).
 // The three groups notes/wiki/distill (state: distillJobs/wikiRoots/wikiCandidates/
-// wikiRootsLoading/notesDraftCount/notesSummary + corresponding actions) are left for T7
+// wikiRootsLoading/notesDraftCount/notesSummary + corresponding actions) are left for a later task
 // to continue in this file ——
 // see task brief: "This task only does: state Dashboard/topbar/Allowlist/Queue(parser
 // half)/indexedFiles five blocks + toast + loadOverview + Jobs five actions + Allowlist
-// four + setControl + IndexedFiles five. notes/wiki/distill left for T7".
+// four + setControl + IndexedFiles five. notes/wiki/distill left for later".
 // 【Review R1 correction, 2026-08-01】`export const DISTILL_JOBS_LIMIT = 500` was
-// mistakenly omitted on grounds of "no usage in this task's code, belongs to T7".
+// mistakenly omitted on grounds of "no usage in this task's code, belongs to a later task".
 // That assessment was wrong —— the criterion is task brief's **Interface contract** (brief
-// line 11 explicitly lists it as T6's output) and **downstream consumers** (T7 brief
+// line 11 explicitly lists it as this task's output) and **downstream consumers** (the next task's brief
 // `import { useKnowledgeStore, DISTILL_JOBS_LIMIT } from './knowledgeStore'` and direct
 // use in assertions), not "whether this task's own code uses it". Missing a cross-task
 // interface deliverable means the next task fails to compile. Adding it now; definition
@@ -211,7 +211,7 @@ export function fmtAgo(ms: number): string {
 let indexedPollTimer: ReturnType<typeof setInterval> | null = null
 
 // ══════════════════════════════════════════════════════════════════════
-// SP8-P5a Task 7 —— notes + wiki + distill group (blueprint :99-309, same
+// Notes + wiki + distill group (blueprint :99-309, same
 // knowledgeStore.js; T6 done Parser group, this section continues).
 // Following T6 conventions: K1 (single-layer extraction) / P1 (Vue.observable→setup store) /
 // K5 (HTTP failure doesn't echo backend body, use i18n key) / K6 (don't copy console.error).

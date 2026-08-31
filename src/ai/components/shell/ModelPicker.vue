@@ -1,7 +1,7 @@
 <!--
   1:1 character-for-character port from Vue2 src/views/AI/Agent/shell/ModelPicker.vue (127 lines).
 
-  Vue2-ism conversion checklist (SP8-P1c2 Task 9):
+  Vue2-ism conversion checklist:
   - `directives: { 'click-outside': {...bind/unbind} }` → `useClickOutside`
     composable (see top comment in ../../composables/useClickOutside.ts).
   - `<template v-for="grp in cloudGroups">` with `:key="grp.providerId"` in Vue2

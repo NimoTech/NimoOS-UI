@@ -1,12 +1,16 @@
-// Task 4(顶栏重刻,D13):PhotosTopbar.vue —— 折叠按钮 + 标题/副行(恒全库计数)+ 搜索框
-// 一体的顶栏。结构对应 Vue2 PhotosTopbar.vue:1-34(`.topbar` → 折叠 icon-btn → 标题块
-// `.topbar-title`+`.topbar-sub` → flex:1 居中 `.search`),B 期范围收窄:不渲染
-// searchMode 返回键 / upload 按钮 / Ask Nimo 按钮(brief 明示"B 期不渲染")。
+// Topbar redo: PhotosTopbar.vue — the collapse button + title/subtitle block (always a
+// whole-library count) + search box, all in one topbar. Structure mirrors Vue2
+// PhotosTopbar.vue:1-34 (`.topbar` -> collapse icon-btn -> title block
+// `.topbar-title`+`.topbar-sub` -> flex:1 centered `.search`). This pass narrows scope: it does
+// not render the searchMode back button / upload button / Ask Nimo button (out of scope for
+// this pass, deliberately not rendered yet).
 //
-// 副行=恒全库口径(PhotosTimeline.vue:225-234 library 分支同款):
+// Subtitle = always the whole-library figure (same convention as the library branch in
+// PhotosTimeline.vue:225-234):
 // `t('photosCountSummary', { photos: store.photoCount.toLocaleString(), videos: store.videoCount.toLocaleString() })`,
-// 组件自己消费 timeline store,不接受 sub 作为 prop——与 brief 的 Produces 接口骨架一致
-// (`<PhotosTopbar :collapsed @toggle-collapse @search-submit>`,没有 sub/title props)。
+// The component consumes the timeline store itself and does not accept `sub` as a prop —
+// consistent with the intended interface
+// (`<PhotosTopbar :collapsed @toggle-collapse @search-submit>`, no sub/title props).
 import { describe, it, expect, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
@@ -23,10 +27,10 @@ function mountTopbar(props: Record<string, unknown> = {}) {
   return mount(PhotosTopbar, { props, global: { plugins: [i18n] } })
 }
 
-describe('结构', () => {
+describe('structure', () => {
   beforeEach(() => { setActivePinia(createPinia()) })
 
-  it('渲染 .topbar > 折叠 icon-btn + 标题块 + 居中 search', () => {
+  it('renders .topbar > collapse icon-btn + title block + centered search', () => {
     const w = mountTopbar()
     expect(w.find('.topbar').exists()).toBe(true)
     expect(w.find('.topbar .icon-btn').exists()).toBe(true)
@@ -35,19 +39,19 @@ describe('结构', () => {
     expect(w.find('.topbar .search').exists()).toBe(true)
   })
 
-  it('折叠按钮的图标是 panelLeft(svg rect+path,逐字符对 Vue2 PhotosIcon.vue panelLeft 分支)', () => {
+  it('the collapse button icon is panelLeft (svg rect+path, matched character-for-character against Vue2 PhotosIcon.vue\'s panelLeft branch)', () => {
     const w = mountTopbar()
     const svg = w.get('.icon-btn svg')
     expect(svg.get('rect').attributes()).toMatchObject({ x: '3', y: '4', width: '18', height: '16', rx: '2' })
     expect(svg.get('path').attributes('d')).toBe('M9 4v16')
   })
 
-  it('标题文案是 photosLibrary("照片库")', () => {
+  it('the title text is photosLibrary ("Photo Library")', () => {
     const w = mountTopbar()
     expect(w.get('.topbar-title').text()).toBe(zh.photosLibrary)
   })
 
-  it('搜索框:search 图标(逐字符对 Vue2 PhotosIcon.vue search 分支)+ input + kbd 提示', () => {
+  it('the search box: search icon (matched character-for-character against Vue2 PhotosIcon.vue\'s search branch) + input + kbd hint', () => {
     const w = mountTopbar()
     const search = w.get('.search')
     expect(search.get('svg circle').attributes()).toMatchObject({ cx: '11', cy: '11', r: '7' })
@@ -56,18 +60,18 @@ describe('结构', () => {
     expect(search.get('.kbd').text()).toBe('↵')
   })
 
-  it('搜索框 placeholder 是 photosSearchSearchBarPlaceholder 的本地化值', () => {
+  it('the search box placeholder is the localized value of photosSearchSearchBarPlaceholder', () => {
     const w = mountTopbar()
     expect(w.get('.search input').attributes('placeholder')).toBe(zh.photosSearchSearchBarPlaceholder)
   })
 
-  it('折叠按钮 title 是 photosToggleSidebar("切换侧边栏")', () => {
+  it('the collapse button title is photosToggleSidebar ("Toggle sidebar")', () => {
     const w = mountTopbar()
     expect(w.get('.icon-btn').attributes('title')).toBe(zh.photosToggleSidebar)
   })
 
-  // brief 明示 B 期不渲染 upload 按钮 / Ask Nimo 按钮(Vue2 :26-32)。
-  it('不渲染 upload 按钮 / Ask Nimo 按钮(B 期范围收窄)', () => {
+  // The upload button / Ask Nimo button are deliberately not rendered yet (Vue2 :26-32).
+  it('does not render the upload button / Ask Nimo button (out of scope for this pass)', () => {
     const w = mountTopbar()
     expect(w.find('.btn').exists()).toBe(false)
     expect(w.find('.btn-ai').exists()).toBe(false)
@@ -75,10 +79,10 @@ describe('结构', () => {
   })
 })
 
-describe('副行:恒全库计数', () => {
+describe('subtitle: always the whole-library count', () => {
   beforeEach(() => { setActivePinia(createPinia()) })
 
-  it('渲染 store.photoCount/videoCount 的 photosCountSummary,不带 toLocaleString 时数字原样', async () => {
+  it('renders photosCountSummary from store.photoCount/videoCount; without toLocaleString the numbers pass through as-is', async () => {
     const w = mountTopbar()
     const store = useTimelineStore()
     store.timelineGroups = [
@@ -91,14 +95,16 @@ describe('副行:恒全库计数', () => {
     )
   })
 
-  // 千分位锚定:toLocaleString 在数字 >= 1000 时插入分隔符,验证组件确实调用了它而不是
-  // 直接拼原始数字(brief 明确要求"with toLocaleString")。
-  it('数字 >= 1000 时用 toLocaleString 千分位格式化(不是原始数字直拼)', async () => {
+  // Thousands-separator anchor: toLocaleString inserts a separator once the number is >= 1000,
+  // which proves the component actually calls it instead of concatenating the raw number
+  // (formatting is required to go through toLocaleString).
+  it('formats numbers >= 1000 with toLocaleString thousands separators (not the raw number concatenated)', async () => {
     const w = mountTopbar()
     const store = useTimelineStore()
-    // bucketMode 分支下 photoCount/videoCount 来自 buckets 汇总(BucketMeta: year/month/
-    // count/videoCount,timelineBuckets.ts:7-12)——直接铺 buckets 更贴近真实全库计数来源
-    // (timeline.ts:131-145),比拼一堆 asset 更直接、也不依赖 legacy 分支细节。
+    // In bucketMode, photoCount/videoCount are aggregated from buckets (BucketMeta: year/month/
+    // count/videoCount, timelineBuckets.ts:7-12) — feeding buckets directly is closer to the
+    // real whole-library count source (timeline.ts:131-145) than piling up a bunch of assets,
+    // and it doesn't depend on legacy-branch details.
     store.buckets = [{ year: 2026, month: 7, count: 1234, videoCount: 234, ocrCount: 0 }]
     store.bucketMode = true
     await Promise.resolve()
@@ -110,46 +116,45 @@ describe('副行:恒全库计数', () => {
   })
 })
 
-describe('折叠按钮 emit', () => {
+describe('collapse button emit', () => {
   beforeEach(() => { setActivePinia(createPinia()) })
 
-  it('点击折叠按钮 → emit toggle-collapse', async () => {
+  it('clicking the collapse button emits toggle-collapse', async () => {
     const w = mountTopbar()
     await w.get('.icon-btn').trigger('click')
     expect(w.emitted('toggle-collapse')).toHaveLength(1)
   })
 })
 
-describe('搜索 submit', () => {
+describe('search submit', () => {
   beforeEach(() => { setActivePinia(createPinia()) })
 
-  it('Enter → emit search-submit 带 trim 后的值', async () => {
+  it('Enter emits search-submit with the trimmed value', async () => {
     const w = mountTopbar()
     await w.get('.search input').setValue('  sunset  ')
     await w.get('.search input').trigger('keydown.enter')
     expect(w.emitted('search-submit')).toEqual([['sunset']])
   })
 
-  // fix round 1 · Important (owner ruling ledger-六-2, overriding the first version's "empty
-  // string also emits" choice): empty Enter here = no-op, matching Vue2's own submitSearch
-  // (:65-69) empty-return guard.
+  // Overriding an earlier choice where an empty string also emitted: an empty Enter here is a
+  // no-op, matching Vue2's own submitSearch (:65-69) empty-return guard.
   //
-  // Plan F Task 1 (2026-08-15) update: PhotosSearchBar.vue — the component that used to carry
-  // the "empty string also emits" convention — has been retired outright (no consumer left).
-  // PhotosSearch.vue's own search page now shares THIS exact topbar box instead of rendering a
-  // separate input, so this no-op-on-empty guard is no longer scoped to "just the timeline
-  // topbar" — it is this repo's only search-box behavior everywhere, matching Vue2 1:1 (Vue2
-  // likewise has only one search box, shared by both the library and search "views"). The old
-  // PhotosSearchBar path where an empty Enter emitted and returned the search page to its
-  // pre-search state is intentionally gone with the retirement — the D13-aligned outcome, not
-  // an accidental loss.
-  it('空串 Enter → 不 emit search-submit(ledger-六-2,照 Vue2 submitSearch 空串守卫)', async () => {
+  // Update: PhotosSearchBar.vue — the component that used to carry the "empty string also
+  // emits" convention — has been retired outright (no consumer left). PhotosSearch.vue's own
+  // search page now shares THIS exact topbar box instead of rendering a separate input, so this
+  // no-op-on-empty guard is no longer scoped to "just the timeline topbar" — it is this repo's
+  // only search-box behavior everywhere, matching Vue2 1:1 (Vue2 likewise has only one search
+  // box, shared by both the library and search "views"). The old PhotosSearchBar path where an
+  // empty Enter emitted and returned the search page to its pre-search state is intentionally
+  // gone with the retirement — an intended outcome of the topbar alignment work, not an
+  // accidental loss.
+  it('an empty-string Enter does not emit search-submit (matches Vue2\'s submitSearch empty-string guard)', async () => {
     const w = mountTopbar()
     await w.get('.search input').trigger('keydown.enter')
     expect(w.emitted('search-submit')).toBeUndefined()
   })
 
-  it('全是空白 Enter → 同样不 emit(trim 后为空)', async () => {
+  it('an all-whitespace Enter also does not emit (empty after trim)', async () => {
     const w = mountTopbar()
     await w.get('.search input').setValue('   ')
     await w.get('.search input').trigger('keydown.enter')
@@ -161,56 +166,56 @@ describe('搜索 submit', () => {
 // used by the five re-shelled album/for-you pages (Vue2 truth: PhotosTimeline.vue mounts the
 // SAME <PhotosTopbar> for every non-people/places/upload nav, PhotosTimeline.vue:957-971, just
 // feeding it per-nav title/sub and show-search — it is not a library-exclusive component).
-describe('title/sub/showSearch props(额外覆盖,Fix-1 item 1)', () => {
+describe('title/sub/showSearch props (additional coverage)', () => {
   beforeEach(() => { setActivePinia(createPinia()) })
 
-  it('不传 title/sub → 保持默认行为不变(向后兼容,Photos.vue 的既有用法)', () => {
+  it('without title/sub, default behavior is unchanged (backward compatible with Photos.vue\'s existing usage)', () => {
     const w = mountTopbar()
     expect(w.get('.topbar-title').text()).toBe(zh.photosLibrary)
   })
 
-  it('传 title → 覆盖默认 photosLibrary 文案', () => {
+  it('passing title overrides the default photosLibrary text', () => {
     const w = mountTopbar({ title: zh.photosAlbumsTitle })
     expect(w.get('.topbar-title').text()).toBe(zh.photosAlbumsTitle)
   })
 
-  it('传 sub → 覆盖默认的全库计数副行', () => {
-    const w = mountTopbar({ sub: '9 个相册' })
-    expect(w.get('.topbar-sub').text()).toBe('9 个相册')
+  it('passing sub overrides the default whole-library count subtitle', () => {
+    const w = mountTopbar({ sub: '9 albums' })
+    expect(w.get('.topbar-sub').text()).toBe('9 albums')
   })
 
-  it('showSearch 默认 true → 渲染搜索框(向后兼容)', () => {
+  it('showSearch defaults to true, rendering the search box (backward compatible)', () => {
     const w = mountTopbar()
     expect(w.find('.search').exists()).toBe(true)
   })
 
-  it('showSearch=false → 不渲染搜索框,但居中包裹层仍在', () => {
+  it('showSearch=false does not render the search box, but the centered wrapper is still there', () => {
     const w = mountTopbar({ showSearch: false })
     expect(w.find('.search').exists()).toBe(false)
     expect(w.find('.topbar-title').exists()).toBe(true)
   })
 })
 
-// Fix round 1 · Important 1 (Plan E Task 1 review, 2026-08-14): PhotosPlaceAssets.vue needs a
-// clean way to render "no subtitle at all" (Vue2 has no topbar/sub concept for that detail
-// context — see that file's own header comment). Omitting `sub` doesn't do it: the computed
-// `sub` falls back to the library-wide count summary (line 87-90 above), so an omitted prop on
-// a non-library page would render a wrong, stray subtitle — a real regression vs. the old
-// AreaShell shell (which had no subtitle at all there). Controller ruling: an explicit empty
-// string is the opt-out — `sub=""` means "render no `.topbar-sub` node", distinct from omitting
-// the prop (which still means "use the library default"). This is an additive contract on a
-// shared photos-area component: every existing caller that never passes `sub=''` is unaffected.
-describe('sub="" 显式抑制副行(fix round 1 · Important 1,与"不传 sub"语义不同)', () => {
+// PhotosPlaceAssets.vue needs a clean way to render "no subtitle at all" (Vue2 has no
+// topbar/sub concept for that detail context — see that file's own header comment). Omitting
+// `sub` doesn't do it: the computed `sub` falls back to the library-wide count summary (line
+// 87-90 above), so an omitted prop on a non-library page would render a wrong, stray subtitle —
+// a real regression vs. the old AreaShell shell (which had no subtitle at all there). The
+// resolution: an explicit empty string is the opt-out — `sub=""` means "render no `.topbar-sub`
+// node", distinct from omitting the prop (which still means "use the library default"). This is
+// an additive contract on a shared photos-area component: every existing caller that never
+// passes `sub=''` is unaffected.
+describe('sub="" explicitly suppresses the subtitle (distinct in meaning from omitting sub)', () => {
   beforeEach(() => { setActivePinia(createPinia()) })
 
-  it('sub="" → 不渲染 .topbar-sub 节点(显式 opt-out,不是"用空字符串当文案渲染出来")', () => {
+  it('sub="" does not render the .topbar-sub node (an explicit opt-out, not "render the empty string as the text")', () => {
     const w = mountTopbar({ sub: '' })
     expect(w.find('.topbar-sub').exists()).toBe(false)
-    // 标题块本身还在,只是副行这一行被抑制,不是整个标题块都被吞掉。
+    // The title block itself is still there — only the subtitle line is suppressed, not the whole title block.
     expect(w.find('.topbar-title').exists()).toBe(true)
   })
 
-  it('不传 sub(省略)→ 与显式空串不同——仍走默认全库计数回落,.topbar-sub 照常渲染(库页行为不受影响)', () => {
+  it('omitting sub entirely differs from an explicit empty string — it still falls back to the default whole-library count, and .topbar-sub renders as usual (library-page behavior is unaffected)', () => {
     const w = mountTopbar()
     expect(w.find('.topbar-sub').exists()).toBe(true)
     expect(w.get('.topbar-sub').text()).toBe(zh.photosCountSummary.replace('{photos}', '0').replace('{videos}', '0'))
@@ -221,42 +226,42 @@ describe('sub="" 显式抑制副行(fix round 1 · Important 1,与"不传 sub"�
 // every other prop added in that same round (title/sub/showSearch) got one, this one didn't.
 // Mirrors Vue2 PhotosTopbar.vue:6-12's searchMode swap: `v-if="back"` renders a second icon-btn
 // (chevL) in place of the title/sub block (`v-if="!back"`), emits `back` on click.
-describe('back prop(额外覆盖,Fix-4 item 2)', () => {
+describe('back prop (additional coverage)', () => {
   beforeEach(() => { setActivePinia(createPinia()) })
 
-  it('back 缺省(未传)→ 保持默认行为不变:标题/副行渲染,不出现返回键', () => {
+  it('when back is omitted, default behavior is unchanged: title/sub render, no back button appears', () => {
     const w = mountTopbar()
     expect(w.find('.topbar-title').exists()).toBe(true)
     expect(w.find('.topbar-sub').exists()).toBe(true)
-    // 折叠按钮之外只有一个 .icon-btn(没有第二个返回键)。
+    // Only one .icon-btn besides the collapse button (no second back button).
     expect(w.findAll('.icon-btn')).toHaveLength(1)
   })
 
-  it('back=true → 渲染 chevL 返回键(第二个 .icon-btn),标题/副行被抑制', () => {
+  it('back=true renders the chevL back button (a second .icon-btn), suppressing title/sub', () => {
     const w = mountTopbar({ back: true })
     expect(w.find('.topbar-title').exists()).toBe(false)
     expect(w.find('.topbar-sub').exists()).toBe(false)
     const icons = w.findAll('.icon-btn')
     expect(icons).toHaveLength(2)
-    // 逐字符对 Vue2 PhotosIcon.vue chevL 分支(SearchDatePopover.vue 的 cal-nav "上个月" 按钮
-    // 已用过同一条 path,先例一致)。
+    // Matched character-for-character against Vue2 PhotosIcon.vue's chevL branch (SearchDatePopover.vue's
+    // cal-nav "previous month" button already uses this same path, so there's precedent).
     expect(icons[1]!.get('path').attributes('d')).toBe('m15 6-6 6 6 6')
   })
 
-  it('back=true 时点第二个 .icon-btn → emit back', async () => {
+  it('back=true: clicking the second .icon-btn emits back', async () => {
     const w = mountTopbar({ back: true })
     const icons = w.findAll('.icon-btn')
     await icons[1]!.trigger('click')
     expect(w.emitted('back')).toHaveLength(1)
   })
 
-  it('back=true 的返回键 title 是 photosSearchBackToLibrary 的本地化值', () => {
+  it('back=true: the back button\'s title is the localized value of photosSearchBackToLibrary', () => {
     const w = mountTopbar({ back: true })
     const icons = w.findAll('.icon-btn')
     expect(icons[1]!.attributes('title')).toBe(zh.photosSearchBackToLibrary)
   })
 
-  it('back=true 时折叠按钮(第一个 .icon-btn)仍照常 emit toggle-collapse,不受 back 影响', async () => {
+  it('back=true: the collapse button (first .icon-btn) still emits toggle-collapse as usual, unaffected by back', async () => {
     const w = mountTopbar({ back: true })
     const icons = w.findAll('.icon-btn')
     await icons[0]!.trigger('click')
@@ -265,34 +270,33 @@ describe('back prop(额外覆盖,Fix-4 item 2)', () => {
   })
 })
 
-// Plan F Task 1 (D13 topbar alignment): PhotosSearch.vue retires its own in-page
-// PhotosSearchBar.vue (no other consumer left, grep-confirmed) and instead makes THIS
-// component's `.search` box the one editable input, echoing the route's `q` — mirrors Vue2
-// PhotosTopbar.vue's own `query` prop (:47-57: `data() { return { searchText: this.query } }`
-// + a `query(v) { if (v !== this.searchText) this.searchText = v || '' }` watcher, the exact
-// "don't clobber in-progress typing" guard PhotosSearchBar.vue's own `value` prop used to
-// implement). `query` is additive and optional (default ''), so Photos.vue's existing
-// no-props usage is unaffected.
-describe('query prop(回显,Plan F Task 1)', () => {
+// Topbar alignment: PhotosSearch.vue retires its own in-page PhotosSearchBar.vue (no other
+// consumer left, grep-confirmed) and instead makes THIS component's `.search` box the one
+// editable input, echoing the route's `q` — mirrors Vue2 PhotosTopbar.vue's own `query` prop
+// (:47-57: `data() { return { searchText: this.query } }` + a `query(v) { if (v !== this.searchText)
+// this.searchText = v || '' }` watcher, the exact "don't clobber in-progress typing" guard
+// PhotosSearchBar.vue's own `value` prop used to implement). `query` is additive and optional
+// (default ''), so Photos.vue's existing no-props usage is unaffected.
+describe('query prop (echo)', () => {
   beforeEach(() => { setActivePinia(createPinia()) })
 
-  it('不传 query → input 默认空(向后兼容,Photos.vue 的既有用法)', () => {
+  it('without query, the input defaults to empty (backward compatible with Photos.vue\'s existing usage)', () => {
     const w = mountTopbar()
     expect((w.get('.search input').element as HTMLInputElement).value).toBe('')
   })
 
-  it('传 query → 回显进 input value', () => {
+  it('passing query echoes it into the input value', () => {
     const w = mountTopbar({ query: 'sunset' })
     expect((w.get('.search input').element as HTMLInputElement).value).toBe('sunset')
   })
 
-  it('query prop 变化 → input 跟着变', async () => {
+  it('changing the query prop updates the input accordingly', async () => {
     const w = mountTopbar({ query: 'a' })
     await w.setProps({ query: 'b' })
     expect((w.get('.search input').element as HTMLInputElement).value).toBe('b')
   })
 
-  it('input 里已有用户输入且与 query 不同时,query 未变则不覆盖(不打断用户打字)', async () => {
+  it('when the input already has user-typed text that differs from query, an unchanged query does not overwrite it (does not interrupt typing)', async () => {
     const w = mountTopbar({ query: 'a' })
     await w.get('.search input').setValue('user is typing')
     await w.setProps({ query: 'a' })
@@ -300,15 +304,15 @@ describe('query prop(回显,Plan F Task 1)', () => {
   })
 })
 
-// Plan F Task 1: mirrors Vue2 PhotosTopbar.vue's own `searchMode(on) { if (on) ... focus() }`
-// watcher (:60-62) — entering search focuses the box. New-UI's `back` prop is the routed
-// equivalent of Vue2's `searchMode` (Fix-3 item 7's own header comment), and PhotosSearch.vue
-// mounts with `back` already true (it's a dedicated route, not a toggled local flag), so the
-// equivalent moment is `onMounted`, not a prop-change watcher.
-describe('back=true 时搜索框自动聚焦(Plan F Task 1,对齐 Vue2 searchMode 聚焦行为)', () => {
+// Mirrors Vue2 PhotosTopbar.vue's own `searchMode(on) { if (on) ... focus() }` watcher (:60-62) —
+// entering search focuses the box. New-UI's `back` prop is the routed equivalent of Vue2's
+// `searchMode` (per that watcher's own header comment), and PhotosSearch.vue mounts with `back`
+// already true (it's a dedicated route, not a toggled local flag), so the equivalent moment is
+// `onMounted`, not a prop-change watcher.
+describe('back=true auto-focuses the search box (matches Vue2\'s searchMode focus behavior)', () => {
   beforeEach(() => { setActivePinia(createPinia()) })
 
-  it('back=true → mounted 后 document.activeElement 是搜索框', () => {
+  it('back=true: after mount, document.activeElement is the search box', () => {
     const el = document.createElement('div')
     document.body.appendChild(el)
     const w = mount(PhotosTopbar, { props: { back: true }, global: { plugins: [i18n] }, attachTo: el })
@@ -317,7 +321,7 @@ describe('back=true 时搜索框自动聚焦(Plan F Task 1,对齐 Vue2 searchMod
     el.remove()
   })
 
-  it('back 未传(默认 false)→ 不自动聚焦', () => {
+  it('when back is omitted (defaults to false), it does not auto-focus', () => {
     const el = document.createElement('div')
     document.body.appendChild(el)
     const w = mount(PhotosTopbar, { global: { plugins: [i18n] }, attachTo: el })
@@ -327,18 +331,18 @@ describe('back=true 时搜索框自动聚焦(Plan F Task 1,对齐 Vue2 searchMod
   })
 })
 
-// Plan G Task 16 (preflight F-06/F-17): additive `showAskNimo` prop (default false, non-breaking
-// for the 5 existing library/albums/smart-views/people/places callers) + `ask-nimo` emit. Vue2
-// truth: the topbar Ask button is a labeled pill (`class="btn btn-ai"` + 18px `.nimo-orb` +
-// visible "Ask Nimo" text, the Vue 2 panel's PhotosTopbar.vue:29-32) that opens the drawer directly, no
-// prefill (baseline research report §2.1) — this component only emits, the caller (T2's
-// useAskNimo().openDrawer()) owns that behavior.
+// Additive `showAskNimo` prop (default false, non-breaking for the 5 existing
+// library/albums/smart-views/people/places callers) + `ask-nimo` emit. Vue2 truth: the topbar
+// Ask button is a labeled pill (`class="btn btn-ai"` + 18px `.nimo-orb` + visible "Ask Nimo"
+// text, the Vue 2 panel's PhotosTopbar.vue:29-32) that opens the drawer directly, no prefill
+// (per the baseline research report) — this component only emits, the caller
+// (`useAskNimo().openDrawer()`) owns that behavior.
 //
-// Review fix (Critical): the first version used a novel `icon-btn btn-ai` combo with no text and
+// Fix (critical): the first version used a novel `icon-btn btn-ai` combo with no text and
 // a 16px orb — no precedent in either repo, and `.icon-btn` has no border so `.btn-ai`'s
 // border-color was inert. Corrected to match Vue2 byte-for-byte: `btn btn-ai` + 18px orb +
 // visible label, no title tooltip (Vue2 has none there since the label is visible).
-describe('showAskNimo prop(额外覆盖,Plan G Task 16)', () => {
+describe('showAskNimo prop (additional coverage)', () => {
   beforeEach(() => { setActivePinia(createPinia()) })
 
   it('does not render the Ask Nimo button by default (non-breaking for existing callers)', () => {
@@ -362,11 +366,13 @@ describe('showAskNimo prop(额外覆盖,Plan G Task 16)', () => {
   })
 })
 
-// 非颜色视觉属性锚定(I5,曾与已退役的 PhotosSearchBar.test.ts 同一约定):组件自身 scoped style 里
-// 唯一允许存在的规则是搜索框 FILL 的已拍板玻璃质感偏离(chip-bg/chip-border),不应该出现
-// 任何 Vue2 已在 parity scss 里给出的其它视觉属性(高度/圆角/尺寸等一律让 parity 生效)。
-describe('样式:scoped 块最小化(仅 FILL 偏离)', () => {
-  it('.search 规则只声明 background/border-color(FILL 偏离),不重复 parity 已给的 height/border-radius', () => {
+// Non-color visual-property anchor (a convention this file once shared with the now-retired
+// PhotosSearchBar.test.ts): the only rule allowed to exist in the component's own scoped style
+// is the search box's deliberate glass-look FILL deviation (chip-bg/chip-border) — no other
+// visual property that Vue2 already provides in the parity scss (height/border-radius/size etc.
+// should all be left to parity) may appear here.
+describe('style: the scoped block is minimal (FILL deviation only)', () => {
+  it('the .search rule only declares background/border-color (the FILL deviation), not duplicating the height/border-radius that parity already provides', () => {
     const style = extractStyleBlock(photosTopbarRaw)
     const rule = parseCssRules(style).find((r) => r.selectors.length === 1 && r.selectors[0] === '.search')
     expect(rule).toBeDefined()

@@ -152,7 +152,7 @@ describe('SnapshotTimeline delete', () => {
   })
 })
 
-describe('browse button (SP6-P5 backfilled missing item)', () => {
+describe('browse button (backfilled missing item)', () => {
   const SNAP = { id: 1, name: 'snap-a', label: '', type: 'manual', created_at: new Date().toISOString() }
 
   it('every snapshot item has a browse button', async () => {

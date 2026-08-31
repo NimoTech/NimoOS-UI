@@ -15,7 +15,7 @@ export const DEFAULT: Omit<LayoutItem, 'id'>[] = [
   { kind: 'app', key: 'ai', c: 11, r: 2, w: 1, h: 1 },
   { kind: 'app', key: 'settings', c: 12, r: 2, w: 1, h: 1 },
   // c10,r2 is the free cell directly left of the ai tile (c11,r2) -- verified against the
-  // full occupancy map before picking it (see task-9-report.md for the grid dump); every
+  // full occupancy map before picking it; every
   // other cell in rows 1-2/cols 7-10 is free too, this one groups Knowledge with AI visually.
   { kind: 'app', key: 'knowledge', c: 10, r: 2, w: 1, h: 1 },
   { kind: 'widget', key: 'ai', c: 1, r: 3, w: 4, h: 4 },

@@ -1,5 +1,5 @@
 <!--
-  1:1 port from Vue2 src/views/AI/Agent/tabs/ActivityTab.vue (55 lines). SP8-P1c2 Task 10.
+  1:1 port from Vue2 src/views/AI/Agent/tabs/ActivityTab.vue (55 lines).
 
   Step list: `.activity-step`/`.activity-bullet[data-state]`/`.activity-title`/
   `.activity-meta` four classes provided by src/ai/styles/agent-styles.scss:433-451

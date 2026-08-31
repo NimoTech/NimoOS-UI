@@ -1,6 +1,6 @@
-// Merge-cards feature (2026-08-21): service wrappers + store state for the cluster-merge
-// question cards in the People review wizard. Backend contract (verified against the
-// DEV-NimoOS-Photos branch feat/cluster-merge-questions, unmerged at the time of writing):
+// Merge-cards feature: service wrappers + store state for the cluster-merge
+// question cards in the People review wizard. Backend contract (verified against a backend
+// change that has not shipped yet at the time of writing):
 // GET /photos/persons/merge-suggestions/v2 ->
 // {pairs:[{id,dist,from,into,fromFaceIds,intoFaceIds}]}, open only, hidden excluded, dist ASC.
 // POST .../v2/:id/accept|reject -> {id,status,decidedAt}, idempotent. Old backend (no v2 route)
@@ -92,7 +92,7 @@ describe('photosPeople store — merge questions (merge-cards feature)', () => {
       expect(s.mergeQuestions[0].intoFaceIds).toEqual([])
     })
 
-    // Merge-card legibility fix (2026-08-21): fromFaces/intoFaces additive contract.
+    // Merge-card legibility fix: fromFaces/intoFaces additive contract.
     describe('fromFaces / intoFaces (merge-card legibility fix, additive)', () => {
       it('present — normalizes each {faceId, assetId} entry to strings', async () => {
         ;(service.photos.listMergeQuestions as any).mockResolvedValueOnce({
@@ -148,11 +148,11 @@ describe('photosPeople store — merge questions (merge-cards feature)', () => {
         ])
       })
 
-      // T12b (2026-08-27 addendum): each fromFaces/intoFaces entry may additionally carry a
-      // normalized bbox [x1,y1,x2,y2] (backend T12a) for the review wizard's lightbox overlay.
+      // Each fromFaces/intoFaces entry may additionally carry a
+      // normalized bbox [x1,y1,x2,y2] for the review wizard's lightbox overlay.
       // Additive + independently validated per-entry: a bad bbox drops only its own bbox field
       // (to undefined), never the whole face-preview entry.
-      describe('bbox (T12b, additive)', () => {
+      describe('bbox (additive)', () => {
         it('a valid bbox passes through unchanged', async () => {
           ;(service.photos.listMergeQuestions as any).mockResolvedValueOnce({
             pairs: [rawPair({

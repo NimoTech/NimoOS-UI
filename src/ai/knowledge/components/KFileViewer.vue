@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// SP8-P5e Task 4 — 1:1 ported from the Vue 2 panel's blueprint `KFileViewer.vue`
+// 1:1 ported from the Vue 2 panel's blueprint `KFileViewer.vue`
 // (`src/views/AI/Knowledge/components/KFileViewer.vue:1-68`).
 //
 // 🔴 K44 (governance §3): `.vue` side zero `<style>` block — blueprint `<style scoped>`

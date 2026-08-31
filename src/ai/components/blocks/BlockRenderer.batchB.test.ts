@@ -1,4 +1,4 @@
-// SP8-P1b Task 9 — Block renderer batch B smoke tests: TerminalCard(running/success/error
+// Block renderer batch B smoke tests: TerminalCard(running/success/error
 // three states), SemanticSearchCard(use real buildSemanticSearchBlock output to run tab switching +
 // thumbnail click opens lightbox), SearchImageLightbox(arrow key moves index / triggers nav event).
 import { describe, expect, it } from 'vitest'

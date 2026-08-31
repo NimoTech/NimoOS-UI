@@ -1,15 +1,19 @@
 <script setup lang="ts">
-// 「加入相册」选择器 —— 被三处宿主复用(时间线批量工具栏 / 收藏视图 /
-// 灯箱顶栏,T9 接线)。结构照 Vue2 老面板 src/views/Photos/PhotosTimeline.vue:1040-1065
-// 的相册选择覆盖层(遮罩+面板+列表+「+ New Album」行),行为照 :582-607(onBatchAlbum/
-// pickAlbum/createAndPickAlbum)。
+// "Add to Album" picker -- reused by three hosts (timeline batch toolbar / favorites view /
+// lightbox top bar). Structure follows the old Vue2 panel's
+// src/views/Photos/PhotosTimeline.vue:1040-1065 album selection overlay (scrim + panel + list +
+// "+ New Album" row); behavior follows :582-607 (onBatchAlbum/pickAlbum/createAndPickAlbum).
 //
-// 形态偏离登记(范围收口):Vue2 用 window.prompt 收集新相册名;本仓无
-// prompt 惯例且窄屏体验差,改为面板内联输入行(回车提交/Esc 收起),行为语义不变。
+// Deliberate, scoped-down deviation from Vue2: Vue2 used window.prompt to collect the new
+// album name; this repo has no window.prompt convention and it's a poor experience on narrow
+// screens, so this uses an inline input row in the panel instead (Enter to submit / Esc to
+// collapse), with the same behavioral semantics.
 //
-// 关键与 Vue2 的语义差异(brief 明确、非疏漏):失败路径不关闭面板 —— Vue2 的
-// createAndPickAlbum 只 console.error 吞掉异常,本组件改为 toast 失败文案且保持面板打开
-// (含新建输入行保留内容),这样用户能看到失败原因并重试,而不是静默无反应。
+// Key semantic difference from Vue2 (intentional, not an oversight): the failure path does not
+// close the panel -- Vue2's createAndPickAlbum only swallows the exception with console.error,
+// while this component instead shows a toast with the failure text and keeps the panel open
+// (including the new-album input row's content), so the user can see why it failed and retry
+// instead of getting silent unresponsiveness.
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
@@ -32,26 +36,31 @@ const creating = ref(false)
 const newName = ref('')
 const newInputRef = ref<HTMLInputElement | null>(null)
 
-// 终审必修 2:重入守卫。`creating` 只是「输入行是否展开」的显示标志,不是 in-flight 守卫——
-// 两个独立的异步入口各自需要一个:`adding` 挡 pick()(连点同一相册项重复 addAssetsToAlbum),
-// `submitting` 挡 submitCreate()(连按回车重复 createAlbum)。刻意不共用同一个 ref——
-// submitCreate 成功后会内部调用 pick(),若两者共享一个标志,submitCreate 置位后 pick() 的
-// 守卫会把这次内部调用也一并挡掉(createAlbum 成功了却漏掉紧跟着的 addAssetsToAlbum,
-// 现有「创建后加入」流程会被自己的重入守卫误伤)。这是本期第三次出现的同类 bug(T7
-// PhotosAlbums.vue `creating`、T10 PhotosFavorites.vue `saveAlbumSaving` 均已补过守卫),
-// 四个新建入口里本组件是最后一个补齐的。
+// Re-entrance guards. `creating` is only a display flag for "is the input row expanded", not an
+// in-flight guard -- two independent async entry points each need their own: `adding` blocks
+// pick() (clicking the same album item repeatedly would repeat addAssetsToAlbum), `submitting`
+// blocks submitCreate() (repeatedly pressing Enter would repeat createAlbum). Deliberately not
+// sharing the same ref -- submitCreate calls pick() internally after success, and if the two
+// shared one flag, pick()'s guard would also block that internal call once submitCreate had set
+// it (createAlbum would succeed but the immediately following addAssetsToAlbum would be
+// skipped, breaking the existing "create then add" flow via its own re-entrance guard). The
+// same class of bug has shown up elsewhere too (PhotosAlbums.vue's `creating`,
+// PhotosFavorites.vue's `saveAlbumSaving`, both already guarded this way) -- this component is
+// simply the last of the four "create new" entry points to get the fix.
 const adding = ref(false)
 const submitting = ref(false)
 
-// 铁律:id 比较一律 String() 归一,禁对象引用 ===。
+// Always normalize id comparisons via String(); never compare object references with ===.
 function sameId(a: string | number, b: string | number): boolean {
   return String(a) === String(b)
 }
 
 const views = computed(() => albums.albums.map((a) => albumToView(a, t('photosAlbumUntitled'))))
-// assetIds 为空时不但已有相册项要 disabled(brief 明确要求),「+ 新建相册」入口也同样
-// disabled——否则 createAlbum 这个有持久副作用的操作会执行(真建了个相册),但紧接着的
-// pick() 被这同一个 canSubmit 短路掉,用户对着还在的输入行毫无反馈(评审 Minor 2)。
+// When assetIds is empty, not only should existing album items be disabled, the "+ New Album"
+// entry point must be disabled too -- otherwise createAlbum (which has a persistent side
+// effect) would run and actually create an album, but the immediately following pick() would
+// get short-circuited by this same canSubmit, leaving the user staring at the still-open input
+// row with no feedback.
 const canSubmit = computed(() => props.assetIds.length > 0)
 
 function thumb(cover: string | number): string {
@@ -62,18 +71,23 @@ function close(): void {
   emit('update:open', false)
 }
 
-// Esc 分层,document 级监听(不用模板 @keydown.esc)—— 评审指出的功能性 bug:模板绑定的
-// keydown 依赖真实 DOM 焦点落在 overlay/input 上,但用户从面板外的触发按钮打开面板、不点
-// 面板内部直接按 Esc 时,焦点还停在触发按钮上,事件永远到不了 overlay,面板就关不掉;第一次
-// Esc 收起输入行后 input 被 v-else 卸载、焦点回落到 body,第二次 Esc 同样断链。照
-// PhotosSidebar.vue:22-27 / PhotoLightbox.vue:119-140 的既有范式改为 document 监听,
-// 由 watch(open) 负责挂/摘,onUnmounted 兜底摘干净。
+// Esc handling is layered via a document-level listener (not the template's @keydown.esc) -- a
+// functional bug: a template-bound keydown depends on real DOM focus landing on the
+// overlay/input, but when the user opens the panel from a trigger button outside the panel and
+// presses Esc without ever clicking inside it, focus is still on the trigger button, so the
+// event never reaches the overlay and the panel can't be closed; after the first Esc collapses
+// the input row, the input gets unmounted by v-else and focus falls back to body, so a second
+// Esc breaks the same way. Switched to the document-level listening pattern already used by
+// PhotosSidebar.vue:22-27 / PhotoLightbox.vue:119-140, attached/detached by watch(open), with
+// onUnmounted as a cleanup fallback.
 //
-// 终审必修 1:本组件常被灯箱(T9)在其顶栏「加入相册」按钮打开,灯箱自己在 window 上挂了
-// 一个 keydown(PhotoLightbox.vue:144)。原生 keydown 默认冒泡(bubbles:true),冒泡顺序是
-// document 先于 window——不加 stopPropagation 的话,这里关完面板,同一次 Esc 接着冒泡到
-// window 又把灯箱也关了(T9 设计明确「灯箱本身不关闭」,PhotoLightbox.vue:51-52 注释)。
-// 在 document 阶段挡住,不让它继续冒泡到 window 即可。
+// This component is often opened by the lightbox's top-bar "Add to Album" button, and the
+// lightbox itself has its own keydown listener on window (PhotoLightbox.vue:144). Native
+// keydown bubbles by default (bubbles: true), and the bubble order is document before window --
+// without stopPropagation, closing this panel would let the same Esc keypress go on to bubble
+// to window and close the lightbox too (the lightbox is explicitly designed not to close itself
+// here, per PhotoLightbox.vue:51-52's own comment). Stopping it at the document phase prevents
+// it from bubbling on to window.
 function onDocumentKeydown(e: KeyboardEvent): void {
   if (e.key !== 'Escape') return
   e.stopPropagation()
@@ -81,9 +95,11 @@ function onDocumentKeydown(e: KeyboardEvent): void {
   else close()
 }
 
-// 照 Vue2 onBatchAlbum:584 —— 打开前刷新相册列表;Vue2 未 await 不阻塞渲染,这里同样。
-// immediate:true——宿主(T9)可能把本组件常驻挂载、只切换 open prop,也可能在已 open===true
-// 时才挂载;两种情况都要在"可见"这一刻刷新列表,不只是 false→true 的那一次变化。
+// Follows Vue2's onBatchAlbum:584 -- refresh the album list before opening; Vue2 doesn't await
+// it so it doesn't block rendering, and this does the same. immediate: true -- a host may keep
+// this component permanently mounted and only toggle the open prop, or it may mount it only
+// once open is already true; either way the list needs refreshing at the moment it becomes
+// visible, not just on the one false→true transition.
 watch(
   () => props.open,
   (isOpen) => {
@@ -113,7 +129,7 @@ async function pick(albumId: string | number): Promise<void> {
     close()
   } catch {
     toast.show(t('photosAlbumAddFailed'))
-    // 面板保持打开——不 close()。
+    // Keep the panel open -- do not call close().
   } finally {
     adding.value = false
   }
@@ -136,12 +152,14 @@ async function submitCreate(): Promise<void> {
   try {
     const created = await albums.createAlbum(name)
     await pick(created.id as string | number)
-    // pick 成功会自己 close();若 pick 内部失败(addAssetsToAlbum 抛错),pick 已经
-    // toast 了失败文案且不关面板——这里不重复处理,创建本身是成功的。pick() 内部用的是
-    // 独立的 `adding` 守卫,不受这里 `submitting` 已置位影响,两次真实网络调用都会照常发生。
+    // A successful pick() closes the panel itself; if pick() fails internally
+    // (addAssetsToAlbum throws), pick() has already shown the failure toast and kept the panel
+    // open -- no need to handle that again here, since the create itself succeeded. pick() uses
+    // its own independent `adding` guard, unaffected by `submitting` already being set here, so
+    // both real network calls still happen as normal.
   } catch (e) {
     toast.show(isConflict(e) ? t('photosAlbumNameExists') : t('photosAlbumCreateFailed'))
-    // 面板不关,输入行保留内容(newName 不清空)。
+    // Keep the panel open, and keep the input row's content (don't clear newName).
   } finally {
     submitting.value = false
   }
@@ -211,12 +229,14 @@ async function submitCreate(): Promise<void> {
 </template>
 
 <style scoped>
-/* Task 7(两 picker 类名工程): overlay/panel/head/body/item(+:hover)/new/empty 与已导入的
-   全局 parity 样式表(src/photos/styles/vue2-parity/photos.scss:1043-1074
-   `.photos-root .album-picker-*`)逐字同名——这些规则被整体删除,直接让 parity 接管,不在本地
-   重复声明(否则两处对同一属性的取值在 scoped 特异性打平后要靠加载顺序分胜负,构成隐性像素
-   漂移,即 T3 albums 弹层清理时踩过的坑)。下面只保留 parity 完全没有覆盖的选择器,逐条注释
-   保留理由。 */
+/* overlay/panel/head/body/item(+:hover)/new/empty are named byte-for-byte the same as the
+   already-imported global parity stylesheet
+   (src/photos/styles/vue2-parity/photos.scss:1043-1074 `.photos-root .album-picker-*`) --
+   those rules were removed entirely here and left for parity to own, rather than being
+   redeclared locally (otherwise both places setting the same property, once scoped specificity
+   is tied, would come down to load order and produce an invisible pixel drift -- a mistake
+   already hit once while cleaning up the albums dialogs). Only selectors parity doesn't cover
+   at all are kept below, each with its own comment explaining why. */
 
 /* Note: parity's own `.photos-root .album-picker-panel`
    (vue2-parity/photos.scss:1160-1161, `width: 280px; max-height: 360px;`) is byte-transcribed
@@ -245,11 +265,12 @@ async function submitCreate(): Promise<void> {
   max-height: min(640px, 80vh);
 }
 
-/* 结构补充(parity 未覆盖):本组件相册项承载封面缩略图 + 标题/计数两列布局,并用原生
-   <button> 承载可点击语义(Vue2 版是纯文本 <div>,靠 window.prompt 建相册,没有封面/计数
-   这层子结构)——这里只保留 flex 布局与 button 外观重置这两类 parity 完全不涉及的属性;
-   padding/font-size/color/cursor/transition 仍由 parity 的 .album-picker-item 提供,不重复
-   声明。 */
+/* Structural addition (not covered by parity): this component's album items carry a cover
+   thumbnail plus a title/count two-column layout, and use a native <button> for clickable
+   semantics (Vue2's version is a plain text <div>, building albums via window.prompt with no
+   cover/count sub-structure) -- only the flex layout and button appearance reset, two things
+   parity doesn't touch at all, are kept here; padding/font-size/color/cursor/transition are
+   still provided by parity's .album-picker-item and not redeclared. */
 .album-picker-item {
   display: flex;
   align-items: center;
@@ -260,13 +281,16 @@ async function submitCreate(): Promise<void> {
   font-family: inherit;
   text-align: left;
 }
-/* disabled 态 parity 无对应规则(Vue2 没有这个态)—— New-UI 新增的 assetIds 为空态防呆。 */
+/* disabled state has no counterpart rule in parity (Vue2 has no such state) -- this is a
+   New-UI addition guarding against an empty assetIds state. */
 .album-picker-item:disabled { opacity: 0.45; cursor: not-allowed; pointer-events: none; }
 
-/* 头部关闭按钮:Vue2 用的是全站通用 .icon-btn(photos.scss:229-237,32px 圆形 + photos-icon
-   组件),本仓这批弹层(MergeReviewDialog.vue `.mrd-close`、ClusterActionDialog.vue
-   `.cad-close`、PhotosAlbums.vue New Album 弹层 `.albums-modal-close`)一贯改用更小的 24px
-   专属关闭按钮类而不复用 .icon-btn——这是既有本地范式的延续,parity 无对应选择器可比对。 */
+/* Header close button: Vue2 uses the site-wide generic .icon-btn (photos.scss:229-237, a 32px
+   circle + photos-icon component); this repo's dialogs (MergeReviewDialog.vue's `.mrd-close`,
+   ClusterActionDialog.vue's `.cad-close`, PhotosAlbums.vue's New Album dialog's
+   `.albums-modal-close`) consistently use a smaller, dedicated 24px close-button class instead
+   of reusing .icon-btn -- this continues that existing local pattern, and parity has no
+   corresponding selector to compare against. */
 .album-picker-close {
   width: 24px; height: 24px; border-radius: 50%; border: 0; background: transparent;
   color: var(--text-2); font-size: 15px; line-height: 1; cursor: pointer;
@@ -274,27 +298,34 @@ async function submitCreate(): Promise<void> {
 }
 .album-picker-close:hover { background: var(--surface-3); color: var(--text-1); }
 
-/* 标题文字(模板处 `.album-picker-title-text` span):
-   font-size/font-weight 仍不声明局部规则——parity 的 .album-picker-head 本身已是
-   font-size:13px;font-weight:600 的 flex 容器(space-between 天然把标题和关闭按钮分置
-   两端),留出这层局部覆盖只会把 13px 悄悄改成 14.5px,构成像素漂移。
+/* Title text (the `.album-picker-title-text` span in the template):
+   font-size/font-weight still has no local rule -- parity's .album-picker-head is already a
+   flex container with font-size:13px;font-weight:600 (space-between naturally separates the
+   title from the close button on either end), so adding a local override here would silently
+   turn 13px into 14.5px and create a pixel drift.
 
-   本处订正此前对 color 的判断——**"删除后交给继承环境色,与 Vue2 行为一致"这条推论是错的**:本组件
-   挂载在 `.app` 的**同级**(`.photos-root > .app` 与 `.photos-root > AlbumPickerDialog`
-   是兄弟,见 PhotosSearch.vue 等宿主页模板),不在 `.app` 子树内——而 `.photos-root .app`
-   才是本仓唯一显式设 `color: var(--text-1)`(Photos 私有、随 is-light 翻转)的祖先层级
-   (photos.scss:104-116)。挂在 `.app` 外的这个弹层,继承链会一路跳过它,落到
-   src/styles/theme.css 全局 `body { color: var(--fg) }`——那是**全局**、只跟随全站
-   `[data-theme]` 的 token,不跟随 Photos 私有的 `.photos-root.is-light` 切换。常见的
-   "Photos 私有浅色 + 全站深色"组合下,`--fg` 停在深色默认的纯白值上,标题就成了浅色
-   面板上的白字——即 owner 验收截图报的"标题看不见"。同 Fix-2 item 4 一路病根(Places/
-   灯箱两处均已修过),这里是同一缺陷类在相册弹层的第三处现身。补一条局部 `color`,钉在
-   Photos 私有的 `--text-1`(与 parity 的 .album-picker-item 标题同色,视觉上与列表行标题
-   一致),不再依赖继承。类名仍保留作结构标记。 */
+   This corrects an earlier assumption about `color` -- the reasoning that "removing the local
+   rule and falling back to the inherited ambient color matches Vue2's behavior" turns out to be
+   wrong: this component mounts as a **sibling** of `.app` (`.photos-root > .app` and
+   `.photos-root > AlbumPickerDialog` are siblings, see PhotosSearch.vue and other host page
+   templates), not inside the `.app` subtree -- and `.photos-root .app` is the only ancestor in
+   this repo that explicitly sets `color: var(--text-1)` (Photos-private, flips with is-light)
+   (photos.scss:104-116). Mounted outside `.app`, this dialog's inheritance chain skips right
+   past it and lands on the global `body { color: var(--fg) }` in src/styles/theme.css --
+   that's a **global** token that only follows the site-wide `[data-theme]`, not the
+   Photos-private `.photos-root.is-light` toggle. In the common combination of "Photos set to
+   light while the rest of the site is dark", `--fg` sits at its dark-default pure-white value,
+   so the title ends up as white text on a light panel -- invisible. This is the same root cause
+   as an earlier fix in the Places tab and the lightbox, showing up here as its third
+   occurrence in the album dialogs. A local `color` rule is added, pinned to the Photos-private
+   `--text-1` (matching parity's .album-picker-item title color, visually consistent with list
+   row titles), so it no longer relies on inheritance. The class name is kept as a structural
+   marker. */
 .album-picker-title-text { color: var(--text-1); }
 
-/* 封面缩略图/空占位——Vue2 的 window.prompt 流程完全没有封面展示,这是本组件独有的功能
-   增补(brief 明确登记的形态偏离),parity 无对应选择器。 */
+/* Cover thumbnail / empty placeholder -- Vue2's window.prompt flow has no cover display at
+   all; this is a feature this component adds on its own (a deliberate, documented deviation),
+   with no corresponding selector in parity. */
 .album-picker-cover {
   flex: 0 0 auto; width: 40px; height: 40px; border-radius: 8px; overflow: hidden;
   border: 1px solid var(--line); background: var(--surface-2);
@@ -302,17 +333,20 @@ async function submitCreate(): Promise<void> {
 .album-picker-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .album-picker-cover-empty { background: linear-gradient(135deg, var(--grad-a), var(--grad-b)); }
 
-/* 标题+计数两列信息区——同上,parity 的纯文本项没有这层子结构。 */
+/* Title + count two-column info area -- same as above, parity's plain-text item has no such
+   sub-structure. */
 .album-picker-info { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .album-picker-item-title { font-size: 13px; font-weight: 500; color: var(--text-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .album-picker-item-count { font-size: 11px; color: var(--text-2); }
 
-/* .album-picker-new 的 color 已被 parity(`color: var(--accent-hi)`)接管,原有的
-   font-size/font-weight 覆盖一并删除——Vue2 的「+ New Album」行本就和普通相册项同一字重,
-   不是加粗强调,删除后与 Vue2 一致。 */
+/* .album-picker-new's color is now owned by parity (`color: var(--accent-hi)`); the previous
+   font-size/font-weight override was removed along with it -- Vue2's "+ New Album" row already
+   shares the same font weight as a regular album item, it isn't bold emphasis, so removing the
+   override matches Vue2. */
 
-/* 内联新建输入行——brief 登记的形态偏离(Vue2 用 window.prompt,本仓改为面板内联输入行),
-   parity 自然没有对应选择器。 */
+/* Inline new-album input row -- a deliberate deviation from Vue2 (Vue2 uses window.prompt,
+   this repo uses an inline input row in the panel instead), so parity naturally has no
+   corresponding selector. */
 .album-picker-new-row { padding: 8px; }
 .album-picker-new-input {
   width: 100%; height: 34px; padding: 0 10px; border-radius: 8px;

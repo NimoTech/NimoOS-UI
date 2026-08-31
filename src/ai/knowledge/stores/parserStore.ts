@@ -1,4 +1,4 @@
-// SP8-P5c Task 5 —— 1:1 port from Vue2
+// 1:1 port from Vue2
 // the Vue 2 panel's `src/views/AI/Parser/store/parserStore.js` (main@7a6ee6b7, 65 lines, full port).
 //
 // Consumers are two Parser pages (`ParserStatus.vue` / `ParserTest.vue`, belong to T6/T7) ——

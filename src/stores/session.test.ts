@@ -56,7 +56,7 @@ describe('useSessionStore', () => {
   })
 })
 
-describe('SP8-P2b Task 2 -- user / isAdmin read side', () => {
+describe('User / isAdmin read side', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     localStorage.clear()

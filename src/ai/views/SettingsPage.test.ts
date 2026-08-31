@@ -1,9 +1,8 @@
-// SP8-P2a Task 8 — SettingsPage test. The brief's Step 1 provides a checklist of 28 test cases
-// (numbered 1-28 sequentially; numbers are kept in comments for alignment with brief),
-// implemented according to that checklist.
+// SettingsPage test — implemented against a checklist of 28 test cases (numbered 1-28
+// sequentially; numbers are kept in comments for alignment with that checklist).
 //
-// Mock the four network actions of `useSettingsStore` (brief original wording: "mock out the
-// network actions of useSettingsStore"), but don't mock the underlying `service.ai.*` — that is
+// Mock the four network actions of `useSettingsStore` ("mock out the network actions of
+// useSettingsStore"), but don't mock the underlying `service.ai.*` — that is
 // the responsibility of settingsStore.test.ts (T5) itself; here we only care whether the page
 // shell's wiring is correct. Still mock one layer of `@nimotech/nimoos-service` (shell) as
 // a safety net, to prevent spy calls that get missed from accidentally falling through to
@@ -37,7 +36,7 @@ const ai = vi.hoisted(() => ({
   getPolicy: vi.fn(),
   getImportStatus: vi.fn(),
   cancelImport: vi.fn(),
-  // SP8-P3a Task 7 — skills section is no longer a placeholder; mounting the real
+  // skills section is no longer a placeholder; mounting the real
   // SkillsSection component will call service.ai.listSkills() in onMounted. A bare vi.fn()
   // (without mockResolvedValue) returns undefined when called; `await undefined` is legal,
   // and SkillsSection's `Array.isArray(list)` safety net treats it as an empty list, with no
@@ -45,19 +44,20 @@ const ai = vi.hoisted(() => ({
   // just pass through that section) silent; test cases that need to assert on list contents
   // will provide their own `mockResolvedValue`.
   listSkills: vi.fn(),
-  // SP8-P4 Task 9 (final) — mcp section is no longer a placeholder; mounting the real
+  // mcp section is no longer a placeholder; mounting the real
   // McpSection component will similarly call service.ai.listMCPServers() in onMounted. Same as
   // above, bare vi.fn() lets `Array.isArray(list)` safety net treat it as empty list, test
-  // cases in this file unrelated to mcp are unaffected (⚠️ the brief explicitly calls out:
+  // cases in this file unrelated to mcp are unaffected (⚠️ note:
   // `stubNetworkActions` only mocks the four network actions of `useSettingsStore`, not the
   // `service.ai.*` calls here — must separately add them to this hoisted object, otherwise
   // when mounting the mcp section, `listMCPServers` will be `undefined`; while `Array.isArray`
   // safety net won't throw, adding this key makes "mocks are complete" explicit, rather than
   // relying on the safety net's silent fallback).
   listMCPServers: vi.fn(),
-  // Task 21 (mcp-progressive-disclosure) —— mcpapprovals 分区挂载真组件
-  // McpApprovalsSection,onMounted 里调 service.ai.listMCPApprovals()。同上,
-  // 补上这个键让「mock 齐全」显式,不依赖 Array.isArray 兜底的隐性容错。
+  // Task 21 (mcp-progressive-disclosure) —— the mcpapprovals section mounts the real
+  // McpApprovalsSection component, whose onMounted calls service.ai.listMCPApprovals(). As
+  // above, this key is added explicitly so the mock stays complete, rather than relying on
+  // the implicit fallback tolerance of Array.isArray.
   listMCPApprovals: vi.fn(),
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: { ai } }))
@@ -239,11 +239,11 @@ describe('SettingsPage — ② Top bar', () => {
     w.unmount()
   })
 
-  // SP8-P5d Task 9 (ticket 1, governance §15.1) — reversal: the original assertion above at "8."
+  // Reversal (governance §15.1): the original assertion above at "8."
   // ("click doesn't call push, only shows toast") was pinning exactly that placeholder contract;
   // the placeholder entry has now been reversed back to a true router-link; the old assertion must
   // reverse with it, or it will fail exactly (same approach as the "reverse don't delete" pattern
-  // in `knowledgeRoutes.test.ts`). Before change (SP8-P2a original, before reversal):
+  // in `knowledgeRoutes.test.ts`). Before the change (original, before reversal):
   //   it('8. "Details" button click doesn\'t call router.push, only shows toast (placeholder contract before P5)', async () => {
   //     const store = useSettingsStore()
   //     stubNetworkActions(store)
@@ -334,11 +334,11 @@ describe('SettingsPage — ③ Content area: two render modes', () => {
     w.unmount()
   })
 
-  // SP8-P2b Task 14 Fix round 1 — closure guard, replacing the original direct assertion of
-  // internal constant `SECTION_COMPONENTS` (coordinator ruling: `export` breaks `<script setup>`
-  // compilation, and splitting out a separate `<script>` block just for testability is unnecessary
-  // API surface expansion; changed to assert *render output* instead, don't touch component
-  // internals).
+  // Closure guard, replacing the original direct assertion of
+  // internal constant `SECTION_COMPONENTS` (decided against exporting it: `export` breaks
+  // `<script setup>` compilation, and splitting out a separate `<script>` block just for
+  // testability is unnecessary API surface expansion; changed to assert *render output* instead,
+  // don't touch component internals).
   //
   // Discrimination basis: `SectionPlaceholder.vue` renders the `bodyKey` prop as
   // `<p class="set-desc">{{ t(props.bodyKey) }}</p>`, and SettingsPage.vue's `placeholderProps()`
@@ -353,9 +353,9 @@ describe('SettingsPage — ③ Content area: two render modes', () => {
   // stronger than switching one by one (only takes one real section accidentally left as
   // placeholder to get caught among the 5).
   //
-  // SP8-P3a Task 7 — `skills` now connected to real component `SkillsSection`, moved from
+  // `skills` now connected to real component `SkillsSection`, moved from
   // "still contains placeholder text" deferred list to "implemented" list.
-  // SP8-P4 Task 9 (final) — `mcp` is the last placeholder section; this task connects it to real
+  // `mcp` is the last placeholder section; connecting it to real
   // component `McpSection`, similarly moving from deferred to implemented — **all 13 sections
   // now implemented**, `deferred` list is now empty (synchronized with `sections.ts`'s
   // `DEFERRED_SECTIONS: SectionId[] = []`). The original deferred loop (asserting "still contains
@@ -365,7 +365,7 @@ describe('SettingsPage — ③ Content area: two render modes', () => {
   // is empty / mechanism still works), no need to duplicate an equivalent empty-spinning assertion here.
   // Task 21 (mcp-progressive-disclosure) added 'mcpapprovals' on top of those,
   // so the implemented count is 14 now, not 13.
-  it('SP8-P4 closure + Task 21 — 14 implemented sections render without placeholder text in page (no section still a SectionPlaceholder)', async () => {
+  it('14 implemented sections render without placeholder text in page (no section still a SectionPlaceholder)', async () => {
     const store = useSettingsStore()
     stubNetworkActions(store)
     const { w } = await mountPage()
@@ -459,7 +459,7 @@ describe('SettingsPage — ⑤+⑥ Deep-link contract and lifecycle', () => {
     w.unmount()
   })
 
-  // SP8-P3a Task 7 — skills now connected to real component SkillsSection, no longer in
+  // skills now connected to real component SkillsSection, no longer in
   // DEFERRED_SECTIONS; this test case originally asserted "shows placeholder toast" is now
   // reversed to assert the opposite: SkillsSection's real content is rendered (`.sk-list`,
   // from SkillsSection.vue:135, not present in `SectionPlaceholder.vue`), page contains no
@@ -480,7 +480,7 @@ describe('SettingsPage — ⑤+⑥ Deep-link contract and lifecycle', () => {
     w.unmount()
   })
 
-  // SP8-P4 Task 9 (final) — mcp is the last placeholder section; after this task connects it to
+  // mcp is the last placeholder section; connecting it to
   // real component McpSection, it no longer belongs to DEFERRED_SECTIONS. This test case
   // originally (as '19b') asserted "still shows placeholder toast, DEFERRED_SECTIONS contract
   // remains" is now reversed to assert the opposite: McpSection's real content is rendered

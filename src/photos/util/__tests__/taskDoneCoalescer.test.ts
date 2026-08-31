@@ -7,7 +7,7 @@ import { createTaskDoneCoalescer } from '../taskDoneCoalescer'
 // object { messageFor, emit, delay = 2600 } and returns { push, flush, cancel }: `messageFor`
 // converts a task to a display string (or falsy to skip it), `emit` receives the final joined
 // string (not an array of tasks), and buffering is keyed by task.type with a fixed announce
-// order. Ported verbatim per "Vue2 source wins" — see task-2-report.md for the full note.
+// order. Ported verbatim per "Vue2 source wins".
 
 describe('createTaskDoneCoalescer', () => {
   afterEach(() => {

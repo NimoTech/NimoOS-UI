@@ -5,7 +5,7 @@ import { setActivePinia, createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
 import zh from '../../../../i18n/zh_cn'
 
-// SP8-P2b Task 10 — Follow Vue2 sections/__tests__/McpTokensSection.spec.js 's 5 tests
+// Follow Vue2 sections/__tests__/McpTokensSection.spec.js 's 5 tests
 // Component-level tests (1 load three tests + createToken + doDelete + onRevealClosed total 6 tests, brief counted
 // 5 by treating load's 3 as 1 group; here land all by Vue2 blueprint's it() count, cases 1-6 below),
 // plus brief's newly added 11 tests (7-17). Pure function assertions (endpointUrl/buildInstruction/buildJson/
@@ -201,7 +201,7 @@ describe('McpTokensSection', () => {
     expect(show).toHaveBeenCalledWith('已复制')
   })
 
-  // [SP8-P2b acceptance round 5, user requirement 2026-07-30] "After clicking copy, put a checkmark on
+  // [Feedback from an earlier review, user requirement] "After clicking copy, put a checkmark on
   // the corresponding copy button, indicating already copied, reset when clicking copy for something else".
   // Only one button shows checkmark at a time.
   // Checkmark state reuses `.set-copybtn.done` from settings-styles.scss:115 (both repos had dead styles originally,

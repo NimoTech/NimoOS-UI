@@ -1,5 +1,5 @@
 <!--
-  SP8-P2a Task 7 — 1:1 ported from Vue2 src/views/AI/Settings/SettingsRail.vue (113 lines).
+  1:1 ported from Vue2 src/views/AI/Settings/SettingsRail.vue (113 lines).
 
   Differences (consistent with existing approach in AgentSidebar.vue, not new divergence):
   - `$EventBus` `avatar-changed` subscription (Vue2 :84-95) entire section not ported — New-UI has no
@@ -63,7 +63,7 @@ watch(
   },
 )
 
-// SP8-P1c2 Task 7: avatarVersion lives in the shared userProfile store (see
+// avatarVersion lives in the shared userProfile store (see
 // its header comment for the full rationale) instead of local component
 // state — bumping it from anywhere recomputes avatarUrl below.
 const userProfile = useUserProfile()

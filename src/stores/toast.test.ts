@@ -18,7 +18,7 @@ describe('useToast', () => {
     vi.advanceTimersByTime(700); expect(t.msg).toBe('')
   })
 
-  // Task 9 (SP7-P3 recycle bin view): show()'s third, optional action param is stored
+  // show()'s third, optional action param (used by the recycle bin view) is stored
   // on the toast item as-is, rendered by AppToast.vue as a clickable button (like 「撤销」).
   it('the third argument to show (action) is stored on the toasts item unchanged', () => {
     const t = useToast()
@@ -35,7 +35,7 @@ describe('useToast', () => {
     expect(t.toasts).toEqual([])
   })
 
-  // SP8-P1c2 Task 6: tiers. Backward compat is a hard requirement — every
+  // Tiers. Backward compat is a hard requirement — every
   // existing show(text) / show(text, ms) call site across the repo must keep
   // working unchanged. These two prove that: no third argument at all still
   // produces a default-tier ('info') toast with the same push/clear timing.
@@ -62,7 +62,7 @@ describe('useToast', () => {
     expect(t.toasts.map((x) => x.tier)).toEqual(['danger', 'warning'])
   })
 
-  // [SP8-P6-T3 merge] The third param is a discriminated union (string = tier / object = action).
+  // The third param is a discriminated union (string = tier / object = action).
   // sp7 and sp8 each claimed this position independently; if the merge gets the discriminant
   // backwards, one side's call sites silently break (action stored as tier -> button never
   // renders; or tier treated as action -> severity styling is lost). One test pins each direction.

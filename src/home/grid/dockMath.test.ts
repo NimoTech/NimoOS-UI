@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { dropTarget, dropTargetIn, slotShifts, type DockGeometry, type DockSlot, type DropDecision } from './dockMath'
 
-// The dock's fisheye magnification, switched off at the owner's request and kept
+// The dock's fisheye magnification, switched off by design and kept
 // rather than deleted so it can be restored. Its only caller was HomeDock's
 // pointermove handler, which is commented out alongside it.
 // import { magScale } from './dockMath'

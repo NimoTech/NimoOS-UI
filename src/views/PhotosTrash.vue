@@ -1,8 +1,8 @@
 <script setup lang="ts">
-// Task 9 (SP7-P3): Trash view — its own hand-rolled bucketed grid (doesn't reuse PhotosGrid: trash
+// Trash view — its own hand-rolled bucketed grid (doesn't reuse PhotosGrid: trash
 // data is the slimmed-down TrashPhoto, and the countdown badge is unique UI the grid doesn't have).
 //
-// Task 8 (Plan H re-shell): the transitional AreaShell/.photos-layout shell has been swapped for
+// The transitional AreaShell/.photos-layout shell has been swapped for
 // Photos.vue/PhotosFavorites.vue's own `.photos-root > .app[data-collapsed] > PhotosSidebar +
 // main.main > PhotosTopbar + .photos-main` structure (useSidebarCollapse shared singleton), and
 // the hero/tile/multi-select/bulk-bar/confirm-modal classes were renamed to their parity anchors
@@ -73,12 +73,12 @@ let undoIds: Array<string | number> | null = null
 const isEmpty = computed(() => trash.loaded && trash.items.length === 0)
 const photoCount = computed(() => trash.items.filter((p) => !p.isVideo).length)
 const videoCount = computed(() => trash.items.filter((p) => p.isVideo).length)
-// Owner-acceptance Fix-5 (delete-chain diagnosis follow-up): Vue2 PhotosTrashView.vue:180 sums
+// Delete-chain diagnosis follow-up: Vue2 PhotosTrashView.vue:180 sums
 // `Number(p.sizeMb) || 4.2` per item, not `|| 0` -- a per-item literal placeholder that kicks in
 // whenever the real computed sizeMb is falsy (0, NaN, absent). trashAssetToPhoto's own mapping
 // of `asset.fileSize` was checked end to end (field name matches the backend's `fileSize` JSON
-// tag, unit conversion is correct bytes->MB) and is NOT the bug -- the discrepancy the owner's
-// screenshot caught ("0.0 MB" here vs Vue2's "4.2 MB" for the same photo) is explained entirely
+// tag, unit conversion is correct bytes->MB) and is NOT the bug -- the reported discrepancy
+// ("0.0 MB" here vs Vue2's "4.2 MB" for the same photo) is explained entirely
 // by this Vue2-side fallback constant papering over an item whose real fileSize is genuinely
 // zero. Vue2 is authority, so this reproduces its exact (if slightly odd) arithmetic rather than
 // "fixing" it to a more honest 0 -- that would diverge further from Vue2, not less. Only this
@@ -87,10 +87,10 @@ const videoCount = computed(() => trash.items.filter((p) => p.isVideo).length)
 // matching Vue2's own deleteSelected (:233-235) exactly -- left unchanged.
 const totalSize = computed(() => trash.items.reduce((s, p) => s + (Number(p.sizeMb) || 4.2), 0).toFixed(1))
 
-// Owner-acceptance Fix-5: Vue2 :68 conditionally singularizes the bucket-subtitle item count
+// Vue2 :68 conditionally singularizes the bucket-subtitle item count
 // (`b.photos.length !== 1 ? $t('items') : $t('item')`) -- the previous unconditional
 // `photosItemsCount` call always rendered the plural form even for a single item ("1 items"),
-// which is what the owner's screenshot caught.
+// which is the reported symptom.
 function bucketItemsLabel(count: number): string {
   return count === 1 ? t('photosItemSingular', { count }) : t('photosItemsCount', { count })
 }
@@ -144,7 +144,7 @@ function onTileClick(p: TrashPhoto, e: MouseEvent): void {
 // already soft-deleted. add-to-album makes no product sense on a trashed asset either, so
 // both are deliberate no-ops, same convention as Photos.vue's unused @toggle-fav.
 //
-// Owner-acceptance Fix-3 (delete-chain diagnosis): trash.purge() now resolves to the ACTUAL
+// Delete-chain diagnosis: trash.purge() now resolves to the ACTUAL
 // success count (see trash.ts), not a fire-and-forget void -- a single-item purge only has
 // two possible outcomes (1 or 0), so this checks that instead of unconditionally showing the
 // success toast regardless of whether the backend actually purged anything.
@@ -177,7 +177,7 @@ async function onUndo() {
   await trash.undoRestore(ids)
 }
 
-// Task 12 fix round 2 (Important 1 & 2, coordinator review): service.photos.emptyTrash() and
+// Task 12: service.photos.emptyTrash() and
 // restoreAllTrash() both act on the ENTIRE trash server-side regardless of what has loaded
 // client-side. With more than TRASH_PAGE_SIZE items — the exact case Task 12 exists for —
 // the confirm dialogs understated what would actually happen, and restore-all's Undo
@@ -236,7 +236,7 @@ function deleteSelected() {
     onConfirm: async () => {
       clearSelection()
       undoIds = null
-      // Owner-acceptance Fix-3 (delete-chain diagnosis): trash.purge() now resolves to the
+      // Delete-chain diagnosis: trash.purge() now resolves to the
       // ACTUAL per-item success count (Promise.allSettled internally), not a fire-and-forget
       // void that always "succeeded" regardless of how many purgeTrash() calls actually
       // failed. The toast must reflect that honestly: full success keeps the existing exact
@@ -271,7 +271,7 @@ async function restoreAll() {
     const exact = trash.trashExhausted
     const count = trash.items.length
     askConfirm({
-      // Task 12 fix round 2: when paging got stuck we still do not know the true count, so
+      // Task 12: when paging got stuck we still do not know the true count, so
       // the title must not quote one — reuse the bare action-label key already on the hero
       // button (no fitting count-less title existed, so this avoids inventing new copy).
       title: exact ? t('photosTrashRestoreAllTitle', { count }) : t('photosTrashRestoreAll'),
@@ -289,7 +289,7 @@ async function restoreAll() {
               onClick: onUndo,
             })
           } else {
-            // Task 12 fix round 2 (Important 2): restoreAllTrash() restores EVERYTHING
+            // Task 12: restoreAllTrash() restores EVERYTHING
             // server-side regardless of what loaded client-side. If paging got stuck, `ids`
             // here is only a subset — offering Undo would let the user silently revert part
             // of what was restored while the rest stays restored with no path back. Omit the
@@ -318,7 +318,7 @@ async function emptyTrash() {
     const count = trash.items.length
     const size = totalSize.value
     askConfirm({
-      // Task 12 fix round 2: same reasoning as restoreAll's title above.
+      // Task 12: same reasoning as restoreAll's title above.
       title: exact ? t('photosTrashEmptyTitle2', { count }) : t('photosTrashEmpty'),
       body: exact ? t('photosTrashEmptyBody', { size }) : t('photosTrashEmptyBodyPartial'),
       ctaLabel: t('photosTrashEmpty'),
@@ -383,7 +383,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
                 <b>{{ trash.items.length }}</b> {{ t('photosTrashItems') }} ·
                 {{ t('photosCountSummary', { photos: photoCount, videos: videoCount }) }} ·
                 <b>{{ totalSize }} MB</b> {{ t('photosTrashCanFree') }}
-                <!-- Task 12 (SP15-P3): totalSize sums sizeMb over trash.items, which is only the
+                <!-- Task 12: totalSize sums sizeMb over trash.items, which is only the
                      pages fetched so far while pagination is still catching up — say so out loud
                      instead of silently under-reporting (same pattern as PhotosFavorites.vue). -->
                 <span v-if="!trash.trashExhausted" data-test="trash-loaded-hint">
@@ -438,7 +438,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
                 <PhotosIcon name="video" :size="11" /> {{ t('photosTabVideos') }} <span class="ct">{{ videoCount }}</span>
               </button>
               <div class="trash-filters-spacer"></div>
-              <!-- Owner-acceptance Fix-5: Vue2 :55 puts a leading `.lib-sort-label` span
+              <!-- Vue2 :55 puts a leading `.lib-sort-label` span
                    ($t('Sort')) before the two sort buttons -- this was missing entirely,
                    leaving parity's own `.lib-sort-label` rule (photos.scss) unused. -->
               <div class="lib-sort">
@@ -453,7 +453,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
             </div>
 
             <div class="trash-scroll scroll">
-              <!-- Owner-acceptance Fix-5: Vue2 :63-70 reuses the archive view's own
+              <!-- Vue2 :63-70 reuses the archive view's own
                    `.arc-section*` classes (shared parity anchors, photos.scss ~1690-1725) for
                    the bucket header, not a page-local reinvention -- switched to match, which
                    also fixes the missing/wrong-colored separator rule (parity's own
@@ -473,10 +473,10 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
                 <div class="arc-section-head">
                   <span class="arc-section-dot" :data-tone="b.tone"></span>
                   <span class="arc-section-title">{{ b.title }}</span>
-                  <!-- Owner-acceptance Fix-5: Vue2 :68 conditionally singularizes this word
+                  <!-- Vue2 :68 conditionally singularizes this word
                        (`b.photos.length !== 1 ? $t('items') : $t('item')`) -- the previous
                        `photosItemsCount` call always rendered the plural form ("1 items"),
-                       which is what the owner's screenshot caught. bucketItemsLabel() below
+                       which is the reported symptom. bucketItemsLabel() below
                        reproduces the same singular/plural branch. -->
                   <span class="arc-section-sub">{{ bucketItemsLabel(b.photos.length) }} · {{ b.desc }}</span>
                 </div>
@@ -509,7 +509,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
               </div>
             </div>
 
-            <!-- Task 12 (SP15-P3): the backend caps a single request at 500 rows now
+            <!-- Task 12: the backend caps a single request at 500 rows now
                  (NimoOS-Photos#54), so anything past the first page only shows up once clicked. -->
             <div v-if="!trash.trashExhausted" class="trash-load-more">
               <button
@@ -591,7 +591,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
    those now that the template uses its exact selectors. `.trash-tile[data-selected="true"]`
    in particular is dropped outright rather than kept: it had no Vue2 counterpart at all (Vue2
    PhotosTrashView.vue only tints the check-circle on selection, no tile outline) -- it was a
-   New-UI-only deviation from pixel parity, not a survivor worth keeping. */
+   New-UI-only divergence from pixel parity, not a survivor worth keeping. */
 
 /* Icon glyph colors: parity's own `.lib-hero-icon[data-tint]`/`.trash-modal-icon` rules only
    set the background circle, not the glyph itself (same gap as PhotosFavorites.vue's own
@@ -620,7 +620,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
      rename it to). ── */
 .trash-filters-spacer { flex: 1 1 auto; }
 
-/* Task 12 (SP15-P3): same secondary-button treatment as .fav-load-more in
+/* Task 12: same secondary-button treatment as .fav-load-more in
    PhotosFavorites.vue — reuses .btn (parity's own bare-button class, this task's re-shell). */
 .trash-load-more { display: flex; justify-content: center; padding: 16px 0; }
 .trash-load-more .btn:disabled { opacity: 0.6; cursor: not-allowed; }
@@ -631,7 +631,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
      parity's own `.lib-scroll` (photos.scss:1343-1347, `padding: 0 32px 80px`) so this
      container's side inset lines up with `.lib-hero`/`.trash-filters`/`.trash-bulk-bar` above
      it (review fix).
-     Owner-acceptance Fix-5: the bucket head/dot/title/sub and the grid wrapper used to be
+     The bucket head/dot/title/sub and the grid wrapper used to be
      page-local reinventions (`.trash-bucket*`/`.trash-grid`) of classes that already exist,
      byte-identical, as shared parity anchors (`.arc-section*` from the archive view /
      `.lib-grid` from the library grid) -- the template now uses those anchors directly
@@ -644,8 +644,8 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
      comment kept below) via `data-tone`. ── */
 .trash-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 0 32px 80px; }
 .arc-section-dot { background: var(--accent); }
-/* The three countdown-severity tiers reuse existing semantic tokens, no new token added (the brief
-   explicitly allows reuse): urgent = danger tone (--remove-fg, already used consistently across
+/* The three countdown-severity tiers reuse existing semantic tokens, no new token added
+   (deliberate reuse, not an oversight): urgent = danger tone (--remove-fg, already used consistently across
    the codebase for delete/danger buttons), warn = warning tone (--dem-fg, already used for
    SearchDialog's "demote" semantics and UploadPanel's warning state), normal = regular accent tone
    (--accent). */

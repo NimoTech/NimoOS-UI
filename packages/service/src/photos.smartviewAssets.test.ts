@@ -1,4 +1,4 @@
-// SP15-P2a-T1: smart-view manual asset HTTP layer. Re-verified against
+// Smart-view manual asset HTTP layer. Re-verified against
 // NimoOS-Photos/route/v1/smartviews.go — the request body key is "assetIds"
 // (svAssetIDsReq), the three write endpoints return only change counts, and
 // GET /excluded returns a bare array with no envelope key.

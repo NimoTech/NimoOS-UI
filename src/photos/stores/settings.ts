@@ -26,7 +26,7 @@
 // :1281-1291, setTrashRetention :1419-1425, setScanInterval :1432-1438) —
 // every write in this store follows that same read-then-write shape.
 //
-// P8a-T6 (2026-08-04): folded PhotosPeople.vue's and PhotosSmartViews.vue's own
+// (2026-08-04): folded PhotosPeople.vue's and PhotosSmartViews.vue's own
 // onMounted-direct getConfig reads into this store's fetchAiFeatures (§7e-10
 // debt), added an in-flight dedup to fetchAiFeatures (see the comment at its
 // definition — the sidebar is a config consumer too now, §7e-15), and wired
@@ -91,7 +91,7 @@ export const usePhotosSettingsStore = defineStore('photos-settings', () => {
   const retentionDays = ref(30)
   const scanIntervalMinutes = ref(1440)
 
-  // P8a-T6: multiple consumers (sidebar + each view's own onMounted) now all mount and each call
+  // Multiple consumers (sidebar + each view's own onMounted) now all mount and each call
   // fetchAiFeatures() once—sidebar is a globally shared photo section component, mounts same frame as any view,
   // naive implementation would fire two concurrent getConfig requests in a single page load. Here we add "in-flight dedup":
   // multiple concurrent calls share the same in-flight promise. **Intentionally not permanent cache**—promise resets to null in finally,

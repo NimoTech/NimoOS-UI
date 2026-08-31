@@ -5,7 +5,7 @@ import McpServerGroup from './McpServerGroup.vue'
 import zh from '../../../../i18n/zh_cn'
 import type { McpServer } from '../../../types/mcpServer'
 
-// SP8-P4 Task 5 — align with Vue2 src/views/AI/MCP/McpServerGroup.vue (47 lines).
+// Align with Vue2 src/views/AI/MCP/McpServerGroup.vue (47 lines).
 // brief Step 1 test copied verbatim (public constraint §2: brief test conflicts with 1:1 copy of Vue2 only if test is wrong,
 // this task spec tests have no conflict with blueprint behavior, so no changes).
 

@@ -1,5 +1,5 @@
 <!--
-  SP8-P2a Task 6 — 1:1 ported from Vue2 `src/views/AI/Settings/SetSwitch.vue` (25 lines).
+  1:1 ported from Vue2 `src/views/AI/Settings/SetSwitch.vue` (25 lines).
 
   Self-drawn toggle: structure is just a div, visual entirely from `.sw` / `.sw[data-on]` CSS rules
   (see src/ai/styles/sk-shared.scss — that rule originally lived in Vue2

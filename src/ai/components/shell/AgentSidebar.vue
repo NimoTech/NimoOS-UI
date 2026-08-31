@@ -4,7 +4,7 @@
   - Delete confirmation: Buefy `$buefy.dialog.confirm` → New-UI `AlertDialog` (destructive).
     Reka-ui's AlertDialogAction emits update:open(false) before the confirm event, so open and
     the to-be-deleted id are bundled in the same ref; v-model:open only changes .open, and the
-    confirm handler reads .id before emitting — see the SP5-P1 CRITICAL lesson recorded in
+    confirm handler reads .id before emitting — see the CRITICAL lesson recorded in
     src/apps/views/InstalledAppsPage.vue:25-70.
   - `$EventBus` avatar-changed subscription removed entirely (to be added back in 1c; see
     template comment below).
@@ -55,7 +55,7 @@ const router = useRouter()
 
 const AVATAR_URL = '/v1/users/avatar?token='
 
-// SP8-P1c2 Task 7: avatarVersion moved out of local state into useUserProfile
+// avatarVersion moved out of local state into useUserProfile
 // (see src/stores/userProfile.ts for the full rationale). This sidebar is now
 // just one consumer of the shared version — bumping it from anywhere (e.g. a
 // future account panel's upload-success handler) recomputes avatarUrl below.

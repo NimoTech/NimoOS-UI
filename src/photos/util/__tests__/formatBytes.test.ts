@@ -1,4 +1,4 @@
-// SP7-P7a-T6: formatMB -- storage-size formatting for the Smart View detail page's stats row.
+// formatMB -- storage-size formatting for the Smart View detail page's stats row.
 // Ported verbatim from the Vue 2 panel's src/views/Photos/PhotosSmartViewDetail.vue:424-428:
 //   mb = bytes / 1048576; mb >= 1024 → (mb/1024).toFixed(1) + ' GB'; otherwise Math.round(mb) + ' MB'.
 import { describe, it, expect } from 'vitest'

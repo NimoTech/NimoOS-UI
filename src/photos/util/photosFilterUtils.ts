@@ -1,4 +1,4 @@
-// SP7-P7b-T1: EXIF / gallery filter predicates -- the timeline page and the jump-to-library
+// EXIF / gallery filter predicates -- the timeline page and the jump-to-library
 // page share the same judgment logic so both sides filter consistently.
 // Ported from the Vue 2 panel's src/views/Photos/photosFilterUtils.js (27 lines), logic mapped line-for-line.
 //

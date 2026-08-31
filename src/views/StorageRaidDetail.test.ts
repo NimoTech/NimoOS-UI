@@ -332,7 +332,7 @@ describe('StorageRaidDetail', () => {
     expect(router.currentRoute.value.path).toBe('/storage/raid/7')
   })
 
-  // ── Stale snapshot regression (2026-07-28 real-device acceptance) ─────────────────────────────
+  // ── Stale snapshot regression (found in on-device testing) ────────────────────────────────────
   // After replacing a disk, re-entering the detail page used to render the store's
   // **pre-replace** frame verbatim (empty slot + faulty disk, 4 member rows), which looked like
   // the replace hadn't taken effect. Entering the page has to run two serial requests before

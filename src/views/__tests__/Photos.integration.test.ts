@@ -72,7 +72,7 @@ function makeRouter() {
   })
 }
 
-// fix round 1 (P7b-T4 review-mandatory fix 1): don't build a separate createI18n(...)
+// Don't build a separate createI18n(...)
 // instance — vitest.setup.ts already installs the singleton from src/i18n into
 // config.global.plugins, which applies to every mount; the separately built createI18n
 // here duplicated that install, flooding output with `[Vue warn]` component/directive
@@ -94,9 +94,9 @@ function handlerFor(event: string): (props: unknown, raw: unknown) => void {
   return call[1] as (props: unknown, raw: unknown) => void
 }
 
-// fix round 1 (P7b-T4 mandatory fix 2/3): asset() gets EXIF fields added (still all
+// asset() gets EXIF fields added (still all
 // optional, so existing calls with no extra args like asset('a') / asset('b', { mimeType:
-// 'video/mp4' }) are unaffected) — for use by the fixtures in the P7b-T4 EXIF filtering
+// 'video/mp4' }) are unaffected) — for use by the fixtures in the EXIF filtering
 // describe block below.
 function asset(
   id: string,
@@ -113,7 +113,7 @@ function asset(
   }
 }
 
-// P7b-T4 fixture: two months spanning two years. 2023-06 has three (all match
+// Fixture: two months spanning two years. 2023-06 has three (all match
 // years:['2023']), 2024-01 has two (none match — the whole month gets emptied by the
 // filter, verifying that "empty months get dropped").
 function seedTimeline(store: ReturnType<typeof useTimelineStore>) {
@@ -410,13 +410,13 @@ describe('Photos.vue integration', () => {
     expect(showSpy).toHaveBeenCalledTimes(1) // still 1 call, not re-enqueued
   })
 
-  // P8a-T10 (a P1 ledger item, a known edge case recorded in onTaskProgress's header
-  // comment): fetchIndexStatus's idle reconciliation strips done index tasks out of
+  // A known edge case recorded in onTaskProgress's header
+  // comment: fetchIndexStatus's idle reconciliation strips done index tasks out of
   // store.tasks; if a late duplicate done event arrives afterward, the old
   // `wasDone = store.tasks.find(...).status === 'done'` check breaks because the task is no
   // longer in the list (find returns undefined), misjudging the late event as "seen for the
   // first time" and toasting again.
-  it('P8a-T10: after an index task is stripped by idle reconciliation, a late duplicate done event doesn\'t toast a second time', async () => {
+  it('after an index task is stripped by idle reconciliation, a late duplicate done event doesn\'t toast a second time', async () => {
     vi.useFakeTimers()
     await mountPhotos()
     const store = useTimelineStore()
@@ -467,14 +467,14 @@ describe('Photos.vue integration', () => {
   })
 })
 
-// SP7-P7a-T16: the top search box always shows; submitting a non-empty term -> navigates
+// The top search box always shows; submitting a non-empty term -> navigates
 // to /photos/search (structural spec 22).
 // Task 4 (topbar rewrite): the search box moved out of a standalone `<PhotosSearchBar>` and
 // into `.topbar .search` inside `<PhotosTopbar>` (Vue2's native topbar structure); the
 // selector was updated to `.topbar .search input` accordingly — the non-empty-term
 // submit/route-navigation logic itself (onSearchSubmit) hasn't changed, only the component
 // that emits the submit event has.
-// fix round 1 (owner ruling ledger-六-2): the behavior for an empty-string Enter changed —
+// The behavior for an empty-string Enter changed —
 // PhotosTopbar now follows Vue2 submitSearch's empty-string guard, doesn't emit on an empty
 // string, so onSearchSubmit never gets called at all, see the last case below.
 describe('Photos.vue search box wiring (T16; wiring target since Task 4 is PhotosTopbar)', () => {
@@ -492,11 +492,11 @@ describe('Photos.vue search box wiring (T16; wiring target since Task 4 is Photo
     expect(pushSpy).toHaveBeenCalledWith({ path: '/photos/search', query: { q: 'sunset' } })
   })
 
-  // fix round 1 · Important (owner ruling ledger-六-2, overriding the first version's choice
-  // to "still navigate on empty-string submit"): the timeline topbar's empty-string Enter =
+  // Important, overriding the first version's choice
+  // to "still navigate on empty-string submit": the timeline topbar's empty-string Enter =
   // no action, no longer navigates — the PhotosTopbar component layer no longer emits
   // search-submit, so onSearchSubmit never gets called, router.push is never called at all.
-  it('submitting an empty string -> doesn\'t navigate (ledger-六-2, PhotosTopbar doesn\'t emit on empty string)', async () => {
+  it('submitting an empty string -> doesn\'t navigate (PhotosTopbar doesn\'t emit on empty string)', async () => {
     const w = await mountPhotos()
     const router = w.vm.$router
     const pushSpy = vi.spyOn(router, 'push')
@@ -505,8 +505,8 @@ describe('Photos.vue search box wiring (T16; wiring target since Task 4 is Photo
   })
 })
 
-// Task 4: the collapse button, left over from T3 as a "no entry point" state (see
-// task-3-report.md Concerns#4), is really wired up now — clicking the topbar's collapse
+// Task 4: the collapse button, left over from T3 as a "no entry point" state,
+// is really wired up now — clicking the topbar's collapse
 // icon-btn -> flips Photos.vue's `collapsed` ref -> `.app[data-collapsed]` follows along
 // (matching Vue2 PhotosTimeline.vue:965's `@toggle="collapsed = !collapsed"`).
 describe('Photos.vue collapse button wiring (Task 4)', () => {
@@ -524,14 +524,14 @@ describe('Photos.vue collapse button wiring (Task 4)', () => {
   })
 })
 
-// final-review fix (item 6): on a ≤768px narrow viewport, PhotosSidebar switches into its
+// On a ≤768px narrow viewport, PhotosSidebar switches into its
 // fixed 'is-drawer' mode (position:fixed, out of the `.app` grid flow) via the module-
 // singleton useSidebarDrawer() it shares with this file. Task 3's shell rewrite dropped
 // the old AreaShell hamburger that used to open/close that drawer and left the topbar's
 // panelLeft button wired only to `collapsed` (Task 4) — a flag the drawer's own isNarrow/
 // open state never reads, so on mobile there was no way to open the sidebar at all. Fix:
 // route the same button to the drawer's toggle() when isNarrow is true.
-describe('Photos.vue collapse button wiring — narrow screens go through the drawer (final-review fix item 6)', () => {
+describe('Photos.vue collapse button wiring — narrow screens go through the drawer', () => {
   afterEach(() => { __resetSidebarDrawerForTest() })
 
   it('narrow screen (isNarrow=true): clicking the topbar button opens the drawer, doesn\'t touch .app[data-collapsed]', async () => {
@@ -559,17 +559,17 @@ describe('Photos.vue collapse button wiring — narrow screens go through the dr
   })
 })
 
-// SP7-P7b-T4: timeline page EXIF filtering wiring — FilterBar mounts into
+// Timeline page EXIF filtering wiring — FilterBar mounts into
 // PhotosToolbar#after-tabs; three same-source logic paths (gridMonths grid data source /
 // filteredCount header count / onOpenTile lightbox paging set) all switch to the
 // EXIF-filtered month set; FilterBar's own facet source (:photos) always takes the
 // full-library store.allPhotos, not narrowed by gridMonths — matching the same constraint
 // as Vue2 PhotosTimeline.vue, whose facet source is displayMonths rather than the filtered
 // gridMonths.
-// fix round 1 (review-mandatory fix 1): the Photos.test.ts previously created in parallel
+// The Photos.test.ts previously created in parallel
 // has been merged into this file, reusing this file's existing mountPhotos()/svc mock
 // scaffolding instead of starting a separate one.
-describe('P7b-T4: EXIF filtering wiring', () => {
+describe('EXIF filtering wiring', () => {
   it('PhotosFilterBar is mounted in the toolbar after-tabs slot', async () => {
     const w = await mountPhotos()
     expect(w.findComponent(PhotosFilterBar).exists()).toBe(true)
@@ -633,9 +633,9 @@ describe('P7b-T4: EXIF filtering wiring', () => {
     expect(countAfter).toBe(3)
   })
 
-  // fix round 1 (review-mandatory fix 2): pin down that onOpenTile's paging set must use
+  // Pin down that onOpenTile's paging set must use
   // gridMonths (EXIF-filtered), not store.months — otherwise the lightbox can page to
-  // photos that were filtered out. See task-4-report.md for the mutation verification.
+  // photos that were filtered out. Verified by mutation testing.
   it('once the filter takes effect, opening a photo -> the lightbox paging set also only contains matching photos (same source as the grid)', async () => {
     const w = await mountPhotos()
     const store = useTimelineStore()
@@ -661,7 +661,7 @@ describe('P7b-T4: EXIF filtering wiring', () => {
     expect(ids).not.toContain('b2')
   })
 
-  // fix round 1 (review-mandatory fix 3): add end-to-end coverage for the cameras dimension
+  // Add end-to-end coverage for the cameras dimension
   // (the previous four cases only filtered on years) — the camera value looks like
   // "Sony · A7", and the filter predicate matches on split('·')[0].trim().
   it('cameras dimension end-to-end: matches by splitting make·model, matching months are kept and non-matching months are dropped', async () => {

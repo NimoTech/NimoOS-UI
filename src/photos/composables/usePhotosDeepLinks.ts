@@ -1,4 +1,4 @@
-// SP7-P8a-T7/T8: Deep links ?asset / ?photoset / ?q / ?album / ?person —
+// Deep links ?asset / ?photoset / ?q / ?album / ?person —
 // Source: the Vue 2 panel's src/views/Photos/PhotosTimeline.vue:364-377 (dispatch in mounted),
 // :431-440 (_openAssetFromQuery), :441-465 (_openPhotoSetFromQuery), :491-494 (?q,
 // within _applyUrlDeepLinks), :509-523 (?person, _applyPersonFromQuery).
@@ -8,14 +8,14 @@
 // normalization from /photos?xxx= compatibility URL to actual route", not "same-page local
 // state switching".
 //
-// Scope inventory (final review Important 2; source-verified Vue2 :364-374 dispatch in mounted
+// Scope inventory (source-verified Vue2 :364-374 dispatch in mounted
 // + :475-507 complete key set in _applyUrlDeepLinks + each sub-view's mounted()):
 //   Vue2's complete /photos query keys = photoset, asset, active (:368-374, dispatched in
 //   mounted) + view, tab, settings, q, place, spot, person, photo (:475-507, in
 //   _applyUrlDeepLinks) + album (PhotosAlbumsView.vue:264, read in its own mounted())
 //   + smartview (PhotosSmartViewsView.vue:340, read in smart-views page's own mounted()).
-//   P8a implements: asset / photoset / active / q / album / person — 6 keys.
-//   **P8b additions (Vue2 has been retired; legacy bookmarks can only land here)**:
+//   This implements: asset / photoset / active / q / album / person — 6 keys.
+//   **Keys added later (Vue2 has been retired; legacy bookmarks can only land here)**:
 //     - view — six Vue2 NAV_KEYS values, each normalized to one of New-UI's six real routes
 //       (VIEW_ROUTES).
 //     - tab — the only key needing host page cooperation, goes via
@@ -89,8 +89,8 @@
 // overwritten by album's replace, person's async result overwrites again), no mutual
 // exclusion or queueing. This is a known limitation, not in this period's fix scope
 // (deep-link combinations were never a product-design-intended entry shape, Vue2 never
-// defined explicit behavior for them either). P8b-added `?view` / `?settings` same
-// category: also "change-route" legs, when arriving simultaneously with q/album/person,
+// defined explicit behavior for them either). The later-added `?view` / `?settings` keys
+// fall in the same category: also "change-route" legs, when arriving simultaneously with q/album/person,
 // likewise latter overwrites former, no new mutual exclusion. Only exception: `?tab` —
 // changes only this page's local state, doesn't navigate, conflicts with nothing.
 import { onMounted, watch } from 'vue'
@@ -516,9 +516,9 @@ export function usePhotosDeepLinks(hooks: PhotosDeepLinkHooks = {}): void {
       () => route.query.q,
       () => route.query.album,
       () => route.query.person,
-      // P8b-added keys — omitting from this array means "only recognized on full-page
-      // mount", manual address-bar changes have no effect (that's how P8a was caught in
-      // real-device acceptance).
+      // Keys added later — omitting from this array means "only recognized on full-page
+      // mount", manual address-bar changes have no effect (this behavior was caught during
+      // real-device testing).
       () => route.query.tab,
       () => route.query.view,
       () => route.query.settings,

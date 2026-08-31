@@ -1,4 +1,4 @@
-// SP7-P7a-T15: PhotosSearchGrid.vue — Search results two-tier grid (best matches + collapsed long tail) +
+// PhotosSearchGrid.vue — Search results two-tier grid (best matches + collapsed long tail) +
 // infinite scroll sentinel. Each test corresponds to the "required tests" section B
 // (except tile-level assertions already moved to SearchResultTile.test.ts). Only mock @nimotech/nimoos-service's
 // thumbnailUrl; IntersectionObserver stubbed (afterEach restores, prevents leaking to other test files).
@@ -125,9 +125,9 @@ describe('collapsed long tail (more-results-bar)', () => {
     expect(grids[1].findAll('.tile')).toHaveLength(2)
   })
 
-  // fix round 1 · I1 (review Important required): collapse bar chevD/chevR only tested for existence,
-  // never asserted the `d` attribute string itself — review mutation changed chevD's `d` last `6-6`→`6-5`,
-  // 50 examples all passed, proving this guard didn't exist. glyph `d` copied character-by-character from
+  // The collapse bar chevD/chevR were only tested for existence,
+  // never asserting the `d` attribute string itself — a mutation test that changed chevD's `d` last `6-6`→`6-5`
+  // still passed all 50 examples, proving this guard didn't exist. The glyph `d` is copied character-by-character from
   // Vue2 PhotosIcon.vue corresponding branch (chevD: `m6 9 6 6 6-6`; chevR: `m9 6 6 6-6 6`), each state tested once.
   it('moreExpanded:false → chevR path d matches PhotosIcon.vue character-by-character', () => {
     const w = mountGrid({ more: [scored('a')], moreExpanded: false })
@@ -205,25 +205,25 @@ describe('styles', () => {
     const m = /\.photos-wrap\s*\{([^}]*)\}/.exec(styleText)
     expect(m, '.photos-wrap rule body not found').toBeTruthy()
     expect(m![1]).toMatch(/overflow-y:\s*auto/)
-    // fix round 1 · M-1 (review merged): D7 source missed photos.scss:300's position:relative,
+    // An earlier version missed photos.scss:300's position:relative,
     // added and pinned to prevent silent loss again.
     expect(m![1]).toMatch(/position:\s*relative/)
   })
 
-  it('.photos-wrap::-webkit-scrollbar rule body contains display: none (M-1, hide scrollbar, aligned with repo convention, not Vue2 literal width:0)', () => {
+  it('.photos-wrap::-webkit-scrollbar rule body contains display: none (hide scrollbar, aligned with repo convention, not Vue2 literal width:0)', () => {
     const m = /\.photos-wrap::-webkit-scrollbar\s*\{([^}]*)\}/.exec(styleText)
     expect(m, '.photos-wrap::-webkit-scrollbar rule body not found').toBeTruthy()
     expect(m![1]).toMatch(/display:\s*none/)
   })
 
-  it('.grid rule body follows PhotosGrid.vue default (comfortable) column-width strategy — D2 deviation registry: not Vue2 fixed 7 columns', () => {
+  it('.grid rule body follows PhotosGrid.vue default (comfortable) column-width strategy — a deliberate deviation from Vue2\'s fixed 7 columns', () => {
     const m = /(?<!\[data-density[^{]*)\.grid\s*\{([^}]*)\}/.exec(styleText)
     expect(m, '.grid rule body not found').toBeTruthy()
     expect(m![1]).toMatch(/grid-template-columns:\s*repeat\(auto-fill,\s*minmax\(140px,\s*1fr\)\)/)
     expect(m![1]).toMatch(/gap:\s*4px/)
   })
 
-  // 2026-08-13 rollback (Fix-3 item 7 follow-up): .more-results-bar (+:hover) /
+  // Rollback: .more-results-bar (+:hover) /
   // .load-more-sentinel / .load-more-status have been removed wholesale from this component's
   // scoped style and handed over to the bare selectors in vue2-parity/photos.scss — assert here
   // that the rules are gone from this component, and check the shared parity file for the hover

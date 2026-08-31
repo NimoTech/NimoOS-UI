@@ -8,8 +8,8 @@ import type { Skill } from '../../../types/skill'
 import SkillGroup from '../skills/SkillGroup.vue'
 import SkillDetail from '../skills/SkillDetail.vue'
 
-// SP8-P3a Task 6 — ported from Vue2 src/views/AI/Skills/SkillsSection.vue (226 lines) read-only half.
-// SP8-P3b Task 8 — adds four write operations (onToggle/onDelete/onCreate/onTest) + `+` button wiring.
+// Ported from Vue2 src/views/AI/Skills/SkillsSection.vue (226 lines) read-only half.
+// Adds four write operations (onToggle/onDelete/onCreate/onTest) + `+` button wiring.
 // Public constraint §9: vi.mock skeleton uses vi.hoisted() to avoid ESM hoisting TDZ ReferenceError.
 const h = vi.hoisted(() => ({
   listSkills: vi.fn(),
@@ -31,7 +31,7 @@ import { useToast } from '../../../../stores/toast'
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 // Task 8: AddSkillModal uses SkModal (reka Dialog), portal target defaults '.set-app'
 // (see SkModal.vue head comment D1) — attachTo document.body + separately mount .set-app host,
-// technique same as ChannelsSection.test.ts. No side effects on existing (P3a) read-only half cases,
+// technique same as ChannelsSection.test.ts. No side effects on existing read-only half cases,
 // read-only half never opens dialog.
 const mountSection = () => mount(SkillsSection, { global: { plugins: [i18n] }, attachTo: document.body })
 const flush = async () => {
@@ -269,7 +269,7 @@ describe('SkillsSection (read-only half)', () => {
 })
 
 // ============================================================================
-// SP8-P3b Task 8 — `+` button + four write operations wiring.
+// `+` button + four write operations wiring.
 //
 // Except new flow, four actions go via `w.findComponent(SkillDetail).vm.$emit(...)` direct trigger
 // (precedent: TestPanel in same SkillDetail tree here uses `tp.vm.$emit('test')`, see

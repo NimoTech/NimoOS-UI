@@ -1,4 +1,4 @@
-// SP15-P2b-T1: the two album <-> smart-view conversion endpoints. Verified against
+// The two album <-> smart-view conversion endpoints. Verified against
 // NimoOS-Photos/route/v1/smartviews.go (FromAlbum) and route/v1/albums.go
 // (FromSmartView): both return the full new object, not a change count, and the
 // album-name collision surfaces as HTTP 409.

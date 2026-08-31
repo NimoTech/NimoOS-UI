@@ -30,7 +30,7 @@ export const useFavoritesStore = defineStore('favorites', () => {
   // every mutation rewrites the entire file, and the backend does not serialise
   // concurrent writes to it. Measured on the device: firing an add() write and a
   // remove() write at the same instant made the removal lose 10 times out of 25
-  // (the deleted folder reappeared in the sidebar -- the owner's Bug 5 report),
+  // (the deleted folder reappeared in the sidebar -- a reported bug),
   // and 24 overlapping writes left the file as invalid JSON outright. Two things
   // follow, and both are load-bearing:
   //

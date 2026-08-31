@@ -1,4 +1,4 @@
-// SP8-P5b Task 4 —— Ported from Vue2 `src/views/AI/Knowledge/QueueView.vue:393-404`
+// Ported from Vue2 `src/views/AI/Knowledge/QueueView.vue:393-404`
 // (main@7a6ee6b7). Three "copied quirky behaviors" each have a dedicated test pinning the
 // return value; see tests marked "original QueueView.vue:<line> behavior, copied verbatim".
 import { describe, it, expect } from 'vitest'

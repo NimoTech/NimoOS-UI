@@ -1,29 +1,29 @@
 <script setup lang="ts">
-// Task 11 (SP7-P5 people): PersonAssetGrid.vue — person detail page monthly asset grid
-// (multi-select / detach / expand all per month). Ported section-by-section from Vue2
+// PersonAssetGrid.vue — person detail page monthly asset grid
+// (multi-select / detach / expand all per month). Ported section-by-section from
 // the Vue 2 panel's src/views/Photos/PhotosPersonDetail.vue:132-154 (grid template), :760-763
 // (assetThumb, size=large), :868-883 (selection logic); styles from photos-people.scss:474-500
 // (.person-month / .person-grid, 8 columns + 3px radius).
 //
-// Why not reuse PhotosGrid (see task-11-brief.md accounting, three hard reasons): ① each tile
+// Why not reuse PhotosGrid (three hard reasons): ① each tile
 // has extra "not this person" detach button (PhotosGrid doesn't expose slots); ② fixed 8
 // columns + default 16 photos per month only, conflicts with PhotosGrid's responsive
 // auto-fill minmax(140px,1fr) + density three-state contract; ③ thumbnail uses size=large
 // not small. Trade-off: person page has no video hover preview (Vue2 detail also lacks it).
 //
-// Task positioning: pure display + emit — don't touch store, don't fetch, don't toast
-// (all in T14 container). Whole-tile click branching pulled back into component (coordinator
-// decision, original submission tried pushing to T14 container, corrected): byte-for-byte
-// match Vue2 onTileClick (:874-880) — when selectionMode true emit('toggle-select', p.id),
-// else emit('open', p), branch within single entry point. Reasons: ① component already has
-// selectionMode prop, has all decision info needed — if only used for detach button
-// visibility, prop is misnamed; ② 1:1 verifiable behavior with Vue2, "click tile in select
-// mode → only toggle-select, not open" can be pinned in component test, no need to wait for
-// container wiring to find missing branch; ③ pushing to container means container must
-// "receive open but ignore in select mode", one more implicit contract, exactly the kind of
-// hazard we're eliminating this period.
+// This component's role is pure display + emit — it doesn't touch the store, doesn't fetch,
+// doesn't toast (all of that lives in the host container). Whole-tile click branching is kept
+// inside this component rather than pushed up to the host: byte-for-byte match Vue2 onTileClick
+// (:874-880) — when selectionMode is true emit('toggle-select', p.id), else emit('open', p),
+// branch within a single entry point. Reasons: ① this component already has the selectionMode
+// prop and all the decision info it needs — if it were only used for detach-button visibility,
+// the prop would be misnamed; ② behavior stays 1:1 verifiable against Vue2, "click tile in
+// select mode → only toggle-select, not open" can be pinned in a component test, with no need
+// to wait on container wiring to catch a missing branch; ③ pushing this to the container would
+// mean the container has to "receive open but ignore it in select mode", one more implicit
+// contract -- exactly the kind of hazard worth avoiding.
 //
-// Only intentional deviation (plan item 8, brief explicit requirement): Vue2 :138 renders only
+// Only intentional deviation from Vue2: Vue2 :138 renders only
 // m.photos.slice(0,16) per month but month header shows real total, extra photos permanently
 // invisible in grid (only accessible via lightbox pagination). Here still renders 16 by default
 // (visual 1:1 unchanged), but when photos.length > 16 adds "show all {n} / collapse" text
@@ -39,7 +39,7 @@
 // (established precedent in PersonHero.vue, rationale in that file's "color red line" note,
 // not repeated here). Exception: selected state .tile-check background switches to saturated
 // var(--accent) solid (no longer layered on photo, component-controlled pure color), exactly
-// the prerequisite scenario for legal --on-accent use (see task color red line: --on-accent
+// the prerequisite scenario for legal --on-accent use (see the color red line: --on-accent
 // only legal on var(--accent) saturated solid), intentionally distinct from unselected state.
 import { reactive } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -155,7 +155,7 @@ function thumbnailSrc(id: string | number): string {
               <!-- X shape occupies only half the viewport, nominal size needs larger to see
                    clearly (same as Vue2 :150 comment). 15px is Vue2's **effective value**: template
                    :size="20" overridden by styles :1179-1183 `.tile-detach svg { width:15px;
-                   height:15px }` (final review Minor 3 verified in source). -->
+                   height:15px }` (confirmed by checking Vue2's actual source). -->
               <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
             </button>
           </div>
@@ -173,7 +173,7 @@ function thumbnailSrc(id: string | number): string {
   font-size: 13px;
 }
 
-/* Task 5 (Plan D) shadowing cleanup: `.person-month`/`.person-month-head` (+`.title`/`.sub`)
+/* Shadowing cleanup: `.person-month`/`.person-month-head` (+`.title`/`.sub`)
    duplicated parity's own rules under the same selectors and have been deleted — parity now
    governs directly. */
 .show-all-btn {
@@ -189,11 +189,11 @@ function thumbnailSrc(id: string | number): string {
 }
 .show-all-btn:hover { text-decoration: underline; }
 
-/* Task 5 (Plan D) shadowing cleanup: `.person-grid` (8-column grid) duplicated parity's own
+/* Shadowing cleanup: `.person-grid` (8-column grid) duplicated parity's own
    rule and has been deleted. `.tile img`/`[data-selected] { outline }`/`[data-selected] img
    { opacity }` are likewise now transcribed into parity's `.person-grid .tile` family
-   (geometry was already Vue2-accurate here; only the color tokens moved — see
-   task-5-report.md). Base positioning (`position/overflow`) also moved to parity; what's left
+   (geometry was already Vue2-accurate here; only the color tokens moved). Base positioning
+   (`position/overflow`) also moved to parity; what's left
    here is New-UI-only: a placeholder background while the thumbnail loads (no Vue2 value to
    transcribe) and `cursor: pointer`, which parity doesn't set for `.tile` either. */
 .tile { background: var(--chip-bg); cursor: pointer; }
@@ -215,12 +215,12 @@ function thumbnailSrc(id: string | number): string {
 }
 .vid-play { font-size: 7px; }
 
-/* Task 5 (Plan D) shadowing cleanup: the full `.tile-check`/`.tile-detach` geometry, opacity,
+/* Shadowing cleanup: the full `.tile-check`/`.tile-detach` geometry, opacity,
    transitions and hover states duplicated parity's newly-added `.person-grid .tile .tile-check`
    / `.tile-detach` family (transcribed from Vue2's own PhotosPersonDetail.vue:1263-1331) and
    have been deleted — parity now governs directly, including the background/border colors
-   (Vue2's own literal fixed overlay colors, not this app's theme tokens; see
-   task-5-report.md's deviations table for the token → literal-color changes this produced).
+   (Vue2's own literal fixed overlay colors, not this app's theme tokens — this is exactly the
+   kind of token-to-literal-color drift this cleanup addresses).
    `.tile-check-icon` survives: Vue2 sets this icon's color via an inline `color="white"` prop
    on its icon component (PhotosPersonDetail.vue:150), not a CSS rule — there is nothing for
    parity to hold, and this app's SVG needs a CSS-driven color since it isn't prop-driven. */

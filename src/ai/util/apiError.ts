@@ -1,4 +1,4 @@
-// SP8-P2b Task 4 — Backend error message extraction.
+// Backend error message extraction.
 //
 // Vue2 had 7 settings sections, each manually writing the same fallback chain (e.g.: BlacklistSection.vue:80-84、
 // McpTokensSection.vue:186、ChannelsSection.vue:210), this period consolidates them into one place. Value order and
@@ -8,7 +8,7 @@
 // Serves only the 6 new sections written this period. **Do NOT go back to change the 5 existing inline implementations**
 // (AgentComposer.vue / GoogleDriveAuthDialog.vue / NetworkStorageDialog.vue /
 // files/stores/shares.ts / apps/composables/useInstallFlow.ts) —— that would be unrelated refactoring.
-// [SP8-P2b Acceptance round 3 changes, user approved 2026-07-30] Original implementation had two issues, fixing both:
+// Feedback from an earlier review found the original implementation had two issues, fixing both:
 //   ① Only recognized Go service `message`. Python agent(`:8282`,FastAPI) puts errors in **`detail`**,
 //      so detail entirely fell into the "object then JSON.stringify" fallback below.
 //   ② That JSON.stringify fallback (inherited from Vue2 BlacklistSection.vue:82) echoes the entire response body to

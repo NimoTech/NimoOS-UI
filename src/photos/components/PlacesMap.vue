@@ -1,30 +1,34 @@
 <script setup lang="ts">
-// P6a-T6 (SP7-P6a 地点·地图主视图): PlacesMap.vue —— 地点页的 SVG 地图舞台。
-// 逐段照 Vue2 src/views/Photos/PhotosPlacesView.vue:972-1011(模板)、
-// photos-places.scss:333-436(样式,跳过死码 :340-345 的 .world-graticule/
-// .world-equator——Vue2 模板从没画过经纬线;也跳过 :437+ 的 .map-tip,那属于容器
-// 层,不在这段结构规格里)。
+// PlacesMap.vue — the places page's SVG map stage.
+// Ported section-by-section from Vue2 src/views/Photos/PhotosPlacesView.vue:972-1011
+// (template), photos-places.scss:333-436 (styles, skipping the dead .world-graticule/
+// .world-equator code at :340-345 — Vue2's template never actually drew graticule lines; also
+// skipping .map-tip at :437+, which belongs to the container layer, out of scope for this
+// component's structure).
 //
-// 本组件是纯渲染 + 纯 emit:不含任何手势逻辑——wheel / pointerdown/move/up 一律由
-// T7 的 composable 出 handler,T11 容器接线到某个外层元素上;本组件只绑
-// @click / @mouseenter / @mouseleave 到 .geo-pin,并 defineExpose 出 svgEl 给
-// T7 做坐标换算与 pointer capture。
+// This component is pure rendering + pure emit: it contains no gesture logic at all —
+// wheel / pointerdown/move/up handlers all come from a separate composable, wired by the
+// container onto some outer element; this component only binds
+// @click / @mouseenter / @mouseleave to .geo-pin, and defineExposes svgEl so that composable
+// can do coordinate conversion and pointer capture.
 //
-// 偏离登记:
-//  1. font-family 用 var(--font)——Vue2 的 var(--font-display) 在本仓不存在,
-//     PlacesRail.vue/PersonHero.vue 等既有 Photos 组件已一律用 --font 代替
-//     (非颜色的结构 token 替换,不是颜色近似)。
-//  2. transition-group 的"隐藏态"类名:Vue2 是 .pin-merge-enter,Vue3 改名
-//     .pin-merge-enter-from(enter-active/enter-to、leave-active/leave-to 两版
-//     同名不变)。照抄 Vue2 类名会让入场缩放动画静默失效——见样式块内该规则上方注释。
+// Deviations from Vue2:
+//  1. font-family uses var(--font) — Vue2's var(--font-display) doesn't exist in this repo;
+//     existing Photos components like PlacesRail.vue/PersonHero.vue already uniformly
+//     substitute --font instead (a structural, non-color token substitution, not a color
+//     approximation).
+//  2. transition-group's "hidden state" class name: Vue2 uses .pin-merge-enter, Vue3 renamed
+//     it .pin-merge-enter-from (enter-active/enter-to and leave-active/leave-to keep the same
+//     names in both versions). Copying Vue2's class name verbatim would leave the entrance
+//     scale animation silently broken — see the comment above that rule in the style block.
 //
-// Task 5 (Plan E #106 perf architecture port, 2026-08-15): two changes ported from
+// A later perf pass ported two changes from
 // the Vue 2 panel's PR #106's own perf sub-commit (git show 78cf3335) — this component's
 // share of the "dragging a color picker no longer repaints the whole map" fix (the other
 // share — the colour-input uncontrolled + debounced-persist half — lives in
 // PlacesThemeMenu.vue/places.ts):
 //  a. The land-dot matrix used to be an inline `<circle v-for>` in THIS component's own
-//     template. It's now `<PlacesWorldDots :dots="dots" />` (T5 new file) — a real
+//     template. It's now `<PlacesWorldDots :dots="dots" />` (a new file) — a real
 //     child component boundary, not scoped-CSS-only isolation, so Vue's prop-diffing
 //     bails on re-rendering it whenever this component's own render effect re-runs
 //     (pin hover/active state, pan/zoom) but `dots` itself hasn't changed reference.
@@ -45,14 +49,14 @@ import { buildPins, visitedDots, type Pin, type Place } from '../util/placesMap'
 import PlacesWorldDots from './PlacesWorldDots.vue'
 
 const props = defineProps<{
-  places: Place[] // 已过滤的地点(不吃 rail 的搜索词,同 Vue2 :229/:237)
+  places: Place[] // Already-filtered places (doesn't consume the rail's search term, same as Vue2 :229/:237)
   activeId: string | null
-  view: { tx: number, ty: number, scale: number } // T7 的变换态
-  // Output of T10's resolveMapTheme()+mapThemeStyleVars(). No longer bound into the template via
+  view: { tx: number, ty: number, scale: number } // The pan/zoom transform state, owned by the gesture composable
+  // Output of resolveMapTheme()+mapThemeStyleVars(). No longer bound into the template via
   // :style — applyMapVars() (below) writes it onto the <svg> as imperative CSS custom properties;
   // the code that reads it is a separate watch() side effect, not this component's own render
-  // function, so a colour change no longer triggers a re-render of this component (Task 5
-  // deviation-log item b, see the big comment above).
+  // function, so a colour change no longer triggers a re-render of this component (see the big
+  // comment above).
   themeVars: Record<string, string>
 }>()
 
@@ -64,7 +68,8 @@ const emit = defineEmits<{
 
 const svgEl = ref<SVGSVGElement | null>(null)
 
-// PhotosPlacesView.vue:228-278 的等价物,直接消费 T2 已落地并过评审的纯函数。
+// Equivalent of PhotosPlacesView.vue:228-278, directly consuming the already-built and
+// reviewed pure functions.
 const dots = computed(() => visitedDots(props.places))
 const pins = computed(() => buildPins(props.places, props.view.scale, props.activeId))
 
@@ -91,8 +96,8 @@ function applyMapVars(vars: Record<string, string>): void {
 onMounted(() => applyMapVars(props.themeVars))
 watch(() => props.themeVars, applyMapVars)
 
-// PhotosPlacesView.vue 的 gridTransform 计算属性(命名沿用 Vue2,尽管它变换的是
-// 整块地图内容,不只是网格——历史命名,不重造)。
+// PhotosPlacesView.vue's gridTransform computed (name kept from Vue2, even though it
+// transforms the whole map content, not just a grid — a historical name, not worth renaming).
 const gridTransform = computed(() => `translate(${props.view.tx} ${props.view.ty}) scale(${props.view.scale})`)
 
 function pickPin(p: Pin, ev: MouseEvent): void {
@@ -145,18 +150,18 @@ defineExpose({ svgEl })
 </template>
 
 <style scoped>
-/* Shadowing cleanup (Plan E Task 4, 2026-08-15): `.map-canvas`/`.map-canvas:active` deleted —
+/* Shadowing cleanup: `.map-canvas`/`.map-canvas:active` deleted —
    byte-identical duplicate of `photos-places.scss:350-355`. Most of the rest of this file's
    style block is intentionally left untouched: PlacesMap.test.ts pins a large fraction of it
    directly against this file's own raw `<style>` text (the `.pin-merge-*` transition/transform
    pair — including the Vue2→Vue3 enter-from/leave-to rename — and `.pin-scale`'s geometry
    declarations — the `.world-dot` fallback token this comment used to also cite has since moved
-   to PlacesWorldDots.vue's own `<style scoped>`, see Task 5 note below).
+   to PlacesWorldDots.vue's own `<style scoped>`, see the perf-pass note below).
 
-   P6a's original color choice was later formally overturned: the seven `--pin-*` tokens this
+   The original color choice here was later formally overturned: the seven `--pin-*` tokens this
    comment used to describe (`--pin-bg`/`--pin-stroke`/`--pin-active-bg`/`--pin-cluster-stroke`/
    `--pin-cluster-hover-bg`/`--pin-pulse`/`--pin-glow`) carried BLUE values (migrated as-then-were
-   during Plan E's final fix wave, see photos.scss's own now-removed comment on them) — a
+   during an earlier fix pass, see photos.scss's own now-removed comment on them) — a
    deviation from Vue2, which uses the PURPLE accent family for pins — an alpha-varying color
    built from `--accent-rgb`, plus flat `var(--accent)` for solid strokes/cores
    (photos-places.scss:367-437, byte-transcribed into this repo's own parity
@@ -169,7 +174,7 @@ defineExpose({ svgEl })
    deletion site) so parity's own accent-rgb-based/`var(--accent)` rules govern directly,
    restoring Vue2's purple. The seven tokens themselves, now with zero remaining consumers
    anywhere in this repo (grep-confirmed), were removed from `photos.scss` entirely rather than
-   kept dormant — see that file's own Fix-5 comment. `.geo-pin .pin-pulse` is TRIMMED rather than
+   kept dormant — see that file's own comment on the removal. `.geo-pin .pin-pulse` is TRIMMED rather than
    deleted (only its `fill: var(--pin-pulse)` line removed) — its `animation`/`transform-origin`/
    `transform-box` lines stay local so this component's own scoped `@keyframes mapPulse` below
    keeps a live, same-block reference; the `fill` property alone now cascades from parity's
@@ -190,7 +195,7 @@ defineExpose({ svgEl })
    block is compiler-hashed, so keyframes-guard.test.ts's global-uniqueness check exempts it
    (see that file's own header comment on why scoped blocks can't actually collide at runtime).
 
-   Task 5 (Plan E, PR 106 perf architecture port, 2026-08-15): the `.world-dot`/
+   Perf-architecture port: the `.world-dot`/
    `.world-dot.is-visited` rules that used to live here (fallback-token comment and all) have
    moved to PlacesWorldDots.vue's own `<style scoped>` block — the land-dot `<circle>`s they
    target now render inside THAT component's own template, not this one's, since Vue's
@@ -198,7 +203,7 @@ defineExpose({ svgEl })
    template creates (a child component's internal elements never inherit the parent's scope
    hash). Leaving the rules here after the elements moved out would have silently stopped them
    from matching anything — same specificity, same values, just relocated to the file that now
-   owns the elements. `themeVars`'s consumption also changed shape this task: it's no longer
+   owns the elements. `themeVars`'s consumption also changed shape in this pass: it's no longer
    bound via `:style="themeVars"` on the <svg> (a template binding, which ties every colour pick
    to this component's own render effect) — it's applied imperatively by `applyMapVars()` in the
    script block above, run from a `watch()` (a separate reactive effect from the render effect)
@@ -207,10 +212,10 @@ defineExpose({ svgEl })
 
 /* Pins. `.geo-pin` (base cursor/transition) and `.geo-pin .pin-hit` are deleted here —
    byte-identical duplicates of `photos-places.scss:375-383`; neither is read by any test.
-   Fix-5: `.geo-pin:hover` (the `--pin-glow` glow filter) and `.geo-pin .pin-bg` (the base
+   `.geo-pin:hover` (the `--pin-glow` glow filter) and `.geo-pin .pin-bg` (the base
    `--pin-bg`/`--pin-stroke` fill/stroke) are ALSO deleted here now — both were pure color-only
    local rules shadowing parity's own accent-rgb-based equivalents at a cascade tie
-   (see this file's Fix-5 header comment above). Parity's `.photos-root .geo-pin:hover`/
+   (see this file's header comment above). Parity's `.photos-root .geo-pin:hover`/
    `.photos-root .geo-pin .pin-bg` (photos-places.scss:367,390-394) are a byte-identical property
    superset (same `stroke-width: 1.2`, same shape) once color governs from there, so nothing is
    lost by removing the local duplicates outright. */
@@ -220,7 +225,7 @@ defineExpose({ svgEl })
 .geo-pin.is-recent .pin-core {
   fill: var(--place-current-trip);
 }
-/* Fix-5: `.geo-pin.is-active .pin-bg` deleted — was `fill: var(--pin-active-bg); stroke:
+/* `.geo-pin.is-active .pin-bg` deleted — was `fill: var(--pin-active-bg); stroke:
    var(--accent); stroke-width: 2;`, shadowing parity's `.photos-root .geo-pin.is-active .pin-bg`
    (photos-places.scss:401-405), which already declares the identical `stroke`/`stroke-width` plus
    the correct purple accent-rgb-based fill (alpha 0.30). Same "byte-identical superset, safe to
@@ -249,7 +254,7 @@ defineExpose({ svgEl })
   opacity: 0;
 }
 /* Aggregated multi-city cluster bubble.
-   Fix-5: `.geo-pin.is-cluster .pin-bg` (was `fill: var(--pin-active-bg); stroke:
+   `.geo-pin.is-cluster .pin-bg` (was `fill: var(--pin-active-bg); stroke:
    var(--pin-cluster-stroke); stroke-width: 1.6;`) and `.geo-pin.is-cluster:hover .pin-bg` (was
    `fill: var(--pin-cluster-hover-bg);`) are both deleted — parity's
    `.photos-root .geo-pin.is-cluster .pin-bg`/`:hover .pin-bg` (photos-places.scss:424-431) are a
@@ -260,7 +265,7 @@ defineExpose({ svgEl })
   stroke-width: 2.4;
 }
 .geo-pin .pin-pulse {
-  /* Fix-5: `fill: var(--pin-pulse);` removed (was the blue-family token) — the rest of this rule
+  /* `fill: var(--pin-pulse);` removed (was the blue-family token) — the rest of this rule
      (animation/transform-origin/transform-box) stays local so this component's own scoped
      `@keyframes mapPulse` below keeps a live, same-`<style scoped>`-block reference; CSS resolves
      `fill` independently, per-property, so it now cascades cleanly from parity's identical
@@ -280,14 +285,16 @@ defineExpose({ svgEl })
      stays a constant on-screen size instead of ballooning at high zoom. */
   font-family: var(--font);
   font-weight: 600;
-  /* theme-exception: 固定白色填充——这段文字压在任意地图底色之上(4 套预设 + 自定义色,
-     深浅不定),不是压在 app 主题表面上,必须跨主题、跨地图配色都保持可读。先例:
-     PhotosMiniMap.vue 的 .dot-person 固定白描边。不用 --on-accent,它是深藏青,压在
-     深色地图上会隐形 */
+  /* theme-exception: fixed white fill — this text sits on top of an arbitrary map background
+     color (4 presets plus a custom color, light or dark), not on an app theme surface, so it
+     must stay readable across every theme and every map color scheme. Precedent:
+     PhotosMiniMap.vue's .dot-person uses a fixed white outline the same way. --on-accent isn't
+     used here since it's a dark navy that would become invisible on a dark map. */
   fill: rgba(255, 255, 255, 0.85);
   text-anchor: middle;
   paint-order: stroke;
-  /* theme-exception: 固定深色描边,同上一条理由——跟 fill 一起撑开对比度,不随主题走 */
+  /* theme-exception: fixed dark outline, same reasoning as above — works together with the
+     fill to keep contrast, independent of the theme. */
   stroke: rgba(10, 10, 12, 0.85);
   stroke-linejoin: round;
   pointer-events: none;

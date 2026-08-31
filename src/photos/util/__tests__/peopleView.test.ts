@@ -329,7 +329,7 @@ describe('mergeReasonKey', () => {
   })
 })
 
-// Task 13 (SP7-P5 people): nimoReadParts — mirrors Vue2 PhotosPersonDetail.vue:571-585's
+// nimoReadParts — mirrors Vue2 PhotosPersonDetail.vue:571-585's
 // (nimoRead computed) sentence-composition rule, ported into an i18n-independent pure
 // function that returns {key, params}[] for the view layer to call t() on and concatenate.
 describe('nimoReadParts (PhotosPersonDetail.vue:571-585)', () => {
@@ -374,7 +374,7 @@ describe('nimoReadParts (PhotosPersonDetail.vue:571-585)', () => {
   // count. Here we deliberately place the relation with the "larger count" second in the
   // array, and assert that the person taken is still the first one in the array.
   //
-  // Falsification check (already done, see the task report for the process): temporarily
+  // Falsification check (already done): temporarily
   // changed the implementation to
   // `[...relations].sort((a, b) => (b.count ?? 0) - (a.count ?? 0))[0]` and reran — this test
   // went from green to red (it picked up "小刚" with the larger count instead of "小红" who is
@@ -390,7 +390,7 @@ describe('nimoReadParts (PhotosPersonDetail.vue:571-585)', () => {
   })
 })
 
-// Task 15A (SP7-P5): topPersons/topPlaces/byYear — mirrors Vue2
+// topPersons/topPlaces/byYear — mirrors Vue2
 // PhotosFavoritesView.vue:369-385 (byPersonAll/byPlaceAll/byYearAll).
 function ph(over: Partial<Photo> = {}): Photo {
   return {

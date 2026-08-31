@@ -1,8 +1,8 @@
 // Ported from the Vue 2 panel's src/views/Photos/PhotosToolbar.vue (49 lines).
-// P1 scope: no EXIF filter slot, no icon library (plain text tabs).
-// Plan B Task 5 re-skin (2026-08-12): root class ".photos-toolbar" -> ".toolbar" so the
+// Original scope: no EXIF filter slot, no icon library (plain text tabs).
+// Re-skin: root class ".photos-toolbar" -> ".toolbar" so the
 // already-ported vue2-parity/photos.scss `.photos-root .toolbar/.tabs/.tab/.density/
-// .muted-text` rules (photos.scss:266-289) apply verbatim; the P1 icon-library cut is
+// .muted-text` rules (photos.scss:266-289) apply verbatim; the earlier icon-library cut is
 // lifted here — tab/density buttons now carry the same inline <svg> glyphs Vue2 uses
 // (PhotosIcon.vue name=album/ocr/video/compact/comfort/loose), fixing the English-locale
 // "Compact"/"Comfortable" first-letter collision the old text-slice() density buttons had.
@@ -10,7 +10,7 @@ import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import PhotosToolbar from '../PhotosToolbar.vue'
 
-// fix round 1 (required by review 1): don't create a new createI18n(...) instance here.
+// Don't create a new createI18n(...) instance here.
 // vitest.setup.ts already installed src/i18n singleton into config.global.plugins, effective for every
 // mount in the suite—— passing a different i18n instance explicitly gets concatenated (not replaced) by
 // @vue/test-utils into the same app; vue-i18n's install() unconditionally calls app.component/app.directive
@@ -50,7 +50,7 @@ describe('PhotosToolbar', () => {
     expect(w.emitted('update:density')?.[1]).toEqual(['loose'])
   })
 
-  it('shows the item count text (raw number, same i18n arg shape as PhotosGrid month header — Fix 8)', () => {
+  it('shows the item count text (raw number, same i18n arg shape as PhotosGrid month header)', () => {
     const w = mount(PhotosToolbar, { props: { tab: 'all', density: 'comfortable', count: 1234 } })
     expect(w.text()).toContain('1234')
   })
@@ -77,8 +77,8 @@ describe('PhotosToolbar', () => {
   })
 })
 
-describe('P7b-T3: after-tabs slot', () => {
-  it('when slot is not passed, no extra nodes are rendered (default form same as P1)', () => {
+describe('after-tabs slot', () => {
+  it('when slot is not passed, no extra nodes are rendered (default form same as original)', () => {
     const w = mountToolbar()
     expect(w.find('[data-test="after-tabs-probe"]').exists()).toBe(false)
   })

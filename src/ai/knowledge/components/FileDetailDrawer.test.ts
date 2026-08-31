@@ -1,4 +1,4 @@
-// SP8-P5e Task 5 — `FileDetailDrawer.vue` unit tests. Blueprint: the Vue 2 panel's
+// `FileDetailDrawer.vue` unit tests. Blueprint: the Vue 2 panel's
 // `src/views/AI/Knowledge/components/FileDetailDrawer.vue`(220 lines, all ported this pass)+
 // following Vue2 spec `src/views/AI/Knowledge/__tests__/fileDetailDrawerDistill.spec.js`(N43,
 // test approach must change, see corresponding describe block below).
@@ -63,7 +63,7 @@ import { service } from '@nimotech/nimoos-service'
 
 // ─── fixture data(§0 source explanation, truncated to real prefix) ───
 const REAL_FILE_ID = 'dce79e8ea5d48719cd4ad16fe48da843' // real file_id, shared by F5b/F6/F6b/F12 — same underlying indexed document
-const REAL_PATH_DIR = '/DATA/.system_data/.docker/containers/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1/'
+const REAL_PATH_DIR = '/DATA/Containers/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1/'
 const REAL_NAME = '26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1-json.log'
 // Real prefix, taken from F5b files[0].chunks[0].preview.text; full value len=2342 sha256=fe4f68aa570a1ad127811d38a3d87f3845523f0ff0cb53c4f9baad6327bade1b
 const CHUNK0_TEXT_PREFIX = '{"log":"/usr/share/nimoos/agent/main.py:201: DeprecationWarning: \\n","'
@@ -638,8 +638,8 @@ describe('FileDetailDrawer —— T5 DoD-12: auto-load guard (views/SearchView.v
   // The "loading proof" (temporarily creating views/SearchView.vue → must fail red → delete and restore → turns green) and
   // "one case per each of the two failure modes" are not written into the permanent test file — that would bake a
   // one-time verification behavior into CI (reading/writing the real filesystem, with one step deliberately
-  // producing a failure state), which is not this guard's job. These two RED probes were done manually in the T5 report
-  // using `cp`/temp files plus full command output, pasted one by one — evidence is in report §(auto-load guard).
+  // producing a failure state), which is not this guard's job. These two RED probes were done manually,
+  // using `cp`/temp files plus full command output, verified one by one.
   const searchViewPath = resolve(__dirname, '../views/SearchView.vue')
 
   it('🔴 if views/SearchView.vue exists, it must import this component (file does not currently exist ⇒ passes dormant, not skip/todo)', () => {
@@ -654,7 +654,7 @@ describe('FileDetailDrawer —— T5 DoD-12: auto-load guard (views/SearchView.v
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🔴 SP8-P5f Task 1b —— gap-fill block for debt M-1 (P5e final review Minor-1)
+// 🔴 Gap-fill block for debt M-1 (found in an earlier review)
 //
 // P5e final review found empirically: the arguments `fetchFull()` passes to `store.loadChunkContext`
 // were **never read even once** in this file (zero hits across the full `mock.calls` listing) ⇒ changing

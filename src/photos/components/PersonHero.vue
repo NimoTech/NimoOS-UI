@@ -1,50 +1,50 @@
 <script setup lang="ts">
-// Task 10 (SP7-P5 person details): PersonHero.vue —— person detail page hero section (cover + avatar + name/favorite +
+// PersonHero.vue —— person detail page hero section (cover + avatar + name/favorite +
 // edit menu + relation group dropdown + four stats + two action buttons). Port each section from the Vue 2 panel
 // src/views/Photos/PhotosPersonDetail.vue:3-91 (template), :492-529 (cover/heroBg/
 // heroIsFallback/firstYear/firstMonthShort), :586-590 (relationLabel), :782-840
 // (menu toggle and positioning logic); styles from photos-people.scss:277-460.
 //
-// Pure presentation + emit, no store access, no requests — all side effects are in T14 container (brief defines responsibilities).
-// Task 8 (Plan D): the Ask about {name} button (Vue2 :89-92 `.btn-ai`) was previously deferred
-// to SP8 and unrendered; now added back in Vue2's own order (first in the actions row). The
-// click is a no-op — wiring the real Ask Nimo call belongs to Plan G; this task only adds the
+// Pure presentation + emit, no store access, no requests — all side effects live in the host container.
+// The Ask about {name} button (Vue2 :89-92 `.btn-ai`) was previously deferred
+// and left unrendered; now added back in Vue2's own order (first in the actions row). The
+// click is currently a no-op — wiring the real Ask Nimo call comes later; for now this only adds the
 // copy + visuals + an empty placeholder function (see onAskNimo below).
 //
-// Implementation deviation (approved, per brief): Vue2 uses getBoundingClientRect for manual fixed positioning +
+// Implementation deviation from Vue2: Vue2 uses getBoundingClientRect for manual fixed positioning +
 // document mousedown + closest('.relation-menu') to manage two menus (:598-617, 782-831).
 // Here changed to position:absolute anchored to trigger buttons within the component (same pattern as established
 // in PhotosPeople.vue :352-358, 412-424 with people-pop-wrap/people-menu), closing still uses document-level
 // mousedown + keydown(Esc), attached on onMounted / removed on onUnmounted, paired. Visual position remains consistent
 // (menu appears directly below trigger button).
 //
-// ★ Final review Important 5 deviation registration —— **Why Vue2 uses fixed**: not arbitrary, but to work around
+// Deviation registration —— **Why Vue2 uses fixed**: not arbitrary, but to work around
 // `.detail-hero { overflow: hidden }` (photos-people.scss:277-281). fixed containment block is the viewport,
 // unaffected by any ancestor overflow clipping; absolute containment block is the nearest positioned ancestor,
 // and gets clipped if ancestor clips. Switching to absolute breaks z-index completely (clipping happens before compositing),
 // and hero has no scrollbar to rescue it—menu gets **directly clipped**: default layout menu bottom ≈279.5px
 // just 0.5px away from clipping; once a long name triggers `.hero-name-row { flex-wrap: wrap }` wrapping,
 // trigger button shifts down ~46px, menu bottom reaches ≈296px, last item "Work" gets clipped about halfway
-// (same for larger font / narrow viewport). Fix (review offered two options, chose the first; see .hero-clip comment
+// (same for larger font / narrow viewport). Fix (of two possible approaches, chose this one; see .hero-clip comment
 // in style block): move `overflow: hidden` from .person-hero to dedicated .hero-clip clipping layer, menu no longer
 // affected by ancestor clipping, keep absolute anchoring this approved deviation.
 //
-// Deviation 10 registration (not previously declared, added in final review): `.hero-name-row` flex-wrap: wrap is new
+// Deviation registration: `.hero-name-row` flex-wrap: wrap is new
 // to this repo —— Vue2 `.detail-hero .name` (photos-people.scss:325-331) is `display:flex; align-items:center;
 // gap:12px`, **no** flex-wrap, so long names compress Edit/relation-group capsules and overflow. Keep wrap
 // (part of "don't copy Vue2 bugs" category), but it changes hero's actual height, so must be viewed together with above:
 // wrap is what makes menu overflow a common path, not an edge case.
 //
-// Deviation 9 registration (brief explicitly requires correction, don't copy Vue2 bug): Vue2 :528 hardcodes month
+// Deviation registration (correcting a Vue2 bug, not copying it): Vue2 :528 hardcodes month
 // short names as toLocaleDateString('en', {month:'short'}) —— here changed to use BCP-47 tag derived from
 // useI18n().locale (same pattern as established in PhotosPeople.vue:157 formatIndexedDate: locale.value.replace('_', '-')),
 // renders month abbreviations following current language. Also **does not** copy Vue2's manual trailing "." concatenation
 // (:528's `+ '.'`) —— that period is only conventional typography for English abbreviations ("Jan."), Chinese short
 // month format (e.g. "3月") has no such punctuation convention, forced concatenation results in awkward "3月." —— changed
 // to completely trust Intl.DateTimeFormat to provide localized short month for current locale, no manual punctuation
-// concatenation (same approach as T6 formatIndexedDate: delegate to Intl, don't concatenate strings yourself).
+// concatenation (same approach as PhotosPeople.vue's formatIndexedDate: delegate to Intl, don't concatenate strings yourself).
 //
-// Color critical path (highest risk in this task; brief emphasized "this gap caused two reworks in this phase"): everything
+// Color critical path (the highest-risk area in this component — this gap has caused rework before): everything
 // in the hero foreground layered over darkened cover photo (back button / avatar ring and name outside it / stat numbers
 // and labels / favorite button / Edit/relation group trigger buttons / text and icons of two action buttons) all
 // **locked to light colors** (theme-exception), using no dynamic --fg/--fg-muted/--fg-subtle tokens (in light theme
@@ -53,7 +53,7 @@
 // Two dropdown menu bodies (Edit menu / relation menu) are exceptions —— each has solid var(--popup-bg) background,
 // no longer layered on photo, menu text/highlight follows normal theme tokens (--fg/--fg-muted/--accent-soft/--accent-text/--remove-fg), not locked.
 //
-// Owner acceptance Fix-1 (2026-08-14) correction: the back button `.back`, the Edit/relation
+// Correction: the back button `.back`, the Edit/relation
 // group triggers `.edit-btn`/`.relation-trigger`, and the two action buttons `.actions .btn`
 // (Ask about excepted) were wrongly grouped into the "pinned light" rule above — they all
 // actually carry a `var(--float-bg)` pill background (parity-supplied, a frosted
@@ -65,18 +65,18 @@
 // dedicated `is-light` branch is ever needed (the whole of photos-people.scss has only four
 // is-light/data-fallback branches, none of them touching a button). This component used to pin
 // those three to `#fff` as well, on top of the same themed pill that turns near-white in the
-// light theme — light on light, which is exactly the combination behind the owner's 2026-08-14
-// acceptance report that "the buttons and text are unreadable in the light theme". The fix is
+// light theme — light on light, which is exactly the combination that made
+// the buttons and text unreadable in the light theme. The fix is
 // to put those three back on the themed var(--text-2)/var(--text-1) so they shift together
 // with the themed pill, as in Vue2. `.name-text`/`.stat .v`/`.stat .k`/the `.fav-toggle` icon
 // are still bare over the photo (no pill), so the pinned-light rule still holds for them and
 // they are unchanged.
 //
-// Dark scrim deviation registration (different from brief's suggested formula, detailed rationale recorded in task report):
-// brief suggested New-UI use linear-gradient(180deg, transparent, var(--bg) 95%) when lacking --hero-scrim.
+// Dark scrim deviation registration (different from the originally suggested formula):
+// the initial approach called for New-UI to use linear-gradient(180deg, transparent, var(--bg) 95%) when lacking --hero-scrim.
 // But light theme --bg is near pure white (#f7f5ef) —— blending scrim toward var(--bg) washes the hero middle section
 // (avatar/name/stats in vertical center area) to light gray or near white, locked light text in that section becomes
-// unreadable, directly contradicting this task's highest priority "critical path" goal. Changed to fixed black gradient
+// unreadable, directly contradicting this component's highest-priority "critical path" goal. Changed to fixed black gradient
 // unrelated to theme (same pattern as existing PhotosAlbumDetail.vue .album-hero-bg::after: that similar "photo hero +
 // locked light foreground" scenario also uses fixed black gradient, independent of var(--bg)), ensures locked light text
 // has stable contrast across both themes.
@@ -94,7 +94,7 @@ const props = defineProps<{
   person: Person
   relationCount: number
   placesCount: number
-  // Task 7 (Plan D): gates the "Hide person" edit-menu item, mirroring Vue2's
+  // Gates the "Hide person" edit-menu item, mirroring Vue2's
   // `v-if="hiddenPeopleSupported"` on the same menu item (PhotosPersonDetail.vue:43-46).
   // Owned by the people store (usePhotosPeople().hiddenPeopleSupported) — this component
   // stays a pure prop/emit consumer like every other piece of `person`-derived state here.
@@ -115,7 +115,7 @@ const emit = defineEmits<{
 
 const { t, locale } = useI18n()
 
-// User acceptance feedback: unnamed people now have a detail page entry (list menu "View these photos"),
+// Unnamed people now have a detail page entry (list menu "View these photos"),
 // unreachable in Vue2 so it :22 directly renders person.name, empty name becomes blank title. Added fallback copy here.
 // trim check: backend may store names that are only whitespace; rendering as spaces is same as blank, use fallback for both.
 const heroTitle = computed(() => props.person.name.trim() || t('photosPersonUnnamedTitle'))
@@ -178,7 +178,7 @@ function pickRelation(value: string): void {
   emit('pick-relation', value)
 }
 
-// Plan G: opens the Ask Nimo popup with Vue2's exact canned prompt (PhotosPersonDetail.vue:89-92).
+// Opens the Ask Nimo popup with Vue2's exact canned prompt (PhotosPersonDetail.vue:89-92).
 function onAskNimo(): void {
   useAskNimo().openWith(t('photosPersonAskAboutPrompt', { name: heroTitle.value }))
 }
@@ -206,12 +206,12 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <!-- Task 5 (Plan D): root class renamed `person-hero` → `detail-hero` and every descendant
-       class below renamed to its parity/Vue2 anchor (see task-5-report.md's rename table) so
+  <!-- Root class renamed `person-hero` → `detail-hero` and every descendant
+       class below renamed to its parity/Vue2 anchor so
        `src/photos/styles/vue2-parity/photos-people.scss` governs directly. data-test attributes,
        props/emits and all logic are unchanged. -->
   <div class="detail-hero" data-test="hero-root" :data-fallback="isFallback ? 'true' : 'false'">
-    <!-- Final review Important 5: the clip layer. The blurred background and the darkening scrim
+    <!-- The clip layer. The blurred background and the darkening scrim
          are contained here, `overflow: hidden` is this element's own responsibility —
          .detail-hero no longer clips, otherwise the two hero dropdown menus (absolute) would be
          cut off by an ancestor. -->
@@ -225,7 +225,7 @@ onUnmounted(() => {
       <div v-if="!isFallback" class="scrim" data-test="hero-scrim" />
     </div>
 
-    <!-- Final review Minor 7: copy is t('photosPeople') ("People") —— matches Vue2 :6 $t('People').
+    <!-- Copy is t('photosPeople') ("People") —— matches Vue2 :6 $t('People').
          Not photosPersonBack ("Back to people"): that text is for the back button in **person not found** empty state
          (PhotosPersonDetail.vue gate ③), two different contexts. -->
     <button type="button" class="back" data-test="hero-back" :aria-label="t('photosPeople')" @click="emit('back')">
@@ -242,7 +242,7 @@ onUnmounted(() => {
         <div class="name">
           <span class="name-text" data-test="hero-name">{{ heroTitle }}</span>
 
-          <!-- Final review Minor 7: unfavorited state title/aria matches Vue2 :26 `Mark as favorite` (not generic
+          <!-- Unfavorited state title/aria matches Vue2 :26 `Mark as favorite` (not generic
                `Favorite`); favorited state reuses photosUnfavorite, whose text matches Vue2's original `Remove favorite` translation. -->
           <button
             type="button"
@@ -266,17 +266,17 @@ onUnmounted(() => {
             <div v-if="editOpen" class="relation-menu edit-menu" data-test="hero-edit-menu">
               <button type="button" class="relation-option" data-test="hero-edit-rename" @click="pickEdit('rename')">
                 <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4 12.5-12.5z" /></svg>
-                <!-- Final review Minor 6: short verb key (matches Vue2 :38 `$t('Rename')`); photosPersonRename
+                <!-- Short verb key (matches Vue2 :38 `$t('Rename')`); photosPersonRename
                      is the rename dialog title "Rename person", cannot replace menu item. -->
                 {{ t('photosPersonMenuRename') }}
               </button>
               <button type="button" class="relation-option" data-test="hero-edit-merge" @click="pickEdit('merge')">
                 <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.5L18 9l-4.1 1.5L12 15l-1.9-4.5L6 9l4.1-1.5z" /></svg>
-                <!-- Final review Minor 6: same as above, matches Vue2 :41 `$t('Merge into…')`; photosPersonMergeInto
+                <!-- Same as above, matches Vue2 :41 `$t('Merge into…')`; photosPersonMergeInto
                      is the merge dialog title "Merge into another person". -->
                 {{ t('photosPersonMenuMergeInto') }}
               </button>
-              <!-- Task 7 (Plan D): "Hide person" — per Vue2 PhotosPersonDetail.vue:43-46, only
+              <!-- "Hide person" — per Vue2 PhotosPersonDetail.vue:43-46, only
                    shows when hiddenPeopleSupported, with an explanatory title; the click executes
                    immediately, the container owns the actual hide + toast + navigation (this
                    component never touches the store, same division of labor as the file-header
@@ -343,8 +343,8 @@ onUnmounted(() => {
       </div>
 
       <div class="actions">
-        <!-- Task 8 (Plan D): Ask about {name} — Vue2 :89-92 `.btn-ai`, first in actions order.
-             Click is a no-op (onAskNimo) — wiring in Plan G. -->
+        <!-- Ask about {name} — Vue2 :89-92 `.btn-ai`, first in actions order.
+             Click is currently a no-op (onAskNimo) — wiring comes later. -->
         <button type="button" class="btn btn-ai" data-test="hero-ask-nimo" @click="onAskNimo">
           <span class="ask-nimo-icon" :style="{ backgroundImage: `url(${nimoLogoUrl})` }" />
           {{ t('photosPersonAskAbout', { name: heroTitle }) }}
@@ -363,7 +363,7 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-/* Task 5 (Plan D) shadowing cleanup — see task-5-report.md for the full per-rule table. The
+/* Shadowing cleanup. The
    short version: every rule below that duplicated a parity anchor under the same selector
    path has been deleted (parity — `src/photos/styles/vue2-parity/photos-people.scss` —
    governs directly, using its own token set). What survives is exactly two kinds of rule:
@@ -378,12 +378,12 @@ onUnmounted(() => {
    "pinned foreground color" red-line decision (see file-header comment), not something this
    cleanup should undo.
 
-   Owner acceptance Fix-1 (2026-08-14): `.back`, `.edit-btn`/`.relation-trigger`, and
+   Correction: `.back`, `.edit-btn`/`.relation-trigger`, and
    `.actions .btn` (excluding `.btn-ai`) were previously miscategorized into that same "pinned
    light foreground" family and hardcoded to a fixed white. They don't belong there — all three carry
    their own themed `var(--float-bg)` pill background (parity-supplied, not overridden here),
    so in the light theme that pill goes near-white while the text stayed pinned white too:
-   white-on-white, exactly the owner-reported "hero pills/text hard to read in light theme"
+   white-on-white, exactly the reported "hero pills/text hard to read in light theme"
    defect. Vue2's own rules for these three (photos-people.scss:320/327, 350/360, 406;
    PhotosPersonDetail.vue:1133, 1175/1183, 1197) were never pinned — they use themed
    `var(--text-2)`/`var(--text-1)`, which stays correctly paired with the themed pill
@@ -397,7 +397,7 @@ onUnmounted(() => {
    coin-flip this technique avoids. */
 .detail-hero {
   position: relative;
-  /* Final review Important 5: overflow: hidden is deliberately absent here (parity's own
+  /* overflow: hidden is deliberately absent here (parity's own
      .detail-hero has it). The two dropdown menus are absolute-anchored (see the file-header
      "implementation deviation" note); any ancestor clip would remove them entirely — z-index is
      useless once the ancestor already clips, and there's no scrollbar to save it. A long name
@@ -412,7 +412,7 @@ onUnmounted(() => {
 }
 /* Clip only what actually needs clipping: the blurred cover image + the darkening scrim.
    Why this must be a **separate ancestor container** rather than letting `.bg` clip itself
-   (the literal fix a reviewer suggested): `filter: blur(40px)`'s output is painted **outside**
+   (the straightforward fix one might try first): `filter: blur(40px)`'s output is painted **outside**
    the element's own box per spec (up to roughly 120px of bleed here), and `transform: scale(1.2)`
    then enlarges the whole thing by 20% on top of that — an element's own `overflow` can't clip
    its own filter output, only an **ancestor's** `overflow` can. Without this, the blur edges
@@ -443,7 +443,7 @@ onUnmounted(() => {
 }
 /* Parity paints its own scrim as `.bg::after` (mixed toward var(--bg), washes out in the light
    theme exactly where the pinned light text sits — see file-header comment for the full
-   reasoning already reviewed twice). This component uses a separate `.scrim` sibling div with
+   reasoning). This component uses a separate `.scrim` sibling div with
    a fixed black gradient instead (below) — neutralize parity's pseudo-element so the two don't
    stack. Written as the full parity selector path for the specificity reasons noted above. */
 .detail-hero .bg::after { content: none; }
@@ -456,7 +456,7 @@ onUnmounted(() => {
   background: linear-gradient(180deg, rgba(0, 0, 0, 0.32) 0%, rgba(0, 0, 0, 0.5) 45%, rgba(0, 0, 0, 0.68) 100%);
 }
 
-/* Owner acceptance Fix-1: this button has its own themed `var(--float-bg)` pill background
+/* This button has its own themed `var(--float-bg)` pill background
    (parity-supplied), so it should NOT join the "pinned light foreground" family — pinning its
    text white while its background is themed (and goes near-white in the light theme) produced
    the reported white-on-white washout. Matches Vue2's own `.back`/`.back:hover`
@@ -493,7 +493,7 @@ onUnmounted(() => {
    come from parity's `.detail-hero .name` — only color needs overriding here. */
 .name-text { color: #fff; }
 
-/* Fix round 1 (Important, coordinator review): the previous bare `.fav-toggle { … }` here
+/* The previous bare `.fav-toggle { … }` here
    compiled to `.fav-toggle[data-v-hash]` — specificity (0,2,0). Parity's own
    `.detail-hero .name .fav-toggle` (photos-people.scss:420-430) is (0,3,0) and — being an
    unscoped global rule — wins regardless of stylesheet load order, the exact opposite of every
@@ -508,7 +508,7 @@ onUnmounted(() => {
    `.fav-toggle`/`.fav-toggle:hover` rule (border/background/transition) is fully unreachable in
    real Vue2 rendering — dead in the *source of truth*, not just an artifact of this app's
    token choices like this file's other survivors. That dead rule is left as-is in parity for
-   final-review triage, not touched here.
+   future cleanup, not touched here.
 
    This app's plain `<svg>` has no equivalent to Vue2's inline-style mechanism, so the real
    values have to be carried by an actual CSS rule here, written as the same full compound path
@@ -539,7 +539,7 @@ onUnmounted(() => {
      expressed as var(fallback) form, color-guard clears by token usage, not bare literal. */
   color: var(--star-fg, #ffd60a);
 }
-/* Fix round 2 (coordinator re-review, Important): the previous version of this rule kept a new
+/* The previous version of this rule kept a new
    faint hover tint as a "don't copy a Vue2 UX gap" affordance. Ruling: pixel parity governs
    here — this rule shape exists purely to neutralize a specificity problem, not to introduce
    new visuals Vue2 never has. Vue2's real hover state is pixel-identical to its resting state
@@ -565,12 +565,12 @@ onUnmounted(() => {
 /* `.relation-picker`'s position/display/align-items duplicated parity's own rule exactly and
    has been deleted. */
 
-/* Owner acceptance Fix-1: same reasoning as `.back` above — these two triggers carry their own
+/* Same reasoning as `.back` above — these two triggers carry their own
    themed `var(--float-bg)` pill background, so pinning their text white produced white-on-
-   near-white in the light theme (owner-reported "Edit/No group pills... hard to read"). Vue2's
+   near-white in the light theme ("Edit/No group pills... hard to read"). Vue2's
    own `.edit-btn`/`.relation-select` (photos-people.scss:350/360, 442/452 — the latter's
-   `.relation-select` rule has since been deleted as a confirmed zero-consumer orphan, Plan H
-   Task 15; PhotosPersonDetail.vue:1175/1183/1197) have always used themed var(--text-2)/var(--text-1),
+   `.relation-select` rule has since been deleted as a confirmed zero-consumer orphan;
+   PhotosPersonDetail.vue:1175/1183/1197) have always used themed var(--text-2)/var(--text-1),
    correctly paired with the same themed pill background, no `is-light` branch needed. Base +
    hover still written as parity's own compound selectors so the scoped-attribute specificity
    bump reliably beats parity's `:hover` variant too (parity's hover selector is itself a
@@ -612,9 +612,9 @@ onUnmounted(() => {
    actually a superset — it also sets align-items:stretch, which this component's old local
    rule was missing) and has been deleted. */
 
-/* Owner acceptance Fix-1: same reasoning as `.back` above — "Make album"/"Background" carry
+/* Same reasoning as `.back` above — "Make album"/"Background" carry
    their own themed `var(--float-bg)` pill background, so pinning their text white produced
-   white-on-near-white in the light theme (owner-reported "Make album/Background... washed-out
+   white-on-near-white in the light theme ("Make album/Background... washed-out
    translucent white pills with white text"). Vue2's own `.actions .btn`
    (photos-people.scss:397; PhotosPersonDetail.vue:1133) has always used themed var(--text-1),
    correctly paired with the same themed pill background, no `is-light` branch needed; it
@@ -627,7 +627,7 @@ onUnmounted(() => {
    background/backdrop-filter/border/hover background — still comes straight from parity. */
 .detail-hero .actions .btn:not(.btn-ai) { color: var(--text-1); }
 
-/* Task 8 (Plan D): Ask-about icon — Vue2 :90 renders this as an inline-styled <span>
+/* Ask-about icon — Vue2 :90 renders this as an inline-styled <span>
    (display:inline-block;width:16px;height:16px;border-radius:99px;background:url(...)
    center/cover no-repeat), not a class, so there is no parity selector to align to or
    delete — values transcribed from that inline style; only the background-image itself

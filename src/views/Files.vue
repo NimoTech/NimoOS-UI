@@ -93,7 +93,7 @@ const shareDlg = ref<{ open: boolean; name: string }>({ open: false, name: '' })
 // Context-menu target: set when a row/card emits; reset to null in blank areas (container's target is not a row/card)
 const ctxEntry = ref<FileEntry | null>(null)
 function onItemContextmenu(payload: { entry: FileEntry; event: MouseEvent }) {
-  // 2026-08-13 contract change (owner's request): right-click **does not touch the selection**.
+  // Contract change, by design: right-click **does not touch the selection**.
   // Previously this called selectOnly() to fold the clicked item into the selection, with the
   // side effect that a plain right-click alone would light up the row's selected state and pull
   // out the top SelectionToolbar. Now:
@@ -175,7 +175,7 @@ function openRestorePicker(mount: string, defaultDir: string) {
 
 // Entry point ① — context-menu "Restore to original location" (single item, FileContextMenu.vue's
 // own `showRestoreOriginal` already gates this to snapshot view + a single target).
-// `{ singleItemFlow: true }` (fix round 1): this is the ONE entry point that
+// `{ singleItemFlow: true }`: this is the ONE entry point that
 // shows Vue2's own `snapBrowseRestored` = "Restored to {path}" copy on success (Vue2's
 // restoreSnapshotItem) rather than the `tmRestoredCount` count-based copy every other entry point
 // uses (Vue2's executeSnapshotRestore) — see buildRestoreToasts' own comment for the full split.
@@ -944,7 +944,7 @@ watch(() => browse.shouldAutoEnter, (val) => { if (val) browse.autoEnterTimeMach
               <!-- Vue2's own
                    `<b-button icon-left="history">` precedes the label with a real mdi
                    clock/history glyph (FilePanel.vue:205-207) -- a UI glyph, not a file icon, so
-                   in-scope per the owner's icon exception (New-UI's own established icon
+                   in-scope per the agreed icon exception (this app's own established icon
                    convention: a plain monochrome Unicode glyph inheriting `currentColor`, same
                    idiom as this app's other ad-hoc UI icons, e.g. TimeMachineStage.vue's own
                    gear button). -->

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { kindLabel, sourceLabel, KIND_LABEL_KEYS, SOURCE_LABEL_KEYS } from './memoryLabels'
 
-// SP8-P2b Task 6 — align with Vue2 MemorySection.spec.js item 14
+// Aligns with Vue2 MemorySection.spec.js item 14
 // 'kindLabel/sourceLabel map known values and pass through unknown'.
 
 describe('memoryLabels', () => {

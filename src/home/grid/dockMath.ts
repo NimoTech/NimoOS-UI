@@ -1,4 +1,4 @@
-// The dock's fisheye magnification, switched off at the owner's request and kept
+// The dock's fisheye magnification, switched off by design and kept
 // rather than deleted so it can be restored. Its only caller was HomeDock's
 // pointermove handler, which is commented out alongside it.
 // const MAG_AMP = 0.55, MAG_SIGMA = 70

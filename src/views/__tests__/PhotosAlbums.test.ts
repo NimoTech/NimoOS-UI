@@ -1,9 +1,9 @@
-// Task 7 (SP7-P4 albums): PhotosAlbums.vue — the album list view (card grid + sort + three
+// PhotosAlbums.vue — the album list view (card grid + sort + three
 // fill modes for creating an album + empty state). Mounts Pinia + i18n + a real router (spying
 // on push rather than mocking the whole vue-router module — AreaShell/PhotosSidebar both call
 // useRouter(), following the existing mounting pattern from PhotosFavorites.test.ts /
 // PhotosTrash.test.ts), mocks the shared package's albums/timeline methods. Covers all 8 behavior
-// items from the brief's Step 1, plus one for Esc closing the modal (a hard requirement: it's a
+// test items, plus one for Esc closing the modal (a hard requirement: it's a
 // document-level listener, not a template @keydown.esc, so it's worth asserting it actually
 // works).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
@@ -31,7 +31,7 @@ const svc = vi.hoisted(() => ({
     getTimelineBuckets: vi.fn(),
     getTimelineBucket: vi.fn(),
     thumbnailUrl: vi.fn((id: string | number, size: string) => `mock://thumb/${id}/${size}`),
-    // SP15-P2b Task 3: the page now also fetches the smart-view list and the AI
+    // The page now also fetches the smart-view list and the AI
     // feature flags (for the smart-views-off banner) alongside albums.
     listSmartViews: vi.fn().mockResolvedValue([]),
     getConfig: vi.fn().mockResolvedValue({}),
@@ -45,7 +45,7 @@ const svc = vi.hoisted(() => ({
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 
 import PhotosAlbums from '../PhotosAlbums.vue'
-// SP15-P2c Task 10: the two CSS assertions at the bottom of this file read the style block's
+// The two CSS assertions at the bottom of this file read the style block's
 // source text (jsdom does not cascade or paint). `?raw` on a .vue file is the established way
 // here -- see the same import in the SmartViewCard test this task replaced.
 import photosAlbumsRaw from '../PhotosAlbums.vue?raw'
@@ -89,7 +89,7 @@ function makeRouter() {
     routes: [
       { path: '/photos/albums', name: 'photos-albums', component: PhotosAlbums },
       { path: '/photos/albums/:id', name: 'photos-album-detail', component: { template: '<div/>' } },
-      // SP15-P2b Task 3: smart-card clicks route here now that the grid is mixed.
+      // Smart-card clicks route here now that the grid is mixed.
       { path: '/photos/smart-views/:id', name: 'photos-smart-view-detail-stub', component: { template: '<div/>' } },
       // The AI-off banner's settings link resolves to this path (?section=ai query) -- a stub
       // route lets RouterLink resolve a real href instead of vue-router warning "no match"
@@ -109,10 +109,10 @@ async function mountView() {
   return { w, router }
 }
 
-// SP15-P2b Task 3: shared spy for the mixed-grid test block below, reassigned on every
+// Shared spy for the mixed-grid test block below, reassigned on every
 // mountAlbums() call so each test's assertion reads the router instance it actually mounted
 // against (mirrors the existing mountView()/router pattern, just hoisted to module scope so
-// the brief's test bodies -- which reference a bare `push` -- can call it without destructuring).
+// test bodies that reference a bare `push` can call it without destructuring).
 let push: ReturnType<typeof vi.fn>
 
 /**
@@ -184,7 +184,7 @@ afterEach(() => {
 })
 
 describe('PhotosAlbums.vue', () => {
-  // fix round 1 (Important 3): the standalone [data-test="albums-empty"] panel this test used
+  // The standalone [data-test="albums-empty"] panel this test used
   // to assert on is gone -- the section subtitle carries the empty state now (see
   // PhotosAlbums.vue's comment above the subtitle span). Assert on that instead.
   it('albumsLoaded and the list is empty -> the section subtitle shows the empty-state copy, the "New" placeholder tile is still there', async () => {
@@ -498,7 +498,7 @@ describe('PhotosAlbums.vue', () => {
     expect(w.find('[data-test="lib-picker-overlay"]').exists()).toBe(true)
   })
 
-  // SP15-P1-T9 · Step 0: the picker was generalised and no longer writes to the album store
+  // The picker was generalised and no longer writes to the album store
   // itself — it emits `confirm(ids)` and this page performs the write, the success toast, the
   // close and the fetchAlbums refresh that `@added` used to trigger. All four used to be
   // asserted inside PhotosLibraryPicker.test.ts; they are asserted here now, at their new home.
@@ -530,7 +530,7 @@ describe('PhotosAlbums.vue', () => {
     await w.vm.$nextTick()
 
     expect(svc.photos.batchAddToAlbum).toHaveBeenCalledWith('new1', ['p1', 'p2'])
-    // fix round 1 · finding 4: exactly one toast, and it is the success one with the album name
+    // Exactly one toast, and it is the success one with the album name
     // and the count — a duplicate, or a stray danger toast alongside it, has to fail here.
     expect(showSpy).toHaveBeenCalledTimes(1)
     expect(showSpy).toHaveBeenCalledWith(
@@ -555,13 +555,13 @@ describe('PhotosAlbums.vue', () => {
     await flushPromises()
     await w.vm.$nextTick()
 
-    // fix round 1 · finding 4: only the danger toast, nothing else — a success toast leaking onto
+    // Only the danger toast, nothing else — a success toast leaking onto
     // the failure path would be caught by the count.
     expect(showSpy).toHaveBeenCalledTimes(1)
     expect(showSpy).toHaveBeenCalledWith(zh.photosAlbumAddFailed)
     expect(w.find('[data-test="lib-picker-overlay"]').exists()).toBe(true)
 
-    // fix round 1 · finding 1: the busy flag must come back down in the handler's `finally`.
+    // The busy flag must come back down in the handler's `finally`.
     // Without it the panel is left with a permanently disabled button reading "Adding…" and the
     // user has no way to retry — which is exactly what the assertions below rule out.
     expect(picker.props('submitting')).toBe(false)
@@ -573,7 +573,7 @@ describe('PhotosAlbums.vue', () => {
     err.mockRestore()
   })
 
-  // fix round 1 · finding 2: before Step 0 the picker computed existingIds itself and its own
+  // Before this, the picker computed existingIds itself and its own
   // cross-type test proved the String() normalisation. The expression moved here, so the proof
   // has to move with it: album assets come back from the API with **numeric** ids while timeline
   // photos carry strings, and without String() not one already-in photo would be recognised.
@@ -608,7 +608,7 @@ describe('PhotosAlbums.vue', () => {
     expect(w.find('[data-test="albums-create-modal"]').exists()).toBe(false)
   })
 
-  // Final-review must-fix 3: Vue2 PhotosAlbumsView.vue:52-58 unconditionally renders a "My Albums
+  // Vue2 PhotosAlbumsView.vue:52-58 unconditionally renders a "My Albums
   // / Albums you created" section header above the grid; New-UI dropped straight from the
   // banner to .album-grid, losing that whole section header — the two i18n keys built
   // specifically for it (photosAlbumsMine/photosAlbumsMineHint) had therefore become dead code.
@@ -621,7 +621,7 @@ describe('PhotosAlbums.vue', () => {
     expect(w.text()).toContain(zh.photosAlbumsMineHint)
   })
 
-  // Final-review Important 1 (wrapping up across the whole branch): albumsLoaded stays false
+  // albumsLoaded stays false
   // when fetchAlbums fails (see the albums.ts comment), so under the old implementation isEmpty
   // was therefore always false -> it would fall into the grid branch, rendering the "My Albums"
   // section header plus a bare create tile, with no failure indication at all. The new loadError
@@ -634,7 +634,7 @@ describe('PhotosAlbums.vue', () => {
     const { w } = await mountView()
     expect(w.find('[data-test="albums-load-error"]').exists()).toBe(true)
     expect(w.text()).toContain('相册加载失败')
-    // fix round 1 (Important 3): albumsLoaded stays false on a failed fetch (albums.ts), so
+    // albumsLoaded stays false on a failed fetch (albums.ts), so
     // the subtitle's `albumsLoaded &&` gate must keep it on photosAlbumsMineHint rather than
     // flashing the "none yet" copy alongside the error panel above.
     expect(w.find('.albums-section-hint').text()).toBe(zh.photosAlbumsMineHint)
@@ -673,7 +673,7 @@ describe('PhotosAlbums.vue', () => {
 
     // in-flight: the retry hasn't settled yet, the failure state must stay visible, it must not
     // fall into the empty-state branch.
-    // fix round 1 (Important 3): asserted on the subtitle now, not a standalone panel --
+    // Asserted on the subtitle now, not a standalone panel --
     // see the same rationale in the "renders the failure state instead of an empty grid when
     // loading fails" test above.
     expect(w.find('[data-test="albums-load-error"]').exists()).toBe(true)
@@ -690,7 +690,7 @@ describe('PhotosAlbums.vue', () => {
 
   // Key distinction (gating test case 1): success but the list is empty — must still go through
   // the empty state, must not be swallowed by the loadError branch.
-  // fix round 1 (Important 3): asserted on the subtitle now, not a standalone panel.
+  // Asserted on the subtitle now, not a standalone panel.
   it('confirms zero albums (success but the list is empty) still goes through the empty state, not the failure state', async () => {
     const { w } = await mountView()
     const albums = usePhotosAlbums()
@@ -733,9 +733,9 @@ describe('PhotosAlbums.vue', () => {
   })
 })
 
-// SP15-P2b Task 3: Albums page renders manual albums and smart albums in one grid, ranked
+// Albums page renders manual albums and smart albums in one grid, ranked
 // by the single Sort control, plus the AI-off banner ported over from the smart-views page.
-describe('PhotosAlbums.vue — mixed grid (SP15-P2b)', () => {
+describe('PhotosAlbums.vue — mixed grid', () => {
   it('renders smart albums and manual albums in one grid', async () => {
     // 2 manual + 1 smart => 3 cards plus the create tile.
     const w = await mountAlbums({
@@ -743,7 +743,7 @@ describe('PhotosAlbums.vue — mixed grid (SP15-P2b)', () => {
       smartViews: [{ id: 's1', name: 'S', seeds: ['x'], conds: [], count: 4 }],
     })
     expect(w.findAll('[data-test="album-card"]')).toHaveLength(2)
-    // SP15-P2c Task 10: the smart card is no longer the standalone SmartViewCard component;
+    // The smart card is no longer the standalone SmartViewCard component;
     // its selector moved with it (see the Task 10 describe block at the bottom of this file).
     expect(w.findAll('[data-test="album-smart-card"]')).toHaveLength(1)
   })
@@ -776,7 +776,7 @@ describe('PhotosAlbums.vue — mixed grid (SP15-P2b)', () => {
     expect(some.text()).not.toContain('还没有相册')
   })
 
-  // fix round 1 (Important 3): before this task's fix, this exact assertion would already
+  // Before this fix, this exact assertion would already
   // pass by accident -- the standalone [data-test="albums-empty"] panel this replaced had no
   // load gate of its own, but neither did it flash, because mountAlbums() always awaits
   // flushPromises before returning. This test deliberately does NOT await resolution, so it
@@ -804,7 +804,7 @@ describe('PhotosAlbums.vue — mixed grid (SP15-P2b)', () => {
     expect(w.find('.albums-section-hint').text()).toBe(zh.photosAlbumsMineHint)
   })
 
-  // SP15-P2b Task 4 (fold-in from Task 3's incomplete flash guard, see progress.md): the
+  // This folds in a fix for an earlier incomplete flash guard: the
   // subtitle's gate used to read only `albums.albumsLoaded`, so a library with zero manual
   // albums but pending smart views still flashed the "none yet" copy in the window between
   // the two fetches -- mixedItems.length is 0 for that library too, but only because the
@@ -840,19 +840,19 @@ describe('PhotosAlbums.vue — mixed grid (SP15-P2b)', () => {
     expect(w.findAll('[data-test="album-card"]')).toHaveLength(1)
   })
 
-  // fix round 1 (Minor 1): the mutation check in the original task report showed that
+  // A mutation check showed that
   // dropping the `item.kind + '-'` prefix from :key was caught by NOTHING in the suite --
   // every fixture up to now used ids that could never collide across kinds. This one gives
   // a manual album and a smart view the identical raw id so a future edit that drops the
   // prefix has something to break.
   //
-  // SP15-P2c Task 10: this got teeth in this task, though not the teeth the plan expected.
+  // This got teeth here, though not the teeth expected.
   // While the two kinds were different vnode types (a plain <div> vs the SmartViewCard
   // component) Vue's isSameVNodeType compared (type, key) as a pair, so a raw-id collision
   // could never be conflated whatever the key said. Both kinds are plain <div>s inside the
   // same keyed <template v-for> now, so the prefix is all that separates their fragments.
   //
-  // What that costs when the prefix is dropped was measured, not assumed (task-10-report.md):
+  // What that costs when the prefix is dropped was measured, not assumed:
   // the rendered text stays CORRECT even with duplicate keys, because each v-if branch carries
   // its own compiler-generated key (0/1), so whichever old fragment a new one is patched into,
   // the subtree is rebuilt from the new vnode. The real, and user-visible, consequence is that
@@ -886,11 +886,11 @@ describe('PhotosAlbums.vue — mixed grid (SP15-P2b)', () => {
   })
 })
 
-// SP15-P2c Task 10 (Vue2 9f7e941f:PhotosAlbumsView.vue:93-146, both sub-commits): the smart
+// Vue2 9f7e941f:PhotosAlbumsView.vue:93-146 (both sub-commits): the smart
 // album card is rendered inline with exactly the manual album card's shape -- one cover from
 // seeds[0], a Smart badge and a Live/Paused breathing dot over it, then the title and a meta
 // row. The collage, the condition chips and the threshold pill are off the card face.
-describe('PhotosAlbums.vue — smart card shape (SP15-P2c Task 10)', () => {
+describe('PhotosAlbums.vue — smart card shape', () => {
   /**
    * The SFC's style block with block comments stripped. Stripping matters: the rules below
    * are documented with comments that name the very tokens the assertions rule out, and a
@@ -1045,10 +1045,10 @@ describe('PhotosAlbums.vue — smart card shape (SP15-P2c Task 10)', () => {
   })
 })
 
-// SP15-P2b Task 4 (Vue2 939a7d3a:PhotosAlbumsView.vue:147-225/:329-336/:519-530/:575-578):
+// Vue2 939a7d3a:PhotosAlbumsView.vue:147-225/:329-336/:519-530/:575-578:
 // picking the "Let Nimo draft it" fill option swaps the panel body for the embedded smart
 // form instead of opening a second modal.
-describe('PhotosAlbums.vue — embedded smart-album creation (SP15-P2b Task 4)', () => {
+describe('PhotosAlbums.vue — embedded smart-album creation', () => {
   it('offers a fourth fill option that drafts a smart album', async () => {
     const w = await mountAlbums({ albums: [] })
     await w.find('[data-test="albums-new-btn"]').trigger('click')
@@ -1060,7 +1060,7 @@ describe('PhotosAlbums.vue — embedded smart-album creation (SP15-P2b Task 4)',
     await w.find('[data-test="albums-new-btn"]').trigger('click')
     const opt = w.find('[data-test="source-nimo"]')
     expect(opt.attributes('disabled')).toBeDefined()
-    // SP15-P2b Task 4 review fix round 1 · Minor 3: reference the imported locale value
+    // Reference the imported locale value
     // (as the sibling assertions elsewhere in this file do) rather than a hardcoded literal,
     // so a copy change cannot leave this test asserting stale text.
     expect(opt.attributes('title')).toContain(zh.photosSvSmartViewsOffCreateHint)
@@ -1096,7 +1096,7 @@ describe('PhotosAlbums.vue — embedded smart-album creation (SP15-P2b Task 4)',
     expect(w.find('[data-test="albums-create-modal"]').exists()).toBe(false)
     // Vue2 :575-578 stays on the list -- the new card is already there because the store
     // unshifted it. No navigation at all -- onSmartAlbumCreated() never calls push, so
-    // assert that directly (SP15-P2b Task 4 review fix round 1 · Minor 2: the previous
+    // assert that directly (the previous
     // `.not.toHaveBeenCalledWith(...)` only ruled out one specific destination).
     expect(push).not.toHaveBeenCalled()
   })
@@ -1127,7 +1127,7 @@ describe('PhotosAlbums.vue — embedded smart-album creation (SP15-P2b Task 4)',
 // PhotosTimeline.vue:226-232). show-search is `isLibraryView || searchActive`
 // (PhotosTimeline.vue:961) -- always false on this page since activeNav is never 'library'
 // here and this page has no in-place search-overlay state.
-describe('Fix-1 item 1: PhotosTopbar restored', () => {
+describe('PhotosTopbar restored', () => {
   it('renders the topbar with title=Albums and sub=album-aggregate counts, no search box', async () => {
     const w = await mountAlbums({
       albums: [
@@ -1157,12 +1157,12 @@ describe('Fix-1 item 1: PhotosTopbar restored', () => {
   })
 })
 
-// Fix-1 item 2: owner screenshot shows "My Albums" + grid flush against the left edge. Vue2's
+// The reported screenshot shows "My Albums" + grid flush against the left edge. Vue2's
 // `.albums-body` (photos.scss:3206-3211, padding: 18px 24px 80px) is the scroll container that
 // carries the horizontal inset; T3's cleanup renamed this page's scroll container to
 // `.albums-scroll` (a name parity's stylesheet does not style), so parity's real padding rule
 // never matched and only a much smaller local `4px 4px 20px` scoped rule applied instead.
-describe('Fix-1 item 2: albums scroll container padding restored', () => {
+describe('Albums scroll container padding restored', () => {
   it('the scroll container carries the parity class name .albums-body (not just .albums-scroll)', async () => {
     const w = await mountAlbums({})
     expect(w.find('.albums-body').exists()).toBe(true)
@@ -1202,7 +1202,7 @@ describe('Fix-7: albums-page Sort pill uses the parity .btn class, not the globa
 //  1) Sort pill: the button had no leading icon element at all (Vue2 PhotosAlbumsView.vue:60-61
 //     leads it with `<photos-icon name="filter" :size="13"/>`) -- 'filter' didn't exist in this
 //     repo's PhotosIcon.vue at all, so there was nothing to render even if a caller had asked
-//     for it; the trailing chevron-down SVG (unaffected, always present) is what the owner's
+//     for it; the trailing chevron-down SVG (unaffected, always present) is what the reported
 //     screenshot described as "a degenerate hollow triangle" with nothing in front of it.
 //  2) New album button: also had no leading icon (Vue2 :83-84 uses
 //     `<photos-icon name="album" :size="13"/>`) -- 'album' already existed in PhotosIcon.vue
@@ -1246,7 +1246,7 @@ describe('Fix-11: albums-page leading icons restored (Vue2 truth)', () => {
   })
 })
 
-// Fix-1 item 3: owner reports "New album" does nothing. Root cause: the create-modal markup
+// The owner reported "New album" does nothing. Root cause: the create-modal markup
 // (`.albums-modal-scrim`/`.albums-modal`) sits as a template-root SIBLING of `.photos-root`
 // (outside its DOM subtree), but every one of its layout rules is written
 // `.photos-root .albums-modal-scrim { position: fixed; inset: 0; ... }` (photos.scss:3844) --
@@ -1258,7 +1258,7 @@ describe('Fix-11: albums-page leading icons restored (Vue2 truth)', () => {
 // the repo's own established fix for exactly this shape (portaled elements must re-carry
 // `photos-root`, see photos.scss:1-13 and PhotosToastHost.vue's Teleport target) -- the target
 // pattern used here is simpler: nest the modal back inside `.photos-root` instead of portaling.
-describe('Fix-1 item 3: New album modal is a real descendant of .photos-root', () => {
+describe('New album modal is a real descendant of .photos-root', () => {
   it('the create modal renders inside .photos-root once open (so photos-root .albums-modal-scrim can match)', async () => {
     const w = await mountAlbums({})
     await w.find('[data-test="albums-new-btn"]').trigger('click')

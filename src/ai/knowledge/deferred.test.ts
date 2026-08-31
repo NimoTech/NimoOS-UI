@@ -2,41 +2,41 @@ import { describe, it, expect } from 'vitest'
 import { DEFERRED_TABS, isDeferred, type KnowledgeTabId } from './deferred'
 
 describe('Placeholder mechanism (K7)', () => {
-  // [SP8-P5b Task 5, 2026-08-01, reverse (not delete)] 'queue' migrated to real QueueView.vue
+  // (reverse, not delete) 'queue' migrated to real QueueView.vue
   // (knowledgeRoutes.ts synchronized reverse), removed from placeholder list; mechanism itself
   // (isDeferred source still DEFERRED_TABS) unchanged.
   //
-  // Before (P5a T3 original):
-  //   it('P5a only implements dashboard, the other 8 tabs get placeholders', () => {
+  // Before (original):
+  //   it('only implements dashboard, the other 8 tabs get placeholders', () => {
   //     expect([...DEFERRED_TABS].sort()).toEqual(
   //       ['allowlist', 'indexed-files', 'notes', 'queue', 'roots', 'search', 'settings', 'wiki'])
   //     expect(isDeferred('dashboard')).toBe(false)
   //   })
   //
-  // [SP8-P5b Task 10, 2026-08-02, second reverse (not delete)] 'indexed-files' migrated to
-  // real IndexedFilesView.vue (T8/T9/T10 three-move completion, knowledgeRoutes.ts synchronized
+  // (second reverse, not delete) 'indexed-files' migrated to
+  // real IndexedFilesView.vue, knowledgeRoutes.ts synchronized
   // reverse), removed from placeholder list; mechanism itself (isDeferred source still DEFERRED_TABS)
-  // unchanged. Following T5 same pattern: reverse + add one forward assertion, delete no existing.
+  // unchanged. Same pattern as before: reverse + add one forward assertion, delete no existing.
   //
-  // Before (P5b T5 original, before reverse):
-  //   it('P5a implements dashboard, P5b-T5 implements queue, the other 7 tabs get placeholders', () => {
+  // Before (before this reverse):
+  //   it('dashboard and queue are implemented, the other 7 tabs get placeholders', () => {
   //     expect([...DEFERRED_TABS].sort()).toEqual(
   //       ['allowlist', 'indexed-files', 'notes', 'roots', 'search', 'settings', 'wiki'])
   //     expect(isDeferred('dashboard')).toBe(false)
   //     expect(isDeferred('queue')).toBe(false)
   //   })
-  // [SP8-P5c Task 10, 2026-08-04, third reverse (not delete)] 'settings' migrated to real
-  // SettingsView.vue (T8 first half + T9 second half, knowledgeRoutes.ts synchronized reverse),
+  // (third reverse, not delete) 'settings' migrated to real
+  // SettingsView.vue, knowledgeRoutes.ts synchronized reverse),
   // removed from placeholder list → 6 items become 5; mechanism itself (isDeferred source still
-  // DEFERRED_TABS) unchanged. Following T5 / P5b T10 same pattern: reverse + add forward assertion.
-  // 🔴 'allowlist' **still in list**: upper design originally included AllowlistView in P5c, user
-  // explicitly moved out this period 2026-08-03 (governance §2.2) → it stays in placeholder
-  // list **as expected**, not migration miss. 🔴 Two parser routes reversed together **are
+  // DEFERRED_TABS) unchanged. Same pattern as before: reverse + add forward assertion.
+  // 🔴 'allowlist' **still in list**: upper design originally included AllowlistView earlier, user
+  // explicitly moved it out this period 2026-08-03 (governance §2.2) → it stays in placeholder
+  // list **as expected**, not migration miss. 🔴 The two parser routes reversed together **are
   // top-level routes, not rail tabs**, never in DEFERRED_TABS, so this assertion unrelated
   // (governance §5.1).
   //
-  // Before (P5b T10 original, before reverse):
-  //   it('P5a implements dashboard, P5b-T5 implements queue, P5b-T10 implements indexed-files, the other 6 tabs get placeholders', () => {
+  // Before (before this reverse):
+  //   it('dashboard, queue and indexed-files are implemented, the other 6 tabs get placeholders', () => {
   //     expect([...DEFERRED_TABS].sort()).toEqual(
   //       ['allowlist', 'notes', 'roots', 'search', 'settings', 'wiki'])
   //     expect(isDeferred('dashboard')).toBe(false)
@@ -44,20 +44,19 @@ describe('Placeholder mechanism (K7)', () => {
   //     expect(isDeferred('indexed-files')).toBe(false)
   //   })
   //
-  // [SP8-P5d Task 10, 2026-08-05, fourth reverse (not delete)] 'notes' migrated to the real
-  // NotesView.vue (T6-T9 four-move completion, knowledgeRoutes.ts synchronized reverse), removed
+  // (fourth reverse, not delete) 'notes' migrated to the real
+  // NotesView.vue, knowledgeRoutes.ts synchronized reverse), removed
   // from placeholder list
   // → 5 items become 4; mechanism itself (isDeferred source still DEFERRED_TABS) unchanged.
-  // Following T5 / P5b T10 / P5c T10 same pattern: reverse + add one forward assertion, delete no
-  // existing assertions. **This move is the last one of this period (P5d).**
-  // 🔴 'allowlist' still in the list (user explicitly moved it out of this period on 2026-08-03,
+  // Same pattern as before: reverse + add one forward assertion, delete no
+  // existing assertions. **This is the last move of this batch.**
+  // 🔴 'allowlist' still in the list (user explicitly moved it out earlier, on 2026-08-03,
   // governance §2.2), 'search' /
-  // 'wiki' / 'roots' are also still in the list — see which period each reverses in at the top of
-  // `deferred.ts`
-  // (`search`→P5e; `wiki`/`roots`/`allowlist`→P5f).
+  // 'wiki' / 'roots' are also still in the list — see `deferred.ts` for when each is reversed
+  // (`search` reverses next; `wiki`/`roots`/`allowlist` reverse last).
   //
-  // Before (P5c T10 original, before reverse):
-  //   it('P5a implements dashboard, P5b-T5 implements queue, P5b-T10 implements indexed-files, P5c-T10 implements settings, the other 5 tabs get placeholders', () => {
+  // Before (before this reverse):
+  //   it('dashboard, queue, indexed-files and settings are implemented, the other 5 tabs get placeholders', () => {
   //     expect([...DEFERRED_TABS].sort()).toEqual(
   //       ['allowlist', 'notes', 'roots', 'search', 'wiki'])
   //     expect(isDeferred('dashboard')).toBe(false)
@@ -66,17 +65,17 @@ describe('Placeholder mechanism (K7)', () => {
   //     expect(isDeferred('settings')).toBe(false)
   //   })
   //
-  // [SP8-P5e Task 8, 2026-08-05, fifth reverse (not delete)] 'search' migrated to the real
-  // SearchView.vue (T4-T7 four-move completion, knowledgeRoutes.ts synchronized reverse), removed
+  // (fifth reverse, not delete) 'search' migrated to the real
+  // SearchView.vue, knowledgeRoutes.ts synchronized reverse), removed
   // from placeholder list
   // → 4 items become 3; mechanism itself (isDeferred source still DEFERRED_TABS) unchanged.
-  // Following T5 / P5b T10 / P5c T10 / P5d T10 same pattern: reverse + add one forward assertion,
-  // delete no existing assertions. **This move is the last one of this period (P5e).**
-  // 🔴 'wiki' / 'roots' / 'allowlist' are still in the list — all three belong to P5f (see the top
-  // of `deferred.ts`); no further split into another period.
+  // Same pattern as before: reverse + add one forward assertion,
+  // delete no existing assertions. **This is the last move of this batch.**
+  // 🔴 'wiki' / 'roots' / 'allowlist' are still in the list — all three reverse together in the
+  // final batch (see the top of `deferred.ts`); no further split.
   //
-  // Before (P5d T10 original, before reverse):
-  //   it('P5a implements dashboard, P5b-T5 implements queue, P5b-T10 implements indexed-files, P5c-T10 implements settings, P5d-T10 implements notes, the other 4 tabs get placeholders', () => {
+  // Before (before this reverse):
+  //   it('dashboard, queue, indexed-files, settings and notes are implemented, the other 4 tabs get placeholders', () => {
   //     expect([...DEFERRED_TABS].sort()).toEqual(
   //       ['allowlist', 'roots', 'search', 'wiki'])
   //     expect(isDeferred('dashboard')).toBe(false)
@@ -85,18 +84,18 @@ describe('Placeholder mechanism (K7)', () => {
   //     expect(isDeferred('settings')).toBe(false)
   //     expect(isDeferred('notes')).toBe(false)
   //   })
-  // [SP8-P5f Task 8, 2026-08-06, sixth reverse (not delete) — the wrap-up move] 'wiki' / 'roots' /
-  // 'allowlist' three items migrated to real pages (P5f T4 = AllowlistView.vue · T5 = RootsView.vue ·
-  // T6+T7 = WikiView.vue upper/lower half; knowledgeRoutes.ts synchronized reverse in the same move),
+  // (sixth reverse, not delete — the wrap-up move) 'wiki' / 'roots' /
+  // 'allowlist' three items migrated to real pages (AllowlistView.vue, RootsView.vue,
+  // WikiView.vue upper/lower half; knowledgeRoutes.ts synchronized reverse in the same move),
   // removed from placeholder list
-  // → 3 items become **0 items**. Following T5 / P5b T10 / P5c T10 / P5d T10 / P5e T8 same pattern:
-  // reverse + add a forward assertion, delete no existing assertions. **This move is the last one
-  // of this period (P5f), and also the wrap-up of the six SP8-P5 batches** — DEFERRED_TABS is now
+  // → 3 items become **0 items**. Same pattern as before:
+  // reverse + add a forward assertion, delete no existing assertions. **This is the final
+  // move, and also the wrap-up of all the batches** — DEFERRED_TABS is now
   // empty, the rail's 9 items have zero placeholder pages.
   // 🔴 Mechanism itself (isDeferred source still DEFERRED_TABS) unchanged, see the two guards below.
   //
-  // Before (P5e T8 original, before reverse):
-  //   it('P5a implements dashboard, P5b-T5 implements queue, P5b-T10 implements indexed-files, P5c-T10 implements settings, P5d-T10 implements notes, P5e-T8 implements search, the other 3 tabs get placeholders', () => {
+  // Before (before this reverse):
+  //   it('dashboard, queue, indexed-files, settings, notes and search are implemented, the other 3 tabs get placeholders', () => {
   //     expect([...DEFERRED_TABS].sort()).toEqual(
   //       ['allowlist', 'roots', 'wiki'])
   //     expect(isDeferred('dashboard')).toBe(false)
@@ -119,7 +118,7 @@ describe('Placeholder mechanism (K7)', () => {
     for (const id of ALL_TABS) expect(isDeferred(id), `${id} still classified as a placeholder page`).toBe(false)
   })
 
-  // [SP8-P5f Task 8] 🔴 Now that the list is empty, the line below (`for (const id of DEFERRED_TABS)`) has
+  // 🔴 Now that the list is empty, the line below (`for (const id of DEFERRED_TABS)`) has
   // become an **empty loop with zero discriminative power** (governance "parameterized guards must guard
   // against empty loops"). This move **doesn't change its assertion body** (following this file's five-
   // generation convention of "only add, never change existing assertions" + §9.10 "only allowed to
@@ -133,7 +132,7 @@ describe('Placeholder mechanism (K7)', () => {
   // Mechanism nail (following P4 I2: "kept the code but not the capability") — once DEFERRED_TABS is
   // emptied in the future, this case must still prove isDeferred is really reading that constant,
   // not just always returning false.
-  // [SP8-P5f Task 8, 2026-08-06] 🔴 **This move's brief required "the mechanism nail case must not be
+  // 🔴 **This move's brief required "the mechanism nail case must not be
   // touched at all" — empirically this doesn't hold**, handled per governance §10 declaration
   // discipline 3 (ruling R18: the brief's criterion is only a hint) + ruling R21 (overturning an
   // existing conclusion requires two independent methods), both raw outputs pasted below:

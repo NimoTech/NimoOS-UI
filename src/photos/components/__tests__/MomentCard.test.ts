@@ -1,17 +1,18 @@
-// SP15-P1-T4: MomentCard.vue — ported line-by-line from Vue2 899af59b:PhotosSmartViewsView.vue:367-433
+// MomentCard.vue — ported line-by-line from Vue2 899af59b:PhotosSmartViewsView.vue:367-433
 // inline component MomentCard. Each of the five collage shapes gets its own assertion on
 // img count and order.
 //
-// Does not build its own createI18n instance (a deviation from the plan brief's literal
-// code, made for a repo-wide reason, not a whim): vitest.setup.ts already installs the
+// Does not build its own createI18n instance (a deliberate deviation, made for a repo-wide
+// reason, not a whim): vitest.setup.ts already installs the
 // src/i18n singleton into `config.global.plugins` for every mount. @vue/test-utils
 // concatenates that with any plugin array passed via `global.plugins` on an individual
 // mount() call rather than replacing it, so a second createI18n() would get installed on
 // the very same app alongside the global one, and vue-i18n's install() unconditionally
 // registers its components/directives — producing "already registered" warnings on every
-// mount (see the identical fix-round-1 comment in PhotosToolbar.test.ts:7-12, and the
-// project memory note "New-UI 测试别另建 createI18n"). Locale switching for the two 'en_us'
-// assertions below instead flips the shared singleton's locale ref directly.
+// mount (see the identical comment in PhotosToolbar.test.ts:7-12, and the project
+// convention that New-UI tests should not create a separate createI18n instance). Locale
+// switching for the two 'en_us' assertions below instead flips the shared singleton's
+// locale ref directly.
 import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { i18n } from '../../../i18n'

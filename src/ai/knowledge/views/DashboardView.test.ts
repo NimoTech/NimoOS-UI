@@ -1,4 +1,4 @@
-// SP8-P5a Task 12 — DashboardView test.
+// DashboardView test.
 // Step 2 The skeleton is taken verbatim from the task brief (lines 20–205).
 // This file then adds high-risk control-flow assertions required by the governance file §9
 // "Test Quality" (each reinforced assertion is marked with [Reinforcement N] in comments), corresponding one-by-one
@@ -586,7 +586,7 @@ describe('DashboardView — lifecycle (N3)', () => {
       if (reason instanceof Error && reason.message === 'wiki timeout') return
       throw reason
     }
-    // [SP8-P6 T10 correction — original comment "this repo lacks `@types/node`, so cannot directly
+    // [Correction — original comment "this repo lacks `@types/node`, so cannot directly
     // reference global `process` type" no longer holds] After merge `@types/node` is installed,
     // and 7 files in the repo have `/// <reference types="node" />` (`color-guard.test.ts` etc),
     // this directive is **program-level**: it pulls `@types/node/globals.d.ts` into the entire

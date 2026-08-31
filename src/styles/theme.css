@@ -99,7 +99,7 @@
      depend on that staying blue) and NOT `--tm-accent`/`--tm-accent-hover` below (that pair is
      Time Machine chrome's own scoped token, semantically "TM subsystem accent" -- reusing it on a
      plain toolbar button outside TM would blur that boundary, even though the literal hex happens
-     to match). Theme-invariant by owner ruling (same purple in both themes), same "identical
+     to match). Theme-invariant by design (same purple in both themes), same "identical
      value in every theme block" convention `--tm-accent` already established just below.
      `--on-purple-accent` (NOT `--on-accent`) is the text/icon color painted on top of
      `--purple-accent` fills -- `--on-accent` is deliberately coupled to `--accent`'s own
@@ -130,7 +130,7 @@
      to kill the duplication -- both sites now use this, see THEMING.md's plain semantic-token
      usage outside the exceptions list). */
   --album-cover-fallback: linear-gradient(135deg, color-mix(in srgb, var(--accent) 35%, var(--panel-bg)), var(--accent));
-  /* Person avatar's third-tier fallback gradient fill (PersonAvatar.vue, SP7-P5). Aims to
+  /* Person avatar's third-tier fallback gradient fill (PersonAvatar.vue). Aims to
      match Vue2's five duplicated copies of
      linear-gradient(135deg,#6E5BFF,#4A3BD1)/(135deg,#8950F2,#6c3bcd) (the two variants
      already disagreed with each other; unified into a single token here). Mixes --accent
@@ -162,7 +162,7 @@
      teal-leaning #5fe3b0/#15754c, distinct from the iOS hue, an approximation rather than
      an exact port). */
   --place-current-trip: #34c759;
-  /* PlaceDetailPanel.vue (P6b-T3) "home base" marker color -- a new token, an exact port
+  /* PlaceDetailPanel.vue "home base" marker color -- a new token, an exact port
      of Vue2 photos-places.scss's inline `style="color:#c4b8ff"` (:1078). Deviation on
      record (the brief literally asks for different values per theme: dark stays light
      violet, light shifts toward a deeper tone, the same approach as --accent-text): here
@@ -180,8 +180,8 @@
      --pin-cluster-stroke, except here even the alpha/exact color value is copied straight
      from the Vue2 literal (theme-invariant, the same precedent as --place-current-trip). */
   --place-home-base: #c4b8ff;
-  /* PlacesMap.vue (P6a-T6) land-dot-lattice CSS fallback color — theme-invariant, same value in
-     both theme blocks. Task 6 (Plan E, 2026-08-15) updated the literal from
+  /* PlacesMap.vue land-dot-lattice CSS fallback color — theme-invariant, same value in
+     both theme blocks. Updated on 2026-08-15 to change the literal from
      rgba(255,255,255,0.10) to 0.30: Vue2 PR #106 (git show 78cf3335) raised this contrast twice
      (0.10→0.20→0.30); this had been left stuck at the pre-#106 initial value and is now brought
      up to the final value, an exact reproduction of Vue2 photos-places.scss:349's literal
@@ -197,7 +197,7 @@
      actually reachable (Vue2 :150/:137, the two most common paths, both have dotBg === null,
      i.e. both fall through to this CSS fallback — not a rare branch). */
   --map-dot-bg-fallback: rgba(255, 255, 255, 0.30);
-  /* PlacesZoomBar.vue (P6a-T8) vertical zoom slider's floating pill background -- a new
+  /* PlacesZoomBar.vue vertical zoom slider's floating pill background -- a new
      token, an exact port of Vue2 photos.scss:49 (the Vue 2 panel's shared global floating-bar/FAB
      background, not something photos-places.scss defines on its own). This repo had no
      equivalent "translucent floating toolbar background" token before -- --panel-bg (0.1),
@@ -229,7 +229,7 @@
      in the paper theme it's a fully opaque #ffffff, which paints invisibly over an
      equally pale-backed overlay. */
   --usage-track: rgba(255, 255, 255, 0.16);
-  /* Warning/degraded semantics (SP7-P5: the face-recognition-disabled and Photos AI
+  /* Warning/degraded semantics (the face-recognition-disabled and Photos AI
      backend-offline banners). Aligned with Vue2's #FF9F0A family; the dark theme takes
      the original value directly, the light theme darkens the foreground for contrast
      following this repo's existing --dem-* approach. */
@@ -237,7 +237,7 @@
   --warn-bg: rgba(255, 159, 10, 0.08);
   --warn-border: rgba(255, 159, 10, 0.32);
 
-  /* SP7-P7a-T15: the three colors for the search result card's top-left media-category
+  /* The three colors for the search result card's top-left media-category
      badge (.type-badge[data-type]) -- data-visualization category colors (a variant of
      THEMING.md §0's third exception category: the same result set needs to tell "photo /
      video / OCR hit" categories apart from each other, so the color semantics are "which
@@ -250,7 +250,7 @@
   --badge-video: rgba(255, 149, 10, 0.92);  /* amber */
   --badge-ocr: rgba(16, 185, 129, 0.92);    /* emerald */
 
-  /* SP7-P8a-T3: settings page storage card's capacity bar segment colors
+  /* Settings page storage card's capacity bar segment colors
      (PhotosStorageCard.vue, consumed by src/photos/util/storagePalette.ts's
      STORAGE_SEG_COLORS) -- like the previous group, these are **data-visualization
      category colors**: the same capacity bar needs to tell the four distinct data
@@ -290,11 +290,11 @@
   /* Task 1 (Vue2-parity Time Machine rebuild): the full new token set, pixel-pinned to
      Vue2's TimeMachineStage.vue scoped styles + the SnapshotSettingsModal/
      RestoreDestinationModal/FileConflictDialog white-glass panel tokens (identical values
-     in all three files, confirmed by reading each). Owner ruling: Time Machine looks the
+     in all three files, confirmed by reading each). By design, Time Machine looks the
      SAME in dark and light themes -- every token below carries the identical literal value
      in both this block and the light block.
      Guard: src/styles/__tests__/tmTokens.test.ts.
-     Final-review sweep (C2): the nine colleague-era --tm-bg/--tm-fg/--tm-fg-muted/
+     Cleanup note: the nine colleague-era --tm-bg/--tm-fg/--tm-fg-muted/
      --tm-card-bg/--tm-card-bd/--tm-card-divider/--tm-card-shadow/--tm-rail/--tm-rail-sub
      tokens that used to live here (each with a DIFFERENT value per theme block, unlike this
      whole block's own rule) were deleted -- the colleague components that consumed them
@@ -434,7 +434,7 @@
      (D2's own geometry-parity tests) and is only ever exposed during a travel (the fwin is opaque
      the rest of the time, occluding it completely), that weaker shadow was visibly REPLACED by this
      stronger one the instant the fwin's opacity snapped back from 0 to 1 at reveal -- a "shadow
-     suddenly appears" pop breaking the "this exact panel slid forward" illusion. The owner's
+     suddenly appears" pop breaking the "this exact panel slid forward" illusion. The reported
      seamlessness directive outranks Vue2's own two-distinct-literals design here: retired outright, not aliased -- `--tm-depth-shadow` had exactly
      ONE consumer (`.tm-depth-strip`, TimeMachineDepthStack.vue) and no reason to ever diverge from
      `--tm-fwin-shadow` again, so keeping a second token whose value must forever equal the first
@@ -599,7 +599,7 @@
   --remove-bg: #ff708a;
   --drop-bg: rgba(138, 180, 255, 0.22);
   --toast-bg: linear-gradient(160deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0.12));
-  /* SP8-P1c2 Task 6: toast severity tiers (warning/danger; 'info' keeps using
+  /* Toast severity tiers (warning/danger; 'info' keeps using
      --toast-bg/--toast-fg above, unchanged). Tinted translucent bg + a readable
      saturated fg, mirroring this file's existing tint+fg pairs for the same
      hues (--dem-bg/--dem-fg for amber, --remove-fg/--drop-bad for red) so the
@@ -685,7 +685,7 @@
   --folder-glass: linear-gradient(157deg, #ffffff, #f4f1e9);
   --folder-mini: linear-gradient(150deg, #ece7dc, #dcd6c8);
   --toast-bg: #ffffff;
-  /* SP8-P1c2 Task 6: same tiers as :root above, re-tinted for the paper theme
+  /* Same tiers as :root above, re-tinted for the paper theme
      (opaque pale tint + a darker saturated fg, matching --dem-bg/--dem-fg and
      --remove-fg's light-theme values so these read consistently with the
      rest of this theme rather than introducing a new hue). */
@@ -804,7 +804,7 @@
      as there — light --fg-faint is an opaque warm grey #9a958a, which would likewise turn into
      an opaque block over the map canvas). */
   --map-dot-bg-fallback: rgba(255, 255, 255, 0.30);
-  /* PlacesZoomBar.vue (P6a-T8) -- see the :root token of the same name's comment. An
+  /* PlacesZoomBar.vue -- see the :root token of the same name's comment. An
      exact port of Vue2 photos.scss:84's light-theme floating-bar-background literal. */
   --float-bg: rgba(255, 255, 255, 0.85);
   /* Plan H Task 15 (2026-08-17): see the :root token's own comment -- the light-theme
@@ -836,13 +836,13 @@
   --warn-bg: #fdf3e2;
   --warn-border: #f0d7a6;
 
-  /* SP7-P7a-T15: same as the :root token of the same name's comment -- the three media
+  /* Same as the :root token of the same name's comment -- the three media
      category badge colors, same value in both theme blocks, doesn't flip with the skin. */
   --badge-photo: rgba(50, 190, 230, 0.9);
   --badge-video: rgba(255, 149, 10, 0.92);
   --badge-ocr: rgba(16, 185, 129, 0.92);
 
-  /* SP7-P8a-T3: same as the :root token of the same name's comment -- storage card
+  /* Same as the :root token of the same name's comment -- storage card
      capacity bar segment colors. The light theme tunes these for legibility (not a
      straight copy of Vue2's only-ever-dark design):
      --photos-seg-video is deepened from Vue2's mid-tone azure #5e94ff to #3560d8 -- the
@@ -878,8 +878,8 @@
   --console-scroll-thumb: rgba(255, 255, 255, 0.32);
   --console-scroll-thumb-hover: rgba(255, 255, 255, 0.5);
 
-  /* Task 1: same values as the dark block above -- owner ruling: Time Machine looks the
-     same in both themes, so these are NOT re-derived for light/paper tone. Final-review
+  /* Task 1: same values as the dark block above -- by design, Time Machine looks the
+     same in both themes, so these are NOT re-derived for light/paper tone. A later review
      sweep (C2): the nine colleague-era light-block tokens that used to live here (--tm-bg/
      --tm-fg/--tm-fg-muted/--tm-card-bg/--tm-card-bd/--tm-card-divider/--tm-card-shadow/
      --tm-rail/--tm-rail-sub) were deleted alongside their dark-block counterparts -- see this
@@ -914,11 +914,11 @@
   --tm-rail-tick-hover: #ffffff;
   --tm-rail-tick-manual: #f6c760;
   /* Final review (C2) -- see the dark block's own comment on these two tokens for the full
-     provenance; values are identical here (owner ruling: same look in both themes). */
+     provenance; values are identical here (deliberately the same look in both themes). */
   --tm-rail-tick: rgba(255, 255, 255, 0.4);
   --tm-rail-tick-sub: rgba(255, 255, 255, 0.2);
   /* Task 9 (stepper + bottom bar) -- see the dark block's own comment on these six tokens for the
-     full Vue2 provenance; values are identical here (owner ruling: same look in both themes). */
+     full Vue2 provenance; values are identical here (deliberately the same look in both themes). */
   --tm-stepper-btn-bg: rgba(255, 255, 255, 0.16);
   --tm-stepper-btn-hover-bg: rgba(255, 255, 255, 0.28);
   --tm-chrome-text: #ffffff;
@@ -926,12 +926,12 @@
   --tm-bottom-bar-exit-bg: rgba(255, 255, 255, 0.14);
   --tm-bottom-bar-exit-hover-bg: rgba(255, 255, 255, 0.24);
   /* Task 10 (entry pill) -- see the dark block's own comment on these three tokens for the full
-     Vue2/Bulma provenance; values are identical here (owner ruling: same look in both themes). */
+     Vue2/Bulma provenance; values are identical here (deliberately the same look in both themes). */
   --tm-entry-bg: #28c322;
   --tm-entry-fg: #ffffff;
   --tm-entry-hover-bg: #26b821;
   /* Task 11 (SnapshotSettingsModal) -- see the dark block's own comment on these eight tokens
-     for the full Vue2 provenance; values are identical here (owner ruling: same look in both
+     for the full Vue2 provenance; values are identical here (deliberately the same look in both
      themes). */
   --tm-chip-bg: rgba(0, 0, 0, 0.05);
   --tm-warn-text: #92400e;
@@ -945,11 +945,11 @@
   --tm-switch-thumb-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
   --tm-placeholder-text: #9ca3af;
   /* Final review (Important 4) -- see the dark block's own comment on these two tokens for the
-     full Vue2 provenance; values are identical here (owner ruling: same look in both themes). */
+     full Vue2 provenance; values are identical here (deliberately the same look in both themes). */
   --tm-action-bar-bg: rgb(49, 49, 54);
   --tm-action-bar-item-hover-bg: rgb(86, 86, 90);
   /* See the dark block's own comment on these tokens for the full Vue2 provenance;
-     values are identical here (owner ruling: same look in both themes).
+     values are identical here (deliberately the same look in both themes).
      `--tm-depth-shadow` retired here too -- see the dark block's own comment on this token's
      removal for the full trace. */
   --tm-fwin-shadow: 0 18px 50px rgba(5, 8, 30, 0.45);
@@ -960,14 +960,14 @@
   --tm-empty-title: #f1f5f9;
   --tm-empty-sub: rgba(241, 245, 249, 0.7);
   /* See the dark block's own comment on these three tokens for the full Vue2/Bulma
-     provenance; values are identical here (owner ruling: same look in both themes). */
+     provenance; values are identical here (deliberately the same look in both themes). */
   --tm-primary: #8950f2;
   --tm-primary-hover: #8144f1;
   --tm-primary-text: #5d11e9;
   /* See the dark block's own comment for the full Vue2 provenance. */
   --tm-modal-overlay-bg: rgba(0, 0, 0, 0.5);
   /* See the dark block's own comment on these six tokens for the full Vue2
-     provenance; values are identical here (owner ruling: same look in both themes). */
+     provenance; values are identical here (deliberately the same look in both themes). */
   --tm-rail-connector: rgba(0, 0, 0, 0.1);
   --tm-dot-ring: rgba(0, 0, 0, 0.12);
   --tm-history-item-hover: rgba(0, 0, 0, 0.035);

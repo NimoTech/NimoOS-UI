@@ -50,7 +50,7 @@ describe('i18n message syntax', () => {
     })
   })
 
-  // SP8-P3b Task 2: aiSkScriptsHint / aiSkErrDescAngle both contain literal angle
+  // aiSkScriptsHint / aiSkErrDescAngle both contain literal angle
   // brackets, written as {'<'}/{'>'} escapes (probe confirmed vue-i18n 9 renders bare
   // <>  without erroring too, but logs an "[intlify] Detected HTML" console warning —
   // the escaped form renders identically without that warning, so it's what's shipped).
@@ -83,20 +83,29 @@ describe('i18n message syntax', () => {
     })
   })
 
-  // SP8-P3b Task 2 后续修复(评审 Important):aiSkUninstallTitle/aiSkDeleteTitle 的
-  // zh_cn 问号被手抖打成了全角 U+FF1F，而任务书表格与权威源
-  // Vue2 面板的 src/assets/lang/zh_CN.json:931-932 都是半角 U+003F —— 违反「不许改
-  // 标点」硬约束，且当时没有任何自动化断言覆盖这两个键的具体内容，只靠人工逐字符
-  // grep 才抓到。这里补一条程序化守卫，钉死本期新增的这批 aiSk* 键（P3b Task 2 引入
-  // 的 74 个）在 zh_cn 里不出现全角 ？/！/：。
+  // Follow-up fix (review finding, Important): the zh_cn question marks for
+  // aiSkUninstallTitle/aiSkDeleteTitle were accidentally typed as the full-width
+  // U+FF1F, while the task spec's table and the authoritative source — the Vue2
+  // panel's src/assets/lang/zh_CN.json:931-932 — both use the half-width U+003F,
+  // violating the "no punctuation changes" hard constraint. At the time no
+  // automated assertion covered these two keys' exact content; it was only
+  // caught by manual character-by-character grep. This adds a programmatic
+  // guard pinning that this batch's newly added aiSk* keys (74 keys introduced
+  // in this task) contain no full-width ？/！/： in zh_cn.
   //
-  // 范围有意收窄到"本期新增键"，不扩到全量 zh_cn.ts：既有键可能合法使用全角标点
-  // （例如 P3a 期确认过 aiSkEmpty 权威源就是半角逗号，但没有逐一核对过全量文件里
-  // 每个既有键的每种标点是否都对应半角权威源），把全量键都卷进来风险是把未经核对的
-  // 假设编码成断言、制造新的误报。若后续任务要扩大覆盖面，应先逐键回权威源核对。
+  // The scope is deliberately narrowed to "keys newly added in this batch"
+  // rather than expanded to the full zh_cn.ts file: existing keys may
+  // legitimately use full-width punctuation (e.g. it was confirmed earlier
+  // that aiSkEmpty's authoritative source uses a half-width comma, but no
+  // key-by-key check has been done across the whole file to confirm every
+  // existing key's every punctuation mark matches its half-width authoritative
+  // source). Sweeping all keys into this check risks encoding unverified
+  // assumptions as assertions and creating new false positives. If a future
+  // task wants to widen the coverage, it should first verify each key against
+  // its authoritative source individually.
   describe('P3b Task 2 aiSk* keys — no accidental full-width punctuation', () => {
-    // 与 zh_cn.ts 里 "// >>> SP8-P3b Task 2" ... "// <<< SP8-P3b Task 2" 标记块内的
-    // 74 个新增键一一对应（见 p3b-task-2-report.md 的"新增键清单"）。
+    // Corresponds one-to-one with the 74 newly added keys inside the matching
+    // marker block in zh_cn.ts.
     const p3bTask2Keys = [
       'aiSkAddedName', 'aiSkAddSkill', 'aiSkAddTitle', 'aiSkCopyMd', 'aiSkCreate',
       'aiSkCreating', 'aiSkDelete', 'aiSkDeleteBody', 'aiSkDeletedName', 'aiSkDeleteFailed',
@@ -146,7 +155,7 @@ describe('i18n message syntax', () => {
     })
   })
 
-  // SP8-P5a Task 8 review finding (裁定 R7,Important):RED probe during review showed
+  // A review finding (ruling R7, Important): a RED probe during review showed
   // that flipping a half-width comma to full-width in aiKbDistillFromChats, and
   // renaming {n} to {count} in only one locale for aiKbRunningIndexed, both left the
   // full suite green (307/2742) — no existing guard covered this batch. Extending the
@@ -154,8 +163,7 @@ describe('i18n message syntax', () => {
   // scan) to this batch's 94 aiKb* keys (T8's main table; T5's aiKbDeferredTitle/
   // aiKbDeferredHint are new copy with no Vue2 source and are intentionally excluded).
   describe('P5a Task 8 aiKb* keys — no accidental full-width punctuation (except a registered Vue2-authentic one)', () => {
-    // Matches the >>> SP8-P5a Task 8 ... <<< SP8-P5a Task 8 marked block in zh_cn.ts /
-    // en_us.ts (see p5a-task-8-report.md "新增 94 条" list). Deliberately excludes the
+    // Matches the marked block of new keys in zh_cn.ts / en_us.ts (94 keys). Deliberately excludes the
     // 2 keys T5 already landed (aiKbDeferredTitle/aiKbDeferredHint) — those are new
     // copy with no Vue2 source, out of scope for a Vue2-punctuation guard.
     const p5aTask8Keys = [
@@ -218,7 +226,7 @@ describe('i18n message syntax', () => {
     })
   })
 
-  // SP8-P5a Task 8 review finding (裁定 R7,Important),second half: this batch's
+  // A review finding (ruling R7, Important), second half: this batch's
   // interpolation placeholders ({n}/{m}/{h}/{d}/{a}/{b}/{c}/{t}/{v}) must name the
   // same set of tokens in zh_cn and en_us — a mismatch silently breaks vue-i18n
   // interpolation in one locale only. Deliberately scoped to only this batch's 94
@@ -268,17 +276,18 @@ describe('i18n message syntax', () => {
     })
   })
 
-  // SP8-P5b Task 1: 100 new aiKb* keys for the queue page (QueueView.vue) and
+  // 100 new aiKb* keys for the queue page (QueueView.vue) and
   // indexed-files page (IndexedFilesView.vue). Same shape as the P5a Task 8 guards
   // above (a fixed key list scoped to this batch + a punctuation scan + a
   // placeholder-parity check), extended per p5b-common-constraints.md §7 / the T1
   // task brief: this batch's full-width-punctuation exceptions are pinned with
   // `toBe` (not just excluded from the scan) because the brief explicitly calls for
-  // "钉死确切值的强断言,不是「跳过扫描」的松形式" — i.e. each of the 15 Vue2-authentic
+  // "a strong assertion pinning the exact value with toBe, not the loose form of
+  // just skipping the scan" — i.e. each of the 15 Vue2-authentic
   // full-width-punctuation values must be asserted verbatim, not merely skipped.
   describe('P5b Task 1 aiKb* keys — punctuation and placeholder guards', () => {
-    // Matches the >>> SP8-P5b Task 1 ... <<< SP8-P5b Task 1 marked block in
-    // zh_cn.ts / en_us.ts (see p5b-task-1-report.md "新增键清单"). 95 rows from
+    // Matches the marked block of new keys in
+    // zh_cn.ts / en_us.ts. 95 rows from
     // Appendix A §A.1 (all have a Vue2-authentic zh value) + 4 from §A.2 (new copy,
     // K16/K18/K19) + 1 from §A.4 (aiKbStatusIndexing, K20) = 100.
     const p5bTask1Keys = [
@@ -321,7 +330,7 @@ describe('i18n message syntax', () => {
     // look at the locales at all, and the punctuation-scan loop below silently
     // `continue`s past any key whose value isn't a string. This is the same
     // length-only shape as the P3b/P5a precedents this task was told to copy — the
-    // brief's "P3b/P5a 同款写法" carried the blind spot forward, not a slip in this
+    // brief's "same approach as P3b/P5a" carried the blind spot forward, not a slip in this
     // task. Closing it here so a future accidental delete/rename/locale-merge on any
     // of these 100 keys fails loudly instead of silently.
     it('every key in this batch is present as a string in both locales', () => {
@@ -433,11 +442,11 @@ describe('i18n message syntax', () => {
   })
 
 
-  // SP8-P5c Task 1: 99 new aiKb* keys for the knowledge settings page (SettingsView.vue),
+  // 99 new aiKb* keys for the knowledge settings page (SettingsView.vue),
   // the Parser details page (ParserStatus.vue), the Parser test sandbox (ParserTest.vue)
-  // and the folder picker (FolderBrowser.vue). Same shape as the P5a Task 8 / P5b Task 1
-  // guards above (a fixed key list scoped to this batch + presence check + punctuation
-  // scan + placeholder-parity check), per p5c-common-constraints.md §7 and T1 brief §3.3.
+  // and the folder picker (FolderBrowser.vue). Same shape as the guards above
+  // (a fixed key list scoped to this batch + presence check + punctuation
+  // scan + placeholder-parity check).
   //
   // Scope is deliberately this batch's 99 keys, never the whole file: aiResTurn /
   // aiResFilesInTurns intentionally differ between locales ({s} is an English plural
@@ -465,8 +474,8 @@ describe('i18n message syntax', () => {
   //   4. aiKbPrOcrHint's zh renders "真实索引的扫描件" for "truly scanned documents" (Vue2's
   //      own mistranslation) and uses ASCII -/x where en uses – (U+2013) / × (U+00D7).
   describe('P5c Task 1 aiKb* keys — punctuation and placeholder guards', () => {
-    // Matches the >>> SP8-P5c Task 1 ... <<< SP8-P5c Task 1 marked block in zh_cn.ts /
-    // en_us.ts (see p5c-task-1-report.md "新增键清单"): Appendix A §A.2's 98 rows plus
+    // Matches the marked block of new keys in zh_cn.ts /
+    // en_us.ts: Appendix A §A.2's 98 rows plus
     // aiKbDeviceAuto (ruling A-1). All 99 have a Vue2-authoritative zh value — this batch
     // created zero new copy and left zero dead keys.
     const p5cTask1Keys = [
@@ -522,8 +531,9 @@ describe('i18n message syntax', () => {
     // independently by this task against `git show main:src/assets/lang/zh_CN.json` (the
     // added aiKbDeviceAuto value 自动 carries no full-width punctuation, so the count stays
     // 18 — measured, not assumed). Each exception is pinned with an exact `toBe` below
-    // rather than merely skipped, per the brief: 「一律写成 toBe 钉死确切值的强断言,不是
-    // 「跳过扫描」的松形式」. The remaining 81 keys must scan clean.
+    // rather than merely skipped, per the brief: always write a strong assertion pinning
+    // the exact value with toBe, not the loose form of merely skipping the scan. The
+    // remaining 81 keys must scan clean.
     //
     // ⚠️ 。(U+3002) 「」(U+300C/300D) ·(U+00B7) —(U+2014) –(U+2013) …(U+2026) ×(U+00D7)
     // →(U+2192) are NOT in /[，；：？！（）]/ — do not add keys here because a value "looks
@@ -618,7 +628,7 @@ describe('i18n message syntax', () => {
     })
   })
 
-  // SP8-P5d Task 1: 92 new aiKb* keys for the knowledge-base notes area (NotesView.vue,
+  // 92 new aiKb* keys for the knowledge-base notes area (NotesView.vue,
   // NoteEditPane.vue, and the NOTE_TYPES/NOTE_SOURCES labelKey targets in
   // notesViewHelpers.js). Same shape as the P5a Task 8 / P5b Task 1 / P5c Task 1 guards
   // above (a fixed key list scoped to this batch + presence check + punctuation scan +
@@ -644,8 +654,8 @@ describe('i18n message syntax', () => {
   //      a probe that swapped in the forbidden key passed 47/47 existing assertions in P5c
   //      because none of them rendered the en value.
   describe('P5d Task 1 aiKb* keys — punctuation and placeholder guards', () => {
-    // Matches the >>> SP8-P5d Task 1 ... <<< SP8-P5d Task 1 marked block in zh_cn.ts /
-    // en_us.ts (see p5d-task-1-report.md "新增键清单"): Appendix A §A.2's 92 rows. All 92
+    // Matches the marked block of new keys in zh_cn.ts /
+    // en_us.ts: Appendix A §A.2's 92 rows. All 92
     // have a Vue2-authoritative zh value — this batch created zero new copy and left zero
     // dead keys (N23's conflictMessage English string is deliberately NOT one of these 92;
     // it stays a hardcoded predicate-only string, never an i18n key).
@@ -699,8 +709,8 @@ describe('i18n message syntax', () => {
     // Chinese commas/parens are half-width (U+002C / U+0028-29), not full-width. The scan
     // over the real 92 shipped values hits exactly 1: aiKbNtDeleteTitle's trailing full-width
     // question mark (？ U+FF1F), a genuine Vue2-authentic exception. Pinned with an exact
-    // `toBe` below rather than merely skipped, per the brief: 「一律写成 toBe 钉死确切值的强
-    // 断言」. The remaining 91 keys must scan clean.
+    // `toBe` below rather than merely skipped, per the brief: always write a strong
+    // assertion pinning the exact value with toBe. The remaining 91 keys must scan clean.
     //
     // ⚠️ 。(U+3002) 「」(U+300C/300D) ·(U+00B7) →(U+2192) …(U+2026) —(U+2014) are NOT in
     // /[，；：？！（）]/ — do not add keys here because a value "looks full-width"; only the
@@ -781,7 +791,8 @@ describe('i18n message syntax', () => {
   // p5d-appendix-A-i18n.md §A.0① / coordinator ruling R10: en_US.json is NOT the identity
   // map for every English $t() source string in this batch. Vue2's default AND fallback
   // locale are both en_us (src/plugins/i18n.js:9-10), so the English UI actually renders
-  // en_US.json's override value — "1:1 保真以「渲染值」为准,不以 $t() 的 key 为准". Only a
+  // en_US.json's override value — "1:1 fidelity is judged by the rendered value, not by
+  // the $t() key". Only a
   // positive assertion has zero discriminating power here (a value accidentally set back to
   // the literal $t() source string would look "reasonable" to anyone skimming the diff) —
   // each key therefore also gets a reverse assertion pinning that it is NOT the literal
@@ -855,7 +866,7 @@ describe('i18n message syntax', () => {
     // ('Sources') share the zh label 来源 but must keep independent en values so the
     // English UI still distinguishes singular/plural. Unlike the cross-key rows above,
     // both keys were written by this task, so both directions are pinned directly.
-    it('N32-8: aiKbNeSource and aiKbNeSources share zh (来源) but keep distinct en values (Source / Sources)', () => {
+    it('aiKbNeSource and aiKbNeSources share zh (来源) but keep distinct en values (Source / Sources)', () => {
       expect((zh as Record<string, unknown>).aiKbNeSource).toBe('来源')
       expect((zh as Record<string, unknown>).aiKbNeSources).toBe('来源')
       expect((en as Record<string, unknown>).aiKbNeSource).toBe('Source')
@@ -911,7 +922,7 @@ describe('i18n message syntax', () => {
     })
   })
 
-  // SP8-P5e Task 1: 54 new aiKb* keys for the knowledge-base search area (SearchView.vue,
+  // 54 new aiKb* keys for the knowledge-base search area (SearchView.vue,
   // FileDetailDrawer.vue, KFileViewer.vue and searchAggregate.js's i18n.t('(Untitled)')). Same
   // shape as the P5a Task 8 / P5b Task 1 / P5c Task 1 / P5d Task 1 guards above (a fixed key list
   // scoped to this batch + presence check + punctuation scan + placeholder-parity check), per
@@ -935,15 +946,16 @@ describe('i18n message syntax', () => {
   //      Governance names 14 high-risk same-value words for this batch (Download · Close ·
   //      Modified · Search · Results · Copied · High/Mid/Low · Similarity · files · matches ·
   //      Advanced · Enabled · Fast) and A-1 forbids reusing another area's key for any of them,
-  //      "键名语义属于别的区,将来那个区改文案会静默改掉搜索区". For 5 of the resulting pairs one
+  //      "the key's naming semantics belong to a different area — if that area's copy changes
+      //      later, it would silently break the search area". For 5 of the resulting pairs one
   //      axis genuinely diverges, so a wrong-key reuse would visibly change the rendered UI —
   //      those get real assertions. Per p5c §9.2 (T6 finding I-1) a zh-only assertion has zero
   //      discriminating power here, so the axis asserted is always the one that must diverge.
   describe('P5e Task 1 aiKb* keys — punctuation, placeholder and collision guards', () => {
-    // Matches the >>> SP8-P5e Task 1 ... <<< SP8-P5e Task 1 marked block in zh_cn.ts / en_us.ts
-    // (see p5e-task-1-report.md "新增键清单"): Appendix A §A.1's 新增(54) table. All 54 have a
+    // Matches the marked block of new keys in zh_cn.ts / en_us.ts:
+    // Appendix A §A.1's "Newly Added (54)" table. All 54 have a
     // Vue2-authoritative zh AND en value (63/63 Vue2 coverage measured, zero self-invented copy,
-    // zero dead keys). The 9 further keys this batch REUSES (§A.1 复用) are deliberately absent
+    // zero dead keys). The 9 further keys this batch REUSES (§A.1 "Reused") are deliberately absent
     // from this list: they were shipped and guarded by P5a Task 8 and are not this batch's copy.
     const p5eTask1Keys = [
       'aiKbFdBack', 'aiKbFdCopied', 'aiKbFdCopy', 'aiKbFdCopyFailed', 'aiKbFdDistill',
@@ -984,7 +996,7 @@ describe('i18n message syntax', () => {
       expect(missing).toEqual([])
     })
 
-    // The 9 reused keys (Appendix A §A.1 复用 / §A.1.1) must still exist — this batch's
+    // The 9 reused keys (Appendix A §A.1 "Reused" / §A.1.1) must still exist — this batch's
     // SearchView/FileDetailDrawer copy depends on them without redefining them, so a later
     // cleanup that decides "nothing in the notes/dashboard area uses aiKbTry any more" would
     // silently blank out this area's UI too.
@@ -1013,19 +1025,22 @@ describe('i18n message syntax', () => {
     // knowledge-details placeholder key, governance §0.2 / D-9 — deliberately not named here so
     // that D-9's `grep -rw` self-proof keeps hitting only SettingsPage.vue's history comment).
     //
-    // 🔴 订正(SP8-P5f Task 1b,债务 M-4;守「反转不删」—— 上面那句原文保留):
+    // Correction (debt ticket M-4; honoring the "invert, don't delete" rule — the sentence
+    // above is kept verbatim):
     // the stated REASON above ("deliberately not named here so that D-9's grep self-proof keeps
-    // hitting only the history comment") was SUPERSEDED by 裁定 P5e-R13. R13 判定该两难是假的:
-    // 本档既定的死键 grep 口径本来就排除 `*.test.ts`, so naming the key inside a test file keeps
+    // hitting only the history comment") was SUPERSEDED by ruling P5e-R13. R13 determined the
+    // dilemma was false: this document's established dead-key grep convention already excludes
+    // `*.test.ts`, so naming the key inside a test file keeps
     // D-9's self-proof literally true. The key IS named a few `it`s below, in the R13
-    // anti-resurrection guard — that guard, not this sentence, is the current口径.
-    // (引条目编号 P5e-R13 / D-9;🔴 不引 file:line —— 行号会随后续改动失效。)
+    // anti-resurrection guard — that guard, not this sentence, is the current convention.
+    // (Cite by entry ID P5e-R13 / D-9; do not cite file:line — line numbers will go stale as
+    // the file changes.)
     //
     // Exact zh↔en key-set equality is parity.test.ts's job.
-    // Cross-reference (P5e-T1 review Minor-3): 1648 is pinned as a lower bound in TWO independent
+    // Cross-reference: 1648 is pinned as a lower bound in TWO independent
     // places — here and SettingsView.test.ts (the D-3 site). Both are lower bounds, so neither is a
     // cross-phase trap; they are deliberately not de-duplicated because they guard different
-    // things (that file's is the historical P5c-T9 snapshot, kept per 「反转不删」).
+    // things (that file's is the historical snapshot, kept per "invert, don't delete").
     it('the whole locale table never shrinks below the count measured when this batch landed', () => {
       expect(Object.keys(zh).length).toBeGreaterThanOrEqual(1648)
       expect(Object.keys(en).length).toBeGreaterThanOrEqual(1648)
@@ -1034,14 +1049,15 @@ describe('i18n message syntax', () => {
     // 🔴 Coordinator ruling R13 — anti-resurrection guard for the key D-9 deleted.
     //
     // T1 originally omitted this guard to keep D-9's self-proof (`grep -rw <key> src/` hits only
-    // SettingsPage.vue's history comment) literally true. 该两难被判定是假的: 「只命中那条
-    // 注释」原本是「删干净了」的一次性自证, 不是对代码库的永久约束, 而本档既定的死键 grep 口径
-    // 本来就排除 `*.test.ts`:
+    // SettingsPage.vue's history comment) literally true. That dilemma was determined to be false:
+    // "hits only that comment" was originally a one-time self-proof that the key had "been cleanly
+    // deleted", not a permanent constraint on the codebase — and this document's established
+    // dead-key grep convention already excludes `*.test.ts`:
     //   grep -rlw --include='*.vue' --include='*.ts' -e "$k" src/ \
     //     | grep -v '^src/i18n/' | grep -v '\.test\.ts$'
-    // ⇒ 守卫写在测试文件里, 两个目标零妥协地同时成立.
+    // ⇒ Putting the guard in the test file satisfies both goals with zero compromise.
     //
-    // 🔴 判据 = 「两档同时加回也报红」. The P5e-T1 review proved single-locale resurrection would be
+    // 🔴 Criterion = "adding it back to both locales at once must also fail red". Review proved single-locale resurrection would be
     // caught by parity.test.ts, but resurrecting it in BOTH locales left all 3984 tests green —
     // a confirmed guard gap, not a hypothetical one. Hence this asserts each locale independently.
     it('the D-9 deleted key stays deleted in BOTH locales (parity alone cannot catch a two-locale resurrection)', () => {
@@ -1052,7 +1068,7 @@ describe('i18n message syntax', () => {
     // (a) Full-width punctuation scan. Exceptions re-measured by this task against the shipped
     // values (not copied from Appendix A §A.2.1): the regex hits exactly 5 of the 54 zh values,
     // and 0 of the 54 en values. Each is pinned with an exact `toBe` rather than merely skipped,
-    // per the brief: 「toBe 钉死确切值的例外清单」. The remaining 49 must scan clean.
+    // per the brief: "an exception list of exact values pinned with toBe". The remaining 49 must scan clean.
     //
     // ⚠️ 。(U+3002) 「」(U+300C/300D) ·(U+00B7) —(U+2014) …(U+2026) ×(U+00D7) are NOT in
     // /[，；：？！（）]/ — do not add a key here because a value "looks full-width"; only the
@@ -1107,7 +1123,7 @@ describe('i18n message syntax', () => {
     // it sits in a Chinese sentence, so "tidying" it to ，would look like a fix. Pinned by
     // codepoint, not just by string equality, so a failure message names the character.
     it('pins the codepoint-level characters the full-width scan cannot see (§A.2.2/§A.2.3)', () => {
-      // 半角逗号 U+002C, NOT 全角 U+FF0C — Vue2's own value (§A.1.2 note on aiKbFdCopyFailed).
+      // Half-width comma U+002C, NOT full-width U+FF0C — Vue2's own value (§A.1.2 note on aiKbFdCopyFailed).
       expect((zh as Record<string, string>).aiKbFdCopyFailed).toBe('复制失败,请手动选择')
       expect((zh as Record<string, string>).aiKbFdCopyFailed.includes(',')).toBe(true)
       expect((zh as Record<string, string>).aiKbFdCopyFailed.includes('，')).toBe(false)
@@ -1211,7 +1227,7 @@ describe('i18n message syntax', () => {
         },
       ]
 
-      // P5e-T1 review Minor-1: this was the only parameterised list in the P5e block whose length
+      // Review Minor-1: this was the only parameterised list in this block whose length
       // was not pinned (the other 54/5/6/5/9 lists all are). Without it, deleting an entry here
       // silently removes that key's interpolation `toBe` and all three gates stay green.
       it('the { n } interpolation list still covers exactly the 5 single-placeholder keys', () => {
@@ -1247,20 +1263,21 @@ describe('i18n message syntax', () => {
 
     // 🔴 §7.1 / §9.2 / §9.3 — bidirectional collision scan, re-run here over the shipped tables.
     // Appendix A §A.1.2 refuses reuse for all 14 governance-named high-risk values on the A-1
-    // rationale (「键名语义属于别的区,将来那个区改文案会静默改掉搜索区」). For most of them BOTH
+    // rationale ("the key's naming semantics belong to a different area — if that area's copy
+    // changes later, it would silently break the search area"). For most of them BOTH
     // axes collide, so no assertion can distinguish the right key from the wrong one — the
     // protection there is that the components import the aiKb* key (T6/T7's concern). For these 5
     // pairs one axis genuinely diverges, so reusing the forbidden key WOULD visibly change the
     // rendered UI; those are asserted, and the pair set itself is pinned so a newly created
     // one-axis collision has to be registered rather than silently appearing.
     // 🔴 P5f Task 1 registration (2026-08-06): the set below grew 5 → 6. This guard's stated
-    // purpose is 「a newly created one-axis collision has to be registered rather than silently
-    // appearing」, and P5f's aiKbAlFileTypes ('文件类型' / 'File types') is exactly that — it
+    // purpose is "a newly created one-axis collision has to be registered rather than silently
+    // appearing", and P5f's aiKbAlFileTypes ('文件类型' / 'File types') is exactly that — it
     // collides with P5e's aiKbSrFileType on zh while the en side stays distinct ('File types' vs
     // 'File type'). So this guard fired as designed and the pair is registered here with its own
     // real assertion. 🔴 §9.10 — the change is strictly ADDITIVE (one more entry, one more
     // generated `it`, count assertion 5 → 6); no existing assertion was relaxed, and the
-    // set-equality assertion below is still exact. Declared in p5f-task-1-report.md §7.
+    // set-equality assertion below is still exact.
     describe('P5e Task 1 §9.2/§9.3 bidirectional collision scan — the one-axis-divergent pairs', () => {
       const divergent: Array<{ newKey: string; forbiddenKey: string; axis: 'en' | 'zh' }> = [
         // Direction 1 (§9.2): zh collides, en must stay distinct.
@@ -1272,13 +1289,13 @@ describe('i18n message syntax', () => {
         { newKey: 'aiKbSrAdvOn', forbiddenKey: 'aiCfgChannelsLarkEnable', axis: 'en' }, // 启用: Enabled vs Enable
         { newKey: 'aiKbSrRelMid', forbiddenKey: 'appsSettingsCpuMedium', axis: 'en' }, // 中: Mid vs Medium
         { newKey: 'aiKbSrRelMid', forbiddenKey: 'aiThinkingMedium', axis: 'en' }, //      中: Mid vs Medium
-        { newKey: 'aiKbSrFileType', forbiddenKey: 'aiKbAlFileTypes', axis: 'en' }, // 文件类型: File type vs File types (created by P5f-T1)
+        { newKey: 'aiKbSrFileType', forbiddenKey: 'aiKbAlFileTypes', axis: 'en' }, // 文件类型: File type vs File types
         // Direction 2 (§9.3, mirror): en collides, zh must stay distinct.
         { newKey: 'aiKbSrAdvOn', forbiddenKey: 'aiCfgChannelsEnabled', axis: 'zh' }, // Enabled: 启用 vs 已启用
         { newKey: 'aiKbSrAdvanced', forbiddenKey: 'appsSettingsSectionAdvanced', axis: 'zh' }, // Advanced: 高级筛选 vs 高级
       ]
 
-      it('covers exactly the 7 one-axis-divergent pairs currently found by this scan (5 from P5e + 1 registered by P5f-T1 + 1 registered by settings parity 2026-08-24)', () => {
+      it('covers exactly the 7 one-axis-divergent pairs currently found by this scan (1 registered by settings parity 2026-08-24)', () => {
         expect(divergent.length).toBe(7)
       })
 
@@ -1303,8 +1320,8 @@ describe('i18n message syntax', () => {
       // Pin the scan's OUTPUT, not just the hand-written table: re-run both directions over the
       // whole locale table for all 54 batch keys and demand the divergent-pair set is exactly
       // the 5 above. Without this, a future key elsewhere in the app that collides with one of
-      // this batch's values on a single axis would appear silently, and the "登记 per A-1/N21"
-      // discipline would have nothing enforcing it.
+      // this batch's values on a single axis would appear silently, and the "register per
+      // A-1/N21" discipline would have nothing enforcing it.
       it('the scan over the whole table finds exactly these 7 one-axis-divergent pairs (assume the coordinator table is incomplete — §7.1)', () => {
         const zhAll = zh as Record<string, string>
         const enAll = en as Record<string, string>
@@ -1325,7 +1342,7 @@ describe('i18n message syntax', () => {
     })
   })
 
-  // SP8-P5f Task 1: 79 new aiKb* keys for the knowledge base's last three pages
+  // 79 new aiKb* keys for the knowledge base's last three pages
   // (AllowlistView.vue, RootsView.vue, WikiView.vue — plus WikiView's OP_LABEL_KEYS and
   // AllowlistView's GROUPS_TEMPLATE.labelKey, which reach $t() through a variable and so never
   // appear literally in a template). Same shape as the five prior P5* Task 1 guards above (a fixed
@@ -1340,12 +1357,13 @@ describe('i18n message syntax', () => {
   // Three of this batch's strings (`Delete` / `Auto` / `Removed`) are byte-identical
   // in BOTH locales to existing aiKbNtDelete / aiKbOriginAuto / aiKbDeviceAuto / aiKbStatusRemoved
   // and were still created new, because those keys' semantic domains are the notes page / a note's
-  // origin / the Parser device / an indexed file's status. A-1's rationale: 「键名语义属于别的区,
-  // 将来那个区改文案会静默改掉知识库」. Value assertions cannot express that decision (the values
-  // are equal by construction), so it is pinned in p5f-task-1-i18n-verify.mjs PART 5 instead.
+  // origin / the Parser device / an indexed file's status. A-1's rationale: "the key's naming
+  // semantics belong to a different area — if that area's copy changes later, it would silently
+  // break the knowledge base". Value assertions cannot express that decision (the values
+  // are equal by construction), so it is pinned in a dedicated verification script instead.
   describe('P5f Task 1 aiKb* keys — punctuation, placeholder and collision guards', () => {
-    // Matches the >>> SP8-P5f Task 1 ... <<< SP8-P5f Task 1 marked block in zh_cn.ts / en_us.ts
-    // (see p5f-task-1-report.md "新增键清单"): Appendix A §A.6's 90 rows minus the 11 rows this
+    // Matches the marked block of new keys in zh_cn.ts / en_us.ts:
+    // Appendix A §A.6's 90 rows minus the 11 rows this
     // batch reuses. All 79 have a Vue2-authoritative zh AND en value (90/90 Vue2 coverage measured,
     // zero self-invented copy, zero dead keys).
     const p5fTask1Keys = [
@@ -1432,7 +1450,7 @@ describe('i18n message syntax', () => {
     // (a) Full-width punctuation scan. Exceptions re-measured by this task against the shipped
     // values (not copied from Appendix A §A.5): the regex hits exactly 9 of the 79 zh values, and
     // 0 of the 79 en values. Each is pinned with an exact `toBe` rather than merely skipped, per
-    // the brief: 「toBe 钉死的例外清单」. The remaining 70 must scan clean.
+    // the brief: "an exception list pinned with toBe". The remaining 70 must scan clean.
     //
     // ⚠️ 。(U+3002) 「」(U+300C/300D) ·(U+00B7) —(U+2014) …(U+2026) ×(U+00D7) are NOT in
     // /[，；：？！（）]/ — do not add a key here because a value "looks full-width"; only the
@@ -1487,12 +1505,12 @@ describe('i18n message syntax', () => {
     })
 
     // The scan regex above cannot see these, and every one of them looks like a typo a future
-    // editor would "tidy". They are Vue2's own bytes and must survive verbatim (移植纪律:
-    // 界面严格 1:1 含文案). Pinned by codepoint membership, not just string equality, so a failure
+    // editor would "tidy". They are Vue2's own bytes and must survive verbatim (porting
+    // discipline: the UI must be strictly 1:1, copy included). Pinned by codepoint membership, not just string equality, so a failure
     // message names the character.
     it('pins the codepoint-level characters the full-width scan cannot see', () => {
       const Z = zh as Record<string, string>
-      // 半角逗号 U+002C sitting inside a Chinese sentence — the sharpest one: "fixing" it to ，
+      // Half-width comma U+002C sitting inside a Chinese sentence — the sharpest one: "fixing" it to ，
       // would look like an improvement. Two keys carry it.
       expect(Z.aiKbWkEmptySub).toBe('添加知识根后,Wiki 导航会自动从你的目录生成。')
       expect(Z.aiKbWkEmptySub.includes(',')).toBe(true)
@@ -1500,11 +1518,11 @@ describe('i18n message syntax', () => {
       expect(Z.aiKbWkRenderNote).toBe('本页由 {path} 渲染,索引服务在目录变化后自动重写')
       expect(Z.aiKbWkRenderNote.includes(',')).toBe(true)
       expect(Z.aiKbWkRenderNote.includes('，')).toBe(false)
-      // 半角问号 U+003F in a Chinese modal title.
+      // Half-width question mark U+003F in a Chinese modal title.
       expect(Z.aiKbRtDeleteTitle).toBe('删除索引目录?')
       expect(Z.aiKbRtDeleteTitle.endsWith('?')).toBe(true)
       expect(Z.aiKbRtDeleteTitle.endsWith('？')).toBe(false)
-      // 半角括号 U+0028/U+0029 in Chinese text — two keys.
+      // Half-width parentheses U+0028/U+0029 in Chinese text — two keys.
       expect(Z.aiKbRtScanInterval).toBe('扫描间隔(小时)')
       expect(/[（）]/.test(Z.aiKbRtScanInterval)).toBe(false)
       expect(/[（）]/.test(Z.aiKbRtReadOnly)).toBe(false)
@@ -1520,7 +1538,7 @@ describe('i18n message syntax', () => {
         expect(Z[k].endsWith('…'), `${k} 应以单字符省略号结尾`).toBe(true)
         expect(Z[k].endsWith('...'), `${k} 不许写成三个点`).toBe(false)
       }
-      // 全角句号 U+3002 twice in aiKbAlNoRules (and the half-width [ ] brackets Vue2 uses there).
+      // Full-width full stop U+3002 twice in aiKbAlNoRules (and the half-width [ ] brackets Vue2 uses there).
       expect(Z.aiKbAlNoRules).toBe('还没有规则。点右上角 [+ 添加规则] 开始。')
       expect(Z.aiKbAlNoRules.split('。').length - 1).toBe(2)
       // en side em dashes: 4 keys carry U+2014 and none of them may become a hyphen.
@@ -1638,7 +1656,7 @@ describe('i18n message syntax', () => {
         },
       ]
 
-      // P5e-T1 review Minor-1: pin the parameterised list's length too. Without it, deleting an
+      // Review Minor-1: pin the parameterised list's length too. Without it, deleting an
       // entry here silently removes that key's interpolation `toBe` and all three gates stay green.
       // It must also cover every placeholder-bearing key, not merely have the right length.
       it('the interpolation list covers exactly the 9 placeholder-bearing keys', () => {
@@ -1665,7 +1683,8 @@ describe('i18n message syntax', () => {
     })
 
     // 🔴 §7.1 / §9.2 / §9.3 — bidirectional collision scan, re-run here over the shipped tables.
-    // This task re-ran the scan itself (brief §2-5 / ruling R7-②; 「假定协调者的表不完整」) rather
+    // This task re-ran the scan itself (brief §2-5 / ruling R7-②; "assume the coordinator's
+    // table is incomplete") rather
     // than trusting Appendix A §A.3: 28 of the 90 blueprint strings collide with something already
     // in the table, and A-1 refuses reuse for every one of them whose same-value key belongs to
     // another area. For most pairs BOTH axes collide, so no assertion can distinguish the right key
@@ -1704,29 +1723,35 @@ describe('i18n message syntax', () => {
         { newKey: 'aiKbWkOpRemoved', forbiddenKey: 'aiCfgDeleted', axis: 'en' }, //           已删除: Removed vs Deleted
         { newKey: 'aiKbWkOpRemoved', forbiddenKey: 'aiKbRtRootDeleted', axis: 'en' }, //      已删除: Removed vs Root deleted (within batch, mirror)
         { newKey: 'aiKbWkOpRenamed', forbiddenKey: 'filesRename', axis: 'en' }, //             重命名: Renamed vs Rename
-        // 曾经还有一对 aiKbWkOpRenamed|filesUploadRename —— filesUploadRename 在 SP12 冲突弹窗
-        // 换代后成了没人引用的孤儿键并被删除,这一对随之消失。同一语义(重命名: Renamed vs
-        // Rename)仍由下面的 filesRename / photosPersonMenuRename 等对守着,覆盖没有变薄。
+        // There used to also be a pair aiKbWkOpRenamed|filesUploadRename — filesUploadRename
+        // became an orphaned, unreferenced key after the SP12 conflict-dialog rewrite and was
+        // deleted, so this pair disappeared along with it. The same semantics (rename: Renamed vs
+        // Rename) are still guarded by the filesRename / photosPersonMenuRename pairs below, so
+        // coverage hasn't thinned out.
         // Direction 2 (§9.3, mirror): en collides, zh must stay distinct. This batch has exactly
-        // one — Appendix A §A.3.1a calls it 「本期唯一的 en 单侧撞车」 and it is the reason the
+        // one — Appendix A §A.3.1a calls it "this batch's only single-sided en collision" and it is the reason the
         // en direction cannot be skipped just because the zh column looks clean.
         { newKey: 'aiKbWkOpRemoved', forbiddenKey: 'addPanelRemovedToast', axis: 'zh' }, //  Removed: 已删除 vs 已移除
 
-        // 🔴 SP8-P6-T3 合流新增的 6 对。本表的纪律是「新出现的单轴撞车必须登记,不许静默出现」;
-        // 这 6 对不是新写的文案,而是**合流后 locale 表变大**才第一次被扫到的 —— sp8 分支上的
-        // 表只有 base(分叉点 520 键)+ ai,合流后并入了 master 侧 SP7 相册与 SP6 存储的键,
-        // 于是 aiKb* 与它们的单轴撞车暴露出来。6 对全部与已登记的同类同型(重命名/删除/文件类型),
-        // 且分歧方向都正确 —— 合并任何一对都会静默改写另一个页面的 UI,故维持分开。
+        // 🔴 6 pairs newly exposed by the merge. This table's discipline is "a newly appearing
+        // single-axis collision must be registered, never allowed to appear silently"; these 6
+        // pairs are not newly written copy — they were only exposed for the first time because
+        // **the locale table grew larger after the merge**. On the sp8 branch the table only had
+        // base (520 keys at the fork point) + ai; after the merge, the master-side SP7 Photos and
+        // SP6 Storage keys were pulled in too, which is what exposed aiKb*'s single-axis collisions
+        // with them. All 6 pairs are the same familiar type as ones already registered
+        // (rename/delete/file-type), and the direction of divergence is correct in every case —
+        // merging any of them would silently rewrite another page's UI, so they stay separate.
         { newKey: 'aiKbAlDeleteFailed', forbiddenKey: 'raidRemoveFailed', axis: 'en' }, //     删除失败: Delete failed vs Failed to delete array
         { newKey: 'aiKbAlFileTypes', forbiddenKey: 'photosSearchFileType', axis: 'en' }, //    文件类型: File types vs File type
         { newKey: 'aiKbWkOpRenamed', forbiddenKey: 'photosPersonMenuRename', axis: 'en' }, //  重命名: Renamed vs Rename
         { newKey: 'aiKbWkOpRenamed', forbiddenKey: 'photosPlacesSpotRename', axis: 'en' }, //  重命名: Renamed vs Rename
         { newKey: 'aiKbWkOpRenamed', forbiddenKey: 'photosSvRename', axis: 'en' }, //          重命名: Renamed vs Rename
-        // 第二个 en 单侧撞车(zh 必须保持不同):
+        // Second single-sided en collision (zh must stay distinct):
         { newKey: 'aiKbWkOpRemoved', forbiddenKey: 'raidMemberRemoved', axis: 'zh' }, //     Removed: 已删除 vs 已移除
       ]
 
-      it("covers exactly the 26 one-axis-divergent pairs found by this task's own scan (21 原有 + 6 合流后新暴露 − 1 随孤儿键删除)", () => {
+      it("covers exactly the 26 one-axis-divergent pairs found by this task's own scan (21 pre-existing + 6 newly exposed after merging − 1 removed with its orphan key)", () => {
         expect(divergent.length).toBe(26)
         expect(divergent.filter((d) => d.axis === 'zh').length).toBe(2)
         expect(divergent.filter((d) => d.axis === 'en').length).toBe(24)
@@ -1753,7 +1778,7 @@ describe('i18n message syntax', () => {
       // Pin the scan's OUTPUT, not just the hand-written table: re-run both directions over the
       // whole locale table for all 79 batch keys and demand the divergent-pair set is exactly the
       // 21 above. Without this, a future key elsewhere in the app that collides with one of this
-      // batch's values on a single axis would appear silently, and the 「登记 per A-1」 discipline
+      // batch's values on a single axis would appear silently, and the "register per A-1" discipline
       // would have nothing enforcing it.
       it('the scan over the whole table finds exactly these 26 one-axis-divergent pairs (assume the coordinator table is incomplete — §7.1)', () => {
         const zhAll = zh as Record<string, string>

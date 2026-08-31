@@ -1,5 +1,5 @@
 <!--
-  SP8-P2a Task 8 — new component, Vue2 has no equivalent blueprint (9 sections outside SP2a scope +
+  New component, Vue2 has no equivalent blueprint (9 sections outside this phase's scope +
   skills/mcp have no real components this phase).
 
   Simple placeholder panel: `.set-inner` + `.sk-section` wrapper (consistent with Vue2 xxxSection.vue
@@ -7,9 +7,8 @@
   a title + explanatory text. Used for:
     - This task (T8) phase placeholder for "Models" group 4 sections (models/providers/privacy/thinking),
       Tasks 9/10/11 will replace corresponding SECTION_COMPONENTS lines with real components
-    - `blacklist`/`execution`/`search`/`memory`/`observability` → SP8-P2b
-    - `mcptokens`/`channels` → SP8-P2b
-    - `skills` → SP8-P3, `mcp` → SP8-P4
+    - `blacklist`/`execution`/`search`/`memory`/`observability`/`mcptokens`/`channels`/`skills`/`mcp`
+      will be filled in by later phases
 -->
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'

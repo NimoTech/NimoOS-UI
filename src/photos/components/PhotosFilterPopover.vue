@@ -1,12 +1,12 @@
 <script setup lang="ts">
-// SP7-P7a-T12: PhotosFilterPopover.vue — list-style filter popover primitive (one of D14's two primitives).
+// PhotosFilterPopover.vue — list-style filter popover primitive (one of two shared list-popover primitives).
 // Structurally matches Vue2 PhotosSearchView.vue:124-147's list popover. Compared line-for-line against
-// PhotosFilterBar.vue:25-63 (full conclusion in task-12-report.md — fix round 1 · M9 corrected the wording; it
-// previously said "the only substantive difference", which wasn't accurate): there are actually two real value
+// PhotosFilterBar.vue:25-63 (corrected wording below; an earlier version said "the only substantive difference",
+// which wasn't accurate): there are actually two real value
 // differences — ① the scroll container's max-height: 280px on the search side, 260px on the FilterBar side, this
-// component follows the search side and hardcodes 280 (the 260 discrepancy is logged as "hand off to P7b/T16" to
+// component follows the search side and hardcodes 280 (the 260 discrepancy is logged as follow-up work to
 // decide whether to add a prop); ② the `.fpop` inline width: 260 on the search side, 240 on the FilterBar side — this
-// one is already absorbed by this component's `width` prop (the brief's interface section already gave both numbers),
+// one is already absorbed by this component's `width` prop (the interface already accounted for both numbers),
 // so it isn't a functional difference, it just shouldn't be overshadowed by that word "only". The remaining surface
 // differences (two hardcoded strings for the empty-state copy vs. a single source, the type-specific $t(it) conversion
 // vs. passing it straight through, the cancelPop argument) are already flattened at New-UI's interface layer with the
@@ -22,19 +22,19 @@
 // '' — equivalent semantics to Vue2's explicit clear, and the host doesn't need to, and shouldn't, maintain its own
 // search state (otherwise there'd be two sources of truth).
 //
-// No portal/Teleport, no close-on-outside-click/Esc (P6a's explicit ruling + brief Step 4) — both of those are
-// handled by the host (T16) at the container-ref level; this component only does @click.stop on its root node to keep
+// No portal/Teleport, no close-on-outside-click/Esc (a deliberate decision) — both of those are
+// handled by the host at the container-ref level; this component only does @click.stop on its root node to keep
 // clicks inside the popover from bubbling up into the host's "click outside" detection logic (structure mirrors
 // Vue2's `<div v-if="..." @click.stop>` outer + `.fpop` inner two levels).
 //
-// Plan B Task 5 (2026-08-12): the max-height discrepancy back then (280 on search / 260 on FilterBar, see module
-// comment ① above) was logged as "hand off to P7b/T16 to decide whether to add a prop" and was never wired up — the
+// The max-height discrepancy (280 on search / 260 on FilterBar, see module
+// comment ① above) was originally logged as follow-up work to decide whether to add a prop, and was never wired up — the
 // component kept hardcoding 280. Wired up here — added a maxHeight prop (default 280, doesn't change existing
 // consumers' existing behavior), following the same "inline-style override" pattern the width prop already uses
 // (:style rather than a hardcoded CSS declaration), with the FilterBar side explicitly passing 260 to hit Vue2's value.
 //
-// Owner's acceptance rollback (2026-08-13, overturning Task 5's owner-approved "fourth visual exception" — EXIF
-// pill/popover keeping New-UI's glassmorphism look): glass is invisible under the light theme, the ruling was to
+// Rollback (overturning an earlier decision to keep New-UI's glassmorphism look for the
+// EXIF pill/popover): glass is invisible under the light theme, the decision was to
 // revert the glass and fall back to Vue2's original opaque panel styling — a pure styling change, the component's
 // Vue3 code is unchanged. The style block below is therefore split in two:
 // ① `.fpop`/`.fpop-title`/`.fpop-search` (+:focus)/`.fpop-quick` (+:hover)/`.btn`/
@@ -142,7 +142,7 @@ function toggle(it: string): void {
 </template>
 
 <style scoped>
-/* 2026-08-13 rollback (see module comment above the script): the batch of Vue2-native class names —
+/* Rollback (see module comment above the script): the batch of Vue2-native class names —
    .fpop/.fpop-title/.fpop-search (+:focus)/.fpop-quick (+:hover)/.btn/.btn-primary (+:hover) — already has
    line-for-line matching rules in vue2-parity/photos.scss (the .fpop family is at :2662-2704, and the .btn family
    goes through the global `.photos-root .btn`/`.photos-root .btn-primary` (+:hover) family, :262-273, which applies
@@ -152,8 +152,8 @@ function toggle(it: string): void {
    parity scss already has a keyframes block of the same name (:881), and animation names live in a global
    namespace, unaffected by scoping. */
 
-/* max-height is driven by the maxHeight prop's inline style (see the module comment above — Plan B Task 5 wired up
-   the 280/260 discrepancy logged back in P7a), only the structural declaration is left here. parity scss has no
+/* max-height is driven by the maxHeight prop's inline style (see the module comment above for how the
+   280/260 discrepancy got wired up), only the structural declaration is left here. parity scss has no
    .fpop-list class (Vue2's original uses inline style here, and never extracted a class — see the same log on the
    .fpop-item family below), it's New-UI-specific, and stays here. */
 .fpop-list {
@@ -192,13 +192,13 @@ function toggle(it: string): void {
   background: var(--accent-soft);
   color: var(--text-1);
 }
-/* hover specificity hard constraint (the third instance B4 added — the brief text only named .fchip and
-   .btn-primary, missing this one): .fpop-item[data-active="true"] un-hovered and .fpop-item:hover are both (0,2,0),
+/* hover specificity hard constraint (the third instance of this pattern in this area — an earlier pass only
+   handled .fchip and .btn-primary, missing this one): .fpop-item[data-active="true"] un-hovered and .fpop-item:hover are both (0,2,0),
    the second occurrence in a scoped SFC of exactly this "equal specificity surviving only on source order" danger
    shape. The variant carries its own :hover (value = the un-hovered state, i.e. the selected state stays put under
    hover — this makes explicit the implicit semantics of Vue2's "active rule written after the hover rule, tie won
    by source order", no longer depending on order). This hover-lock logic is unrelated to the color mapping — the
-   2026-08-13 rollback didn't touch its structure, it only followed the same token rename above. */
+   rollback above didn't touch its structure, it only followed the same token rename. */
 .fpop-item[data-active='true']:hover {
   background: var(--accent-soft);
   color: var(--text-1);

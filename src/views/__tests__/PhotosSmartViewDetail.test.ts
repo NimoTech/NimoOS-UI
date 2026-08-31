@@ -34,7 +34,7 @@ const svc = vi.hoisted(() => ({
     // Fix-12: PhotoLightbox.vue's own render needs these once it actually mounts (v-if opens).
     originalUrl: vi.fn((id: string | number) => `mock://original/${id}`),
     liveUrl: vi.fn((id: string | number) => `mock://live/${id}`),
-    // Fix-1 item 1: the topbar's title/sub here mirrors PhotosAlbums.vue's own (this page nests
+    // The topbar's title/sub here mirrors PhotosAlbums.vue's own (this page nests
     // under Vue2's 'albums' nav, see the describe block below) -- the sub needs the full album
     // list, which this page did not otherwise fetch before this fix.
     listAlbums: vi.fn().mockResolvedValue([]),
@@ -148,7 +148,7 @@ function makeRouter(initial = '/photos/smart-views/7') {
     routes: [
       { path: '/photos/smart-views', name: 'photos-smart-views', component: { template: '<div/>' } },
       { path: '/photos/smart-views/:id', name: 'photos-smart-view-detail', component: PhotosSmartViewDetail },
-      // SP15-P2b Task 5: smart albums moved into Albums (Tasks 3/4) -- this page's back
+      // Smart albums moved into Albums -- this page's back
       // links (not-found, detail bar, post-delete) all now land here instead.
       { path: '/photos/albums', name: 'photos-albums-stub', component: { template: '<div/>' } },
     ],
@@ -267,9 +267,9 @@ describe('data-source three states', () => {
     expect(w.find('[data-test="sv-not-found-back"]').exists()).toBe(true)
   })
 
-  // SP15-P2b Task 5: smart albums now live in Albums (Tasks 3/4) -- this button's
+  // Smart albums now live in Albums -- this button's
   // destination and label both changed (label: photosSvAllSmartViews → photosAlbumBack,
-  // see the deviation comment above PhotosSmartViewDetail.vue's detail-bar back button).
+  // see the note above PhotosSmartViewDetail.vue's detail-bar back button).
   it('back button -> router.push to the albums page', async () => {
     const { w, router } = await mountView('999', [makeSv({ id: 7 })])
     const pushSpy = vi.spyOn(router, 'push')
@@ -284,7 +284,7 @@ describe('data-source three states', () => {
   })
 })
 
-// fix round 1 · M5 (structural spec 2: .sv-detail-bar had zero test cases before this) ────────────────────
+// .sv-detail-bar had zero test cases before this ────────────────────
 describe('.sv-detail-bar -- back entry + last-updated time', () => {
   it('evaluatedAt non-empty -> photosSvLastUpdatedTime renders the relTime result', async () => {
     const { w } = await mountView('7', [makeSv({ id: 7, evaluatedAt: '2026-07-31T00:00:00Z' })])
@@ -301,10 +301,9 @@ describe('.sv-detail-bar -- back entry + last-updated time', () => {
     expect(w.find('.sv-last-updated').text()).toBe(zh.photosSvLastUpdatedTime.replace('{time}', '—'))
   })
 
-  // SP15-P2b Task 5: the back button had no data-test before this task (dispatch-corrected
-  // brief fact 3 -- the brief's original snippet assumed `sv-detail-back` already existed).
-  // Destination changed to Albums (smart albums moved there in Tasks 3/4) and the label
-  // changed from photosSvAllSmartViews to photosAlbumBack -- see the deviation comment
+  // The back button had no data-test before this task.
+  // Destination changed to Albums (smart albums moved there) and the label
+  // changed from photosSvAllSmartViews to photosAlbumBack -- see the note
   // above this button in PhotosSmartViewDetail.vue.
   it('sends the back button to Albums, where smart albums now live', async () => {
     const { w, router } = await mountView('7', [makeSv({ id: 7 })])
@@ -317,16 +316,16 @@ describe('.sv-detail-bar -- back entry + last-updated time', () => {
   })
 })
 
-// fix round 1 · M5 (brief §3 explicitly requires this mount-point assertion; the original version had 0 grep hits) ──────────────
+// This mount-point assertion is required; the original version had 0 grep hits ──────────────
 // This originally mounted a dedicated SmartViewConditionEditor component here (chips +
 // an "Add condition" popover). Later work (ported from the Vue 2 page's
 // PhotosSmartViewDetail.vue:26-30/:700-710, "user-added requirement") removes the add entry as a
 // deliberate product decision -- only removable chips survive. Once `add` was gone the
 // component was down to a bare v-for with no local state, so it no longer earned its own
-// file (see task-8-report.md for the full call) and folded back into this page. These
+// file and folded back into this page. These
 // tests were re-homed accordingly; the popover/suggestion/busy-forwarding tests that only
 // exercised the add path had no capability left to cover and were deleted, not silently
-// dropped (disposition table in the report).
+// dropped.
 describe('T7/T8: condition chips (remove-only, add entry removed)', () => {
   it('renders one removable chip per sv.conds entry', async () => {
     const { w } = await mountView('7', [makeSv({ id: 7, conds: ['scene: sunset', 'place: Japan'] })])
@@ -357,7 +356,7 @@ describe('T7/T8: condition chips (remove-only, add entry removed)', () => {
     expect(remaining[0].text()).toContain('place: Japan')
   })
 
-  // SP15-P2c Task 8, coordinator review fix: re-homes the deleted
+  // Re-homes the deleted
   // SmartViewConditionEditor.test.ts's "clicking the X (.sv-cond-x) also triggers remove (bubbles to the whole chip)".
   // The first pass of this task's disposition table claimed this was "covered structurally"
   // by the whole-chip click test above on the strength of the DOM being unchanged -- that
@@ -397,7 +396,7 @@ describe('T7/T8: condition chips (remove-only, add entry removed)', () => {
   })
 })
 
-// P7a-T8: sv-side-mount's stub assertion ("empty shell, children.length===0") is upgraded here
+// sv-side-mount's stub assertion ("empty shell, children.length===0") is upgraded here
 // into a real component assertion -- SmartViewSidePanel/SmartViewActivityFeed's own
 // structure/interaction/style coverage already lives in their own __tests__ files; this only
 // pins down "is the host wiring correct": both components are actually mounted, the sv/busy/
@@ -427,7 +426,7 @@ describe('T8: right column (mount point delivers real components)', () => {
   })
 
   describe('threshold patch -> store.updateSmartView (300ms debounce)', () => {
-    // fix round 1 · M5: useRealTimers moved into afterEach (previously written at the end of
+    // useRealTimers moved into afterEach (previously written at the end of
     // the it block, so if an assertion failed first the fake clock would leak into later tests
     // in this file).
     beforeEach(() => { vi.useFakeTimers() })
@@ -442,7 +441,7 @@ describe('T8: right column (mount point delivers real components)', () => {
       expect(svc.photos.updateSmartView).toHaveBeenCalledWith('7', { threshold: 92 })
     })
 
-    // fix round 1 · I2 addendum: the host's `:busy="store.patchBusy"` prop source had zero
+    // The host's `:busy="store.patchBusy"` prop source had zero
     // test cases before this. While updateSmartView is pending, store.patchBusy=true should be
     // forwarded into SmartViewSidePanel and reflected on both switches' data-busy attribute.
     it('while store.patchBusy=true -> both SmartViewSidePanel switches carry data-busy="true"', async () => {
@@ -657,11 +656,11 @@ describe('header stats: four tiles', () => {
   })
 })
 
-// ── SP15-P2c Task 6: header action row (sort capsule / pause / edit / density) ────────────
+// ── header action row (sort capsule / pause / edit / density) ────────────
 // Target: 33b05636:src/views/Photos/PhotosSmartViewDetail.vue:49-90. Sort and density are new
 // construction on this page -- it never had either control -- so these tests describe the
 // target's row, not a rearrangement of what was here.
-describe('SP15-P2c Task 6: header action row', () => {
+describe('header action row', () => {
   /** Opens the sort menu and returns the option button carrying `sortId`. */
   async function pickSortOption(w: ReturnType<typeof mount>, sortId: string) {
     await w.find('[data-test="sv-sort-btn"]').trigger('click')
@@ -750,8 +749,8 @@ describe('SP15-P2c Task 6: header action row', () => {
     expect(w.find('[data-test="sv-sort-menu"]').exists()).toBe(false)
   })
 
-  // SP15-P2c Task 9 (target :96/:107 -- onTileClick(p, list), photoSet/recentSet passed from
-  // the template). Before this task, both grids' tiles shared one handler that always handed
+  // (target :96/:107 -- onTileClick(p, list), photoSet/recentSet passed from
+  // the template). Previously, both grids' tiles shared one handler that always handed
   // the lightbox `store.matchedAssets` -- the backend's match-score order -- regardless of
   // what Sort was showing. The fixture below is built so the two orders genuinely diverge:
   // "all matches" comes back m1/m2/m3 (score order) but taken-date-desc reorders it to
@@ -884,7 +883,7 @@ describe('SP15-P2c Task 6: header action row', () => {
   // descendant selectors (photos-smartview.scss:550-567/675) could match -- the exact same root
   // cause as the "New album" modal bug elsewhere. Same fix:
   // nest them back inside `.photos-root`.
-  describe('Fix-2 item 5: the tail section is a real descendant of .photos-root', () => {
+  describe('the tail section is a real descendant of .photos-root', () => {
     it('the select bar renders inside .photos-root (so parity .sv-select-bar can match)', async () => {
       svc.photos.getSmartViewAssets.mockResolvedValue([asset('a1')])
       const { w } = await mountView('7', [makeSv({ id: 7, addedThisWeek: 0 })])
@@ -960,8 +959,8 @@ describe('"Refine in Search" button (wired up as of T16)', () => {
   })
 })
 
-// ── more menu (unified into five entries as of Task 7; the Export button/menu is folded in
-//    entirely, see the "SP15-P2c Task 7" describe block below) ─────────────────────────────
+// ── more menu (unified into five entries; the Export button/menu is folded in
+//    entirely, see the "sidebar action section + unified menu" describe block below) ─────────────────────────────
 describe('more menu', () => {
   // Re-homed (Task 7): the old "menu shows three entries (rename/duplicate/delete)" case is now a strict subset
   // of "renders exactly five menu entries in the target order" below, which also pins the
@@ -984,17 +983,17 @@ describe('more menu', () => {
   })
 })
 
-// ── SP15-P2c Task 7: sidebar action section + unified five-entry "..." menu ────────────────
+// ── sidebar action section + unified five-entry "..." menu ────────────────
 // Target: 33b05636:src/views/Photos/PhotosSmartViewDetail.vue:127-225. Refine in Search and
-// the "..." menu move from the header row (where Task 6 parked them) into a new
-// `.sv-side-actions` container at the top of the sidebar, matching PhotosAlbumDetail.vue's own
-// (Task 5). The Export button/menu is gone entirely: ZIP folds into the unified menu as its
+// the "..." menu move from the header row into a new
+// `.sv-side-actions` container at the top of the sidebar, matching PhotosAlbumDetail.vue's own.
+// The Export button/menu is gone entirely: ZIP folds into the unified menu as its
 // third entry, and "Save as static album" (sv-export-album / exportAlbumAction) is deleted --
 // the target's own history (933a7d3a comment, restated in PhotosSmartViewDetail.vue's header)
 // records that Vue2 killed this same button in the same commit range and kept only the backend
 // capability, which is exactly the call made here too (see the component's own comment on the
 // deletion for the full trail).
-describe('SP15-P2c Task 7: sidebar action section + unified menu', () => {
+describe('sidebar action section + unified menu', () => {
   it('renders the sidebar action section with refine and the more button', async () => {
     const { w } = await mountView('7', [makeSv({ id: 7 })])
     const side = w.find('[data-test="sv-side-mount"]')
@@ -1063,11 +1062,11 @@ describe('SP15-P2c Task 7: sidebar action section + unified menu', () => {
     expect(w.find('[data-test="sv-more-menu"]').exists()).toBe(false)
   })
 
-  // Regression guard against E10 recurring (SP15-P2b's Important finding: the convert
-  // confirmation's primary-action colour and its Escape guard). The full flow (colour, Escape
+  // Regression guard against E10 recurring -- the convert
+  // confirmation's primary-action colour and its Escape guard. The full flow (colour, Escape
   // mid-flight, 409 copy, navigation) is already covered end-to-end by the "convert to regular
-  // album" describe block below Task 6's edit; this test's job is narrower and specific to
-  // Task 7's relocation -- proving the *new* sidebar entry point still reaches that flow at all.
+  // album" describe block below; this test's job is narrower and specific to
+  // this relocation -- proving the *new* sidebar entry point still reaches that flow at all.
   it('keeps the convert-to-album confirmation flow working from the new entry', async () => {
     const { w } = await mountView('7', [makeSv({ id: 7, count: 12 })])
     await w.find('[data-test="sv-more-toggle"]').trigger('click')
@@ -1130,9 +1129,9 @@ describe('export ZIP', () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1)
     const [url, opts] = fetchSpy.mock.calls[0]
     expect(String(url)).toContain('/export')
-    // fix round 1 · C1 (Critical): this endpoint only registers POST (route/v1/smartviews.go:34);
+    // This endpoint only registers POST (route/v1/smartviews.go:34);
     // a default GET would be rejected by Echo as 405 -- without this assertion, a wrong method
-    // would go undetected (verified by the reviewer's reverse mutation test).
+    // would go undetected (verified by a reverse mutation test).
     expect((opts as { method?: string }).method).toBe('POST')
     expect((opts as { headers: Record<string, string> }).headers.Authorization).toBe('tok-123')
     expect(hrefSpy).not.toHaveBeenCalled()
@@ -1171,7 +1170,7 @@ describe('export ZIP', () => {
   })
 })
 
-// SP15-P2c Task 7: the 'export album' describe block (Save as static album, exportAlbumAction/
+// The 'export album' describe block (Save as static album, exportAlbumAction/
 // sv-export-album) is deleted here, not re-homed -- the capability itself is gone. The Vue2
 // target's own history records the same deletion in the same commit range (see
 // PhotosSmartViewDetail.vue's comment on `exportAlbumAction`'s removal for the full trail);
@@ -1187,8 +1186,8 @@ describe('delete smart view', () => {
     expect(w.find('[data-test="sv-confirm-scrim"]').exists()).toBe(true)
   })
 
-  // SP15-P2b Task 5: after deletion the user lands on Albums, not the now-Moments-only
-  // smart-views route (smart albums moved to Albums in Tasks 3/4).
+  // After deletion the user lands on Albums, not the now-Moments-only
+  // smart-views route (smart albums moved to Albums).
   it('click confirm -> deleteSmartView is called -> router.push to the albums page + toast with undo', async () => {
     svc.photos.deleteSmartView.mockResolvedValue({})
     const { w, router } = await mountView('7', [makeSv({ id: 7, name: 'Sunsets' })])
@@ -1205,7 +1204,7 @@ describe('delete smart view', () => {
     expect(typeof last.action?.onClick).toBe('function')
   })
 
-  // fix wave F3 (final-review must-fix): the undo callback used to be `void store.restoreSmartView(...)` --
+  // The undo callback used to be `void store.restoreSmartView(...)` --
   // when the underlying service.photos.createSmartView rejects, the store's restoreSmartView
   // throws (smartViews.ts:303-304), and `void` on the call swallows that throw entirely, so the
   // UI gives no feedback at all and it becomes an unhandled promise rejection. This pins down:
@@ -1274,7 +1273,7 @@ describe('duplicate', () => {
   })
 })
 
-// ── SP15-P2b Task 8: smart album → regular album (reverse of Task 7's convertFromAlbum) ──
+// ── smart album → regular album (reverse of the convertFromAlbum flow) ──
 describe('convert to regular album', () => {
   let convertFromSmartView: ReturnType<typeof vi.spyOn>
 
@@ -1354,7 +1353,7 @@ describe('convert to regular album', () => {
   })
 
   it('closes the convert confirmation on Escape', async () => {
-    // Retitled in the final fix wave: the old title claimed this covered "along with any
+    // This test's title used to claim it covered "along with any
     // other open overlay", but askConvertToAlbum closes the more menu on its way in, so no
     // second overlay is ever open here. The multi-overlay invariant (independent ifs, never
     // an early return) is covered by the existing export-menu + more-menu case.
@@ -1393,12 +1392,11 @@ describe('convert to regular album', () => {
     const { w } = await mountView('7', [makeSv({ id: 7, count: 12 })])
     await openConvertConfirm(w)
     expect(w.find('[data-test="sv-convert-confirm"] .lb-confirm-icon').attributes('style')).toContain('--accent-hi')
-    // The delete dialog keeps the red disc (--danger, not --accent-hi). Fix-2 item 6 (owner
-    // acceptance, 2026-08-13): was --remove-fg, a global token not shadowed on `.photos-root`
+    // The delete dialog keeps the red disc (--danger, not --accent-hi). This was --remove-fg,
+    // a global token not shadowed on `.photos-root`
     // (so it did not follow the private photos-is-light toggle) -- switched to parity's own
     // --danger, declared directly on `.photos-root` and deliberately invariant across both of
-    // its themes by spec, matching Vue2's own literal more closely too (see the report's sweep
-    // table for the full trace).
+    // its themes by spec, matching Vue2's own literal more closely too.
     await w.find('[data-test="sv-convert-cancel"]').trigger('click')
     await w.find('[data-test="sv-more-toggle"]').trigger('click')
     await w.find('[data-test="sv-more-delete"]').trigger('click')
@@ -1442,8 +1440,8 @@ describe('two-section photo grid', () => {
     expect(w.findAll('[data-test="sv-all-tile"]')).toHaveLength(3)
   })
 
-  // SP15-P2c Task 9: this used to assert `call[1]).toBe(store.matchedAssets)` -- the raw store
-  // array, by reference. Task 9 hands the lightbox `matchedSet` (the Sort-applied view) instead,
+  // This used to assert `call[1]).toBe(store.matchedAssets)` -- the raw store
+  // array, by reference. The lightbox now receives `matchedSet` (the Sort-applied view) instead,
   // and `sortAlbumPhotos` always returns a fresh `[...photos]` copy (util/albumView.ts) even in
   // the default 'score' ordering, so the reference check would now fail even though the content
   // is identical. Content is what matters here (there is only one asset, so score-order content
@@ -1494,12 +1492,13 @@ describe('Fix-12: the lightbox is mounted on this page and its events are wired'
     expect(w.find('.lightbox').exists()).toBe(true)
   })
 
-  // Plan F Task 5 (2026-08-15): flipped from OUTSIDE to INSIDE -- the Fix-8 round 4 rule this
-  // test used to assert no longer applies. Plan F Tasks 3-5 re-skinned PhotoLightbox.vue's DOM/
-  // CSS onto parity's own grid shape and retired the local skeleton CSS that used to duplicate
-  // parity's `.photos-root .lightbox`/`.lb-*` selectors (Task 5), removing the same-specificity
-  // cascade tie that made nesting unsafe. See task-5-report.md for the full sweep.
-  it('the lightbox renders INSIDE .photos-root (Plan F Task 5: the re-skin removed the F8-r4 cascade tie)', async () => {
+  // Flipped from OUTSIDE to INSIDE -- the rule this
+  // test used to assert (that the lightbox had to render outside .photos-root to dodge a
+  // cascade tie) no longer applies. PhotoLightbox.vue's DOM/
+  // CSS was re-skinned onto parity's own grid shape and the local skeleton CSS that used to duplicate
+  // parity's `.photos-root .lightbox`/`.lb-*` selectors was retired, removing the same-specificity
+  // cascade tie that made nesting unsafe.
+  it('the lightbox renders INSIDE .photos-root now that the re-skin removed the cascade tie', async () => {
     svc.photos.getSmartViewAssets.mockImplementation(async (_id: string, opts: { recent?: boolean }) => {
       return opts?.recent ? [] : [asset('a1')]
     })
@@ -1566,7 +1565,7 @@ describe('overlays: menus open together + Esc + click-outside close', () => {
   })
 
   // 'click outside the menu (mousedown, bubbles: true) -> closes' (used to read sv-export-toggle/sv-export-menu)
-  // is superseded by "SP15-P2c Task 7" describe block's own "still closes the menu on an
+  // is superseded by the "sidebar action section + unified menu" describe block's own "still closes the menu on an
   // outside click" -- identical mechanism, same assertion, sv-more-toggle/sv-more-menu instead.
 })
 
@@ -1586,8 +1585,8 @@ describe('style: non-color visual properties 1:1 (property-by-property against V
     expect(rule?.body).toContain('min-width: 220px')
   })
 
-  // Plan C Task 5 re-skin fix: Vue2's own inline style on this button (:180) is
-  // `min-width:36px`, not 32px -- a 4px drift this task's shadowing pass caught and corrected;
+  // Vue2's own inline style on this button (:180) is
+  // `min-width:36px`, not 32px -- a 4px drift caught and corrected;
   // this guard now locks the right value.
   it('.sv-action-btn-icon keeps the padding/min-width/justify-content trio inline from Vue2 :180', () => {
     const rules = parseCssRules(extractStyleBlock(photosSmartViewDetailRaw))
@@ -1598,7 +1597,7 @@ describe('style: non-color visual properties 1:1 (property-by-property against V
     expect(rule?.body).toContain('justify-content: center')
   })
 
-  // fix round 1 · M2: the two-column layout container (scss:161-166).
+  // The two-column layout container (scss:161-166).
   it('.sv-detail-layout is grid-template-columns: 1fr 320px (Vue2 two-column layout)', () => {
     const rules = parseCssRules(extractStyleBlock(photosSmartViewDetailRaw))
     const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-detail-layout')
@@ -1616,7 +1615,7 @@ describe('style: non-color visual properties 1:1 (property-by-property against V
     expect(rule?.body).toContain('grid-template-columns: 1fr')
   })
 
-  // fix round 1 · I2: the transition for both menus + the delete confirmation dialog -- Vue3
+  // The transition for both menus + the delete confirmation dialog -- Vue3
   // uses `-enter-from` (not Vue2's `-enter`).
   it('.sv-menu-enter-from / .sv-menu-leave-to keep the opacity+translateY+scale from Vue2 scss:454-455', () => {
     const rules = parseCssRules(extractStyleBlock(photosSmartViewDetailRaw))
@@ -1638,7 +1637,7 @@ describe('style: non-color visual properties 1:1 (property-by-property against V
     expect(rule?.body).toContain('scale(0.95)')
   })
 
-  // fix round 1 · I3: the inset shadow on the inner side of the accent ring over light photos (scss:506-513).
+  // The inset shadow on the inner side of the accent ring over light photos (scss:506-513).
   it('.sv-grid-photos .tile.recent::after keeps the inset box-shadow from Vue2', () => {
     const rules = parseCssRules(extractStyleBlock(photosSmartViewDetailRaw))
     const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-grid-photos .tile.recent::after')
@@ -1647,7 +1646,7 @@ describe('style: non-color visual properties 1:1 (property-by-property against V
   })
 })
 
-// fix round 1 · I2 (the menus/dialogs are actually wrapped in <Transition>, not just defined in styles but unused in the template) ────
+// The menus/dialogs are actually wrapped in <Transition>, not just defined in styles but unused in the template ────
 describe('the overlay <Transition> wrapper is actually wired up (checked against source text, not a dormant style block)', () => {
   // Re-homed (Task 7): the export menu's own <Transition name="sv-menu"> is gone along with
   // the button that opened it, leaving exactly one -- the unified more menu's. The target
@@ -1688,7 +1687,7 @@ describe('style: hover cascade attribution variant', () => {
     expect(win.specificity).toBe(3)
   })
 
-  // SP15-P2c Task 8, coordinator review fix round 2: this rehomes the deleted
+  // This rehomes the deleted
   // SmartViewConditionEditor.test.ts's cssCascade assertion for the condition chip's own
   // hover rule, moved in from that component along with the markup. Query with the SAME
   // two-class form the two sibling tests above use (base + variant), not a single-class
@@ -1697,8 +1696,8 @@ describe('style: hover cascade attribution variant', () => {
   // class-membership against the list passed in), which would make this test blind to the
   // exact base-beats-variant regression it exists to catch. `.sv-cond` has no `:hover` rule
   // today, but the query still has to include it so the test would actually fail if one were
-  // ever added with equal-or-higher specificity than `.sv-cond-removable:hover` -- see the
-  // mutation check in task-8-report.md for proof this form (not the single-class form tried
+  // ever added with equal-or-higher specificity than `.sv-cond-removable:hover` -- a
+  // mutation check proved this form (not the single-class form tried
   // first) actually reddens on that scenario.
   it('.sv-cond / .sv-cond-removable (condition chip) hover-winning rule contains :hover and belongs to the variant', () => {
     const style = extractStyleBlock(photosSmartViewDetailRaw)
@@ -1731,7 +1730,7 @@ describe('red goes through a token, not hardcoded as a literal', () => {
 // Vue2 nav it lives under is 'albums'. So the topbar here matches PhotosAlbums.vue/
 // PhotosAlbumDetail.vue exactly: title='Albums', sub=album-aggregate counts (not the
 // default full-library line).
-describe('Fix-1 item 1: PhotosTopbar restored (title=Albums, album-aggregate sub -- smart views nest under the Albums nav in Vue2)', () => {
+describe('PhotosTopbar restored (title=Albums, album-aggregate sub -- smart views nest under the Albums nav in Vue2)', () => {
   it('renders the topbar with title=Albums and the album-aggregate sub, no search box', async () => {
     svc.photos.listAlbums.mockResolvedValue([{ id: 1, name: 'A', photoCount: 30, videoCount: 1 }])
     const { w } = await mountView()

@@ -1,4 +1,4 @@
-// SP8-P2a Task 5 — 1:1 ported from Vue2
+// 1:1 ported from Vue2
 // `src/views/AI/Settings/store/settingsStore.js` (376 lines), migrated as a whole
 // Pinia setup store (user decided on 2026-07-28; splitting would make
 // top-bar status lights, nav badges, etc. require cross-section store references,
@@ -674,7 +674,7 @@ export const useSettingsStore = defineStore('ai-settings', () => {
   }
 
   /**
-   * SP8-P2a D2 — Vue2 doesn't have this action, but this repo must.
+   * D2 — Vue2 doesn't have this action, but this repo must.
    *
    * Vue2's `Settings.vue:101` creates a new state with `createSettingsStore()`
    * on every mount and discards it on unmount, so every time entering Settings:

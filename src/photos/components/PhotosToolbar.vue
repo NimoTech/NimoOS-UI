@@ -1,10 +1,10 @@
 <script setup lang="ts">
 // Ported (Options API -> <script setup> Composition API, logic unchanged) from
 // the Vue 2 panel's src/views/Photos/PhotosToolbar.vue (49 lines).
-// P1 scope cut: no icon library — tabs/density buttons render as
-// plain text with i18n labels. (The `after-tabs` slot was later restored by SP7-P7b-T3.)
+// Initial scope cut: no icon library — tabs/density buttons render as
+// plain text with i18n labels. (The `after-tabs` slot was later restored.)
 //
-// Plan B Task 5 re-skin (2026-08-12, D19's sibling task "toolbar + FilterBar re-skin"):
+// Re-skin pass, done alongside a matching "toolbar + FilterBar re-skin" pass elsewhere:
 // 1) Root class name `.photos-toolbar` -> `.toolbar`, so that the
 //    `.photos-root .toolbar/.tabs/.tab/.density/.muted-text` rules already ported verbatim
 //    into src/photos/styles/vue2-parity/photos.scss (matching Vue2 photos.scss:266-289) take
@@ -15,11 +15,11 @@
 //    is entirely handed off to the parity scss (on the condition that the host renders under
 //    .photos-root, which both the timeline page Photos.vue:272 and the jump-to-library page
 //    PhotosPlaceAssets.vue:173 satisfy).
-// 2) P1 back then dropped the tab/density icons because "there's no shared icon library" (see
-//    the old comment above) — this task restores them too. Following the precedent set by
+// 2) The initial pass dropped the tab/density icons because "there's no shared icon library" (see
+//    the old comment above) — this re-skin restores them too. Following the precedent set by
 //    PhotosFilterChip.vue/PhotosFilterBar.vue, this component inlines its own <svg> rather
-//    than going through the shared PhotosIcon.vue component (note: T3 had already built
-//    PhotosIcon.vue by this point, and T4/T6/T7 were all already consuming it — so the "no
+//    than going through the shared PhotosIcon.vue component (note: PhotosIcon.vue already
+//    existed by this point, and several other components were already consuming it — so the "no
 //    shared icon library exists in this repo" premise no longer held true by the time this
 //    was written; this is the component deliberately continuing to inline icons following an
 //    existing precedent, not a lack of a shared component to reach for). The glyphs are
@@ -73,9 +73,9 @@ function setDensity(v: string) { emit('update:density', v) }
         {{ t('photosTabVideos') }}
       </button>
     </div>
-    <!-- P7b-T3: the EXIF filter bar (funnel icon + inline-expanding chips) sits after the
+    <!-- The EXIF filter bar (funnel icon + inline-expanding chips) sits after the
          tabs -- position follows the Vue 2 panel's src/views/Photos/PhotosToolbar.vue:15-16.
-         P1 explicitly dropped this slot back then; this task restores it per P7b. -->
+         This slot was explicitly dropped early on and has since been restored. -->
     <slot name="after-tabs" />
     <div style="flex:1"></div>
     <span class="muted-text">{{ t('photosItemsCount', { count: props.count }) }}</span>

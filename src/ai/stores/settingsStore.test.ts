@@ -1,4 +1,4 @@
-// SP8-P2a Task 5 — settingsStore tests. Each corresponds to the 36 test cases
+// settingsStore tests. Each corresponds to the 36 test cases
 // in brief Step 1's list (Models / download polling / Providers / Policy /
 // Services status / D2 reset – six groups).
 //

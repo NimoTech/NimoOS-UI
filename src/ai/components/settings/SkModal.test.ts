@@ -65,7 +65,7 @@ describe('SkModal', () => {
     expect(w.emitted('update:open')).toEqual([[false]])
   })
 
-  // SP8-P3b Task 5 — footerLeft slot (consumed by AddSkillModal: left "save locally on this NAS"
+  // footerLeft slot (consumed by AddSkillModal: left "save locally on this NAS"
   // explanation, right cancel/create buttons), pure incremental, don't change any existing assertions above.
   it('footerLeft slot renders as preceding sibling of .right (both columns coexist)', async () => {
     mount(SkModal, {

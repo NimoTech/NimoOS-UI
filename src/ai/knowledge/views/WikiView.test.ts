@@ -1,4 +1,4 @@
-// SP8-P5f Task 6 — Component test for `WikiView.vue` (top half).
+// Component test for `WikiView.vue` (top half).
 // Blueprint the Vue 2 panel @ `7a6ee6b7` `src/views/AI/Knowledge/WikiView.vue` (314 lines).
 // 🔴 T7 will continue writing this file (summary / directory / recent changes / source view toggle / rescan / §9.15 XSS cases).
 //
@@ -31,7 +31,7 @@
 //
 // ═══ environment pitfalls (verbatim reuse of proven solutions from `wikiViewHelpers.test.ts`) ═══
 // This repo's `package.json` is `"type": "module"` ⇒ `__dirname` unavailable, use `import.meta.url`;
-// `@types/node` already installed (SP8-P6 merged from master) ⇒ `node:fs` / `node:path` / `node:url` can be
+// `@types/node` already installed (merged from master) ⇒ `node:fs` / `node:path` / `node:url` can be
 // imported directly, **no need** for `@ts-expect-error` (existing suppress lines on sp8-ai branch were removed during merge).
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
@@ -65,7 +65,7 @@ vi.mock('@nimotech/nimoos-service', async (importOriginal) => {
   return { ...actual, service: { wiki } }
 })
 
-// `openDirInNewTab` is existing output from P5a-T5 (zero changes for this period), here only spy on
+// `openDirInNewTab` is existing output from an earlier task (zero changes this pass), here only spy on
 // "whether it was called with correct arguments", don't test its own behavior (precedent: `NotesView.test.ts:68`).
 const openDirInNewTab = vi.hoisted(() => vi.fn())
 // T7: the "byPath miss" branch of `childClick` calls `openFileInNewTab` (blueprint `:290`).
@@ -1358,7 +1358,7 @@ function hasSummaryMarkup(strippedTmpl: string): boolean {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ═══════════════════════ SP8-P5f Task 7 — bottom-half test cases ═══════════════════════
+// ═══════════════════════ Bottom-half test cases ═══════════════════════
 //
 // Coverage: §9.15 XSS · `raw` two branches · `showSource` toggle · `childMap` directory section ·
 //       `changes` recent changes · `rescan()` · `kw-foot`.
@@ -1896,14 +1896,14 @@ describe('WikiView — kw-foot (blueprint :134-140)', () => {
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🔴 [SP8-P5f Task 8 added, 2026-08-06] T7 independent review closure Important I-1:
+// 🔴 T7 independent review closure Important I-1:
 // `kw-sec-en` two decorator texts **previously zero-guarded**.
 // Governance §3.5 / Appendix A §A.4 mandates: blueprint these two **not passed through `$t()`**, copy literals, must not i18n;
 // `WikiView.vue` template comments also state this twice. but repo has no assertions guarding it —
 // review i18n'd both, single file 100 tests and full repo 4658 tests **all green** ("product code right, guard zero"
 // family). ⚠️ same group `.kw-sec-title` Chinese **has** assertion, `kw-title` `TREE` **has** assertion,
 // **only `kw-sec-en` pair naked** ⇒ omission, not "this type untested".
-// 🔴 criterion (this task tested, see p5f-task-8-report.md): change both to `{{ t('…') }}`
+// 🔴 criterion (this task tested): change both to `{{ t('…') }}`
 //    → this must fail.
 // 🔴 this block **only adds**, `WikiView.test.ts` existing zero changes per line (report to `git diff` self-proves).
 describe('WikiView — kw-sec-en decorator text copy literals (Appendix A §A.4 / T7 review I-1)', () => {

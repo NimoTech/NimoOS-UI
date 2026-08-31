@@ -4,7 +4,7 @@ import ConsoleHeader from './ConsoleHeader.vue'
 import { i18n } from '../../i18n'
 import type { KvmVM } from '@nimotech/nimoos-service'
 
-// kvmComingSoon draft copy "即将支持" → actual "即将上线" (verified against zh_cn.sp9.ts, see task-5-report.md).
+// kvmComingSoon draft copy "即将支持" → actual "即将上线" (verified against zh_cn.sp9.ts.
 
 const VM = (state = 'running') => ({ id: 'vm-1', name: 'sp9-alpine-test', state, os: 'linux', autostart: false } as KvmVM)
 const mk = (vm = VM()) => mount(ConsoleHeader, { props: { vm, processing: false }, global: { plugins: [i18n] } })

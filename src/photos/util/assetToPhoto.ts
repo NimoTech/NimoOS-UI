@@ -410,7 +410,7 @@ export interface Month {
   title: string
   loc: string
   photos: Photo[]
-  // SP15-P3 bucket metadata. Absent on legacy timeline groups and on every
+  // Bucket metadata. Absent on legacy timeline groups and on every
   // synthetic group (search results, favorites, place assets) — `loaded`
   // undefined must be read as "already loaded", never as "pending".
   loaded?: boolean

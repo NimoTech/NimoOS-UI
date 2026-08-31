@@ -1,16 +1,16 @@
-// SP7-P8a-T3: PhotosStorageCard.vue — Storage card on the settings page.
+// PhotosStorageCard.vue — Storage card on the settings page.
 // Source coordinates: Vue2 PhotosSettings.vue:39-126(template)/:299-331(computed)/
 // :382(fmt)/:405-457(fmtBytes/five action methods).
 //
-// Test infrastructure deviation registry (brief vs. actual repo — follow actual test results):
-// 1. The brief draft uses `@pinia/testing`'s `createTestingPinia({ stubActions: true })`, but the repo's
+// Test infrastructure notes (follow actual test results):
+// 1. `@pinia/testing`'s `createTestingPinia({ stubActions: true })` is not available — the repo's
 //    package.json does not have that package (`node_modules/.pnpm` has no @pinia/testing at any version).
 //    Use the established pattern from settings.test.ts / AlbumPickerDialog.test.ts instead:
 //    `setActivePinia(createPinia())` to create a real store instance, then use `vi.spyOn(store, 'action')`
 //    to selectively stub only the actions that need controlled return values, while the rest use the real
 //    implementation (we mock the shared package `@nimotech/nimoos-service`, not the store itself).
-// 2. The brief's Step7 references `winningDeclaration(css, [...], 'background', {hover, dataActive})`
-//    and `readComponentStyle()`, but neither exists in `cssCascade.ts` — that file actually only exports
+// 2. `winningDeclaration(css, [...], 'background', {hover, dataActive})`
+//    and `readComponentStyle()` don't exist in `cssCascade.ts` — that file actually only exports
 //    `extractStyleBlock`/`winningHoverBackground`/`parseCssRules`/`ownBackground`. Use the established
 //    pattern from `PhotosFilterChip.test.ts:107-114` instead: import component source with `?raw` →
 //    `extractStyleBlock` → `winningHoverBackground(style, ['seg-btn'])`, and assert that the winning
@@ -49,8 +49,8 @@ describe('storage card pure functions', () => {
   })
 
   it('buildBreakdown: remainder exactly 0.05 GB does not append other (boundary is strict greater-than)', () => {
-    // Deviation registry (brief's test fixture has floating-point error, not source/brief logic conflict):
-    // The brief draft originally used `{photosBytes: 1GB}, usedGB=1.05` intending other = 1.05-1 to hit 0.05 exactly,
+    // Note: the original test fixture had a floating-point error, not a source logic conflict.
+    // An earlier version of this fixture used `{photosBytes: 1GB}, usedGB=1.05` intending other = 1.05-1 to hit 0.05 exactly,
     // but `1.05 - 1` in IEEE-754 double precision is 0.050000000000000044 (> 0.05), not exactly 0.05,
     // so the "no append at boundary" test case would necessarily misbehave with the original numbers — this is
     // inherent noise in floating-point subtraction, unrelated to the buildBreakdown/Vue2 source's `other > 0.05`
@@ -214,7 +214,7 @@ describe('PhotosStorageCard', () => {
     expect(wrapper.emitted('toast')).toBeTruthy()
   })
 
-  it('capacity bar segment count = breakdown count + 1 free segment (review Important-take-along: exact assertion, not >=5)', async () => {
+  it('capacity bar segment count = breakdown count + 1 free segment (exact assertion, not >=5)', async () => {
     const { wrapper, store } = mountCard()
     const fixture = {
       diskTotalBytes: 100 * GB, diskFreeBytes: 40 * GB, prunableBytes: 512 * 1024 * 1024,
@@ -233,16 +233,15 @@ describe('PhotosStorageCard', () => {
     expect(wrapper.findAll('[data-test="bar-free"]')).toHaveLength(1)
   })
 
-  it('on mount, fetch storage once (fetchStorage called, correcting action named in T3 Consumes interface list)', () => {
+  it('on mount, fetch storage once (fetchStorage called)', () => {
     const fetchSpy = vi.spyOn(usePhotosSettingsStore(), 'fetchStorage')
     mount(PhotosStorageCard)
     expect(fetchSpy).toHaveBeenCalled()
   })
 
-  // Review Important-1: Rescan Now (rescanNow/triggerScan/scanBusy guard/success check toast/
-  // failure fallback toast) had zero coverage previously — task-3-report.md mistakenly claimed "included in component and tests",
-  // but it was never actually written. Added three conditions: success, failure, busy-time guard (first report's completeness claim was
-  // inaccurate; it's been properly documented in the report — not just quietly changed to "now tested").
+  // Rescan Now (rescanNow/triggerScan/scanBusy guard/success check toast/
+  // failure fallback toast) had zero coverage previously, despite being assumed covered.
+  // Added three conditions: success, failure, busy-time guard.
   it('Rescan Now success: call triggerScan, emit check toast, reset scanBusy', async () => {
     const { wrapper, store } = mountCard()
     vi.spyOn(store, 'triggerScan').mockResolvedValue(true)

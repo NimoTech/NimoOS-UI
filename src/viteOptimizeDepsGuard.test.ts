@@ -1,6 +1,6 @@
 // Convention guard: the shared package @nimotech/nimoos-service must stay in vite's optimizeDeps.exclude.
 //
-// Since SP13 (2026-08-07) the package is inlined into this repo at `packages/service/`
+// Since 2026-08-07 the package is inlined into this repo at `packages/service/`
 // (`package.json` says `file:packages/service`, no longer pointing at the old external service package) — but
 // this guard is still required; do not consider it obsolete just because "the package is
 // already in the repo". Reason: it is still a `file:` dependency, still resolved through
@@ -11,8 +11,8 @@
 // editing `packages/service/src/*.ts` never triggers invalidation.
 //
 // Why this deserves a test watching it: once this config gets "cleaned up", the failure is
-// **silent and dev-only** — the SP9-P1 acceptance lost a whole round this way (all 4 write
-// operations reported "failed to save config"), and during the SP13 inlining it was deleted
+// **silent and dev-only** — an acceptance run once lost a whole round this way (all 4 write
+// operations reported "failed to save config"), and during the inlining above it was deleted
 // once on the mistaken belief "entry points at source ⇒ exclude no longer needed", then
 // restored after being disproven in practice. Unit tests use the source, production builds
 // use node_modules — both are fresh — so this trap only surfaces on the dev server and no

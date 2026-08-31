@@ -44,7 +44,7 @@ const props = withDefaults(
 )
 const { t } = useI18n()
 
-// SP8-P1b Task 9 — generative, seed-indexed placeholder mosaic (same exception
+// Generative, seed-indexed placeholder mosaic (same exception
 // category as VideoCard/ImageGridCard/SearchFullResults; see tokens.scss header).
 const PALETTES = [
   ['#FF9A8B', '#FF6A88'], ['#A1C4FD', '#C2E9FB'],

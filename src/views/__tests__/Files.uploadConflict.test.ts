@@ -212,7 +212,7 @@ describe('Files.vue upload-conflict wiring', () => {
   // drives the real, un-stubbed FileConflictDialog child and asserts the choice it
   // emits genuinely reaches addFilesToQueue as the item's conflictPolicy.
   //
-  // Forced-RED self-proof (see task-9-report.md for the exact commands/output):
+  // Forced-RED self-proof:
   // deleting `@choose="conflicts.onChoose"` from Files.vue's template makes
   // waitForDialogClose below throw its own named error (the dialog never closes,
   // because conflicts.onChoose is never called to settle it) — fast and clearly
@@ -274,7 +274,7 @@ describe('Files.vue upload-conflict wiring', () => {
   // snapshot where a missing :allow-merge or :queue-total binding would go unnoticed
   // by every other test in this file.
   //
-  // Forced-RED self-proof (see task-9-report.md): deleting `:allow-merge` makes the
+  // Forced-RED self-proof: deleting `:allow-merge` makes the
   // allowMerge assertion below fail (prop falls back to its `false` default instead of
   // the real `true`); deleting `:queue-total` makes the queueTotal assertion fail the
   // same way (falls back to `1` instead of `2`). Both restored afterwards.

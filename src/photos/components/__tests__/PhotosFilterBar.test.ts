@@ -1,4 +1,4 @@
-// SP7-P7b-T2: PhotosFilterBar.vue — funnel + three-pill EXIF filter bar.
+// PhotosFilterBar.vue — funnel + three-pill EXIF filter bar.
 // Reference source: the Vue 2 panel's src/views/Photos/PhotosFilterBar.vue (312 lines).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'
@@ -116,7 +116,7 @@ describe('structure and expand/collapse', () => {
   })
 })
 
-describe('Plan B Task 5: popover max-height 260 (another Vue2 value outside of D19, logged at the top of PhotosFilterPopover.vue)', () => {
+describe('popover max-height 260 (another Vue2 value outside of D19, noted at the top of PhotosFilterPopover.vue)', () => {
   it('opening any pill\'s popover -> .fpop-list inline style is 260px, not the primitive default of 280px', async () => {
     const w = mountBar()
     await w.get('[data-test="exif-funnel"]').trigger('click')

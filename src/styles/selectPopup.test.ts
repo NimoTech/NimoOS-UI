@@ -2,7 +2,7 @@
 // Repo-wide guard: the native <select> element's **popup list** must not end up unreadable —
 // background and text collapsing to the same pale tone — because of an author-supplied background.
 //
-// Incident (2026-08-05 SP9-P8 acceptance testing, spotted by the owner at a glance): under the dark
+// Incident (2026-08-05 acceptance testing, spotted by the owner at a glance): under the dark
 // theme, every dropdown on the settings page became unreadable — background and text washed out to
 // the same pale tone. The root cause **is not** a missing color-scheme — theme.css's root already has
 // `color-scheme: dark`. The real cause is that

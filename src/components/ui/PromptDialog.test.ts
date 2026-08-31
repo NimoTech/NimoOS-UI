@@ -11,8 +11,7 @@ const base = {
 // reka-ui teleports content to body; tests query document instead of the wrapper.
 const q = (sel: string) => document.querySelector(sel)
 
-// SP8-P2a Task 6 — declared deviation (differs from the brief's Step 2 wording; logged in the
-// report and the ledger): reka-ui@2.10.1's Teleport component
+// Declared deviation from the original design (logged internally): reka-ui@2.10.1's Teleport component
 // (node_modules/reka-ui/dist/Teleport/Teleport.js) uses `@vueuse/core`'s `useMounted()` as an
 // SSR safety gate: the first synchronous render is always `isMounted=false` → it emits only a
 // `<!--v-if-->` placeholder comment, and the re-render triggered by flipping it true in

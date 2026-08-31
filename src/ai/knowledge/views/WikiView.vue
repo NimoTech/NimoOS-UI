@@ -1,5 +1,5 @@
 <!--
-  SP8-P5f Task 6 (first half) + **Task 7 (second half, this batch)** — "Wiki navigation" page
+  First half + second half (this batch) — "Wiki navigation" page
   (rail item 3, route `/ai/knowledge/wiki`),
   1:1 ported from Vue 2 reference the Vue 2 panel @ `7a6ee6b7`
   `src/views/AI/Knowledge/WikiView.vue` (314 lines, read via
@@ -15,13 +15,13 @@
     · Template `:48-75` — breadcrumb / title / "open folder" / article skeleton (four `k-skel`
                           under `nodeLoading`);
     · Template `:76-81` — `<template v-else>` and its internal `kw-meta` three lines.
-      🔴 **Boundary declaration**: T6 brief says "scope: template `:48-75`", while same brief says
-      "do not write: all of `:76-141` after **`kw-meta`**" — two statements assign `:76-81`
-      opposite ownerships. This batch takes **the latter** ("after `kw-meta`" = `kw-meta` itself
-      goes to T6), reasoning: T6's DoD #8 requires "fallback test cases for `updatedFmt` /
-      `selAiLabel`", and these two computed have **only `kw-meta` as a render outlet** — without
-      porting `kw-meta` there is no observable surface, DoD requirement fails (governance §10
-      declaration discipline #2 same case). **Explicitly declared in T6 report.**
+      🔴 **Boundary declaration**: the task brief says "scope: template `:48-75`", while the same
+      brief says "do not write: all of `:76-141` after **`kw-meta`**" — two statements assign
+      `:76-81` opposite ownerships. This batch takes **the latter** ("after `kw-meta`" = `kw-meta`
+      itself is in scope), reasoning: the task's DoD #8 requires "fallback test cases for
+      `updatedFmt` / `selAiLabel`", and these two computed have **only `kw-meta` as a render
+      outlet** — without porting `kw-meta` there is no observable surface, DoD requirement fails
+      (governance §10 declaration discipline #2 same case). **Explicitly declared.**
     · script: `visibleNodes` / `trail` / `crumbParents` / `selTreeNode` / `selName` /
       `selAiLabel` / `updatedFmt` / `owningRoot` · `loadTree` / `isOpen` / `toggle` /
       `nodeClick` / `select` / `fetchArticle` / `openFolder` · watch on `$route.query.path`.
@@ -130,8 +130,8 @@
 
   【K58 form A — `fetchArticle`'s catch does not echo backend body】
     Blueprint `:277`: `toast($t('Operation failed') + ': ' + (e.message || e))`.
-    K5/K58 mandate forbid echoing backend strings into UI; `p5f-task-0-report.md` §12 establishes
-    this repo's standard practice (precedent `QueueView.vue:212-217` / `IndexedFilesView.vue:592-593`
+    K5/K58 mandate forbid echoing backend strings into UI. This repo's standard practice
+    (precedent `QueueView.vue:212-217` / `IndexedFilesView.vue:592-593`
     / `NoteEditPane.vue:461`, same-period `RootsView.vue` four places) — **catch discards
     `e.message`, shows only fixed i18n key, and "no second clause to concatenate so no `': '`
     prefix"**. This file's sole catch-toast becomes `aiKbOpFailed`. **No new mapping invented.**
@@ -141,7 +141,7 @@
     ⚠️ That probe text **deliberately does not appear in this file** (governance §9: negative
     assertion hits comment = false positive).
 
-  【K27 same-family — toast always via `store.toast(...)`】Ruling **R27** (P5e) / errata **E-62**:
+  【K27 same-family — toast always via `store.toast(...)`】Ruling **R27** / errata **E-62**:
     inside `knowledgeStore.ts` `toast()` is `useToast().show(msg, 2400)`, while **global `show()`
     defaults to 1500ms only** ⇒ direct `useToast()` loses blueprint's own 2400ms. Eight existing
     pages all use `store.toast()`, this page follows same — this batch's scope has **1 place**
@@ -153,7 +153,7 @@
     ⇒ HTTP response is PascalCase; `/tree`, `/node`, `/raw` are snake_case. **Bidirectional
     normalization already in shared package** (`the shared service package's src/wiki.ts:85 normalizeRoot` /
     `:102 normalizeTreeNode` / `:112 normalizeNode`) ⇒ **store exit is camelCase throughout**
-    (T0 determined by testing, `p5f-task-0-report.md` §4.4). This page only consumes camelCase
+    (T0 determined by testing). This page only consumes camelCase
     `aiLabel` / `lastModified` / `r.path` / `r.id`, **must not normalize again in page**.
 
   【N48 — `loadWikiNode` / `loadWikiRaw` 404→null layer, copy as-is】
@@ -588,9 +588,9 @@ async function rescan(): Promise<void> {
   }
 }
 
-/** Blueprint `:308-311` (**T7**) — RFC3339 → "x minutes ago"; backend `formatTS` empty
+/** Blueprint `:308-311` — RFC3339 → "x minutes ago"; backend `formatTS` empty
  *  string / invalid value through `parseTs` becomes 0 ⇒ return empty string (don't show
- *  `1970`, follows P5d-T3 unit lesson). */
+ *  `1970`, see governance §9.13). */
 function fmtTs(rfc3339: string): string {
   const ms = parseTs(rfc3339)
   return ms ? fmtAgo(ms) : ''

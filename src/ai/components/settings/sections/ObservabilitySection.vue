@@ -1,5 +1,5 @@
 <!--
-  SP8-P2b Task 8 — Port 1:1 from Vue2 src/views/AI/Settings/sections/ObservabilitySection.vue
+  Port 1:1 from Vue2 src/views/AI/Settings/sections/ObservabilitySection.vue
   (211 lines) + existing tests sections/__tests__/ObservabilitySection.spec.js(5 tests; see
   mapping table in test file header comment).
 

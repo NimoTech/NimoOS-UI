@@ -1,4 +1,4 @@
-// SP8-P5a Task 9 —— Ported from Vue2 `src/views/AI/Knowledge/__tests__/dashboardHelpers.spec.js`
+// Ported from Vue2 `src/views/AI/Knowledge/__tests__/dashboardHelpers.spec.js`
 // (main@7a6ee6b7). The original spec has 6 test cases (updatePeak 1, progressPercent 1,
 // fmtEta 1, summarizeNotes 3); the test code from brief adds 3 edge cases (updatePeak
 // default tolerance, progressPercent negative peak, fmtEta 0/3600 new assertions), and

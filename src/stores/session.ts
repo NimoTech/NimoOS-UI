@@ -14,7 +14,7 @@ export const useSessionStore = defineStore('session', () => {
   const token = ref<string | null>(localStorage.getItem(ACCESS))
   const isAuthed = computed(() => !!token.value)
 
-  // SP8-P2b Task 2 -- Vue2 ChannelsSection.vue:184 reads $store.state.user.role to decide
+  // Vue2 ChannelsSection.vue:184 reads $store.state.user.role to decide
   // admin status. This repo's setUser only ever writes to localStorage and has no read-side
   // counterpart, so this fills that gap. Every read re-parses localStorage (rather than
   // caching into a ref): bad JSON always degrades to null, never throws.

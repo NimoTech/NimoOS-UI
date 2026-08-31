@@ -26,8 +26,8 @@ function refreshTimelineAfterTrashChange(): void {
   else void timeline.fetchTimeline()
 }
 
-// Task 12 (SP15-P3): NimoOS-Photos#54 turned an absent limit from "everything" into 500, so
-// this list has to be paged or it silently truncates — same fix, same shape, as Task 11's
+// NimoOS-Photos#54 turned an absent limit from "everything" into 500, so
+// this list has to be paged or it silently truncates — same fix, same shape, as
 // favorites.ts. See that file for the fuller rationale behind the two counters below.
 const TRASH_PAGE_SIZE = 500
 

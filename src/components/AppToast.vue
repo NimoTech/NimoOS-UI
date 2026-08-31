@@ -1,5 +1,5 @@
 <template>
-  <!-- SP8-P2b acceptance round 3 (2026-07-30): while the AI area is in the foreground, wrap
+  <!-- While the AI area is in the foreground, wrap
        ourselves in the AI toast scope and its light/dark theme. Without this, the component reads
        the global blue-black theme's translucent white background + white text, which is completely
        invisible on the AI light pages (no AI-area toast feedback ever reaches the user). Root cause
@@ -47,15 +47,15 @@ function onAction(t: ToastItem) {
    dialog panel = 1001, .sk-modal-bg = 1100) all sat above the toast, and with backdrop-filter the
    toast was blurred into oblivion — users thought the button did nothing and kept retrying
    (reproduced 2026-07-30: user clicked copy in the "create token" dialog).
-   [SP8-P6-T3 merge] take sp8's 10100 rather than master's 1100: the AI area lands on trunk with
-   this merge, and its SearchImageLightbox / SearchFileDrawer sit at 10000, SearchFullResults 9999,
-   so 1100 would be buried under them. 10100 is the smallest safe value that is "above the repo's
+   Use 10100 rather than 1100: the AI area's SearchImageLightbox / SearchFileDrawer sit at 10000,
+   and SearchFullResults sits at 9999, so 1100 would be buried under them. 10100 is the smallest
+   safe value that is "above the repo's
    highest 10000, with headroom".
    This element has pointer-events: none, so being on top never intercepts clicks. Guard: last
    test in AppToast.test.ts. */
 .toast-stack { position: fixed; z-index: 10100; left: 50%; bottom: var(--toast-bottom, 118px); transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 8px; pointer-events: none; }
 .toast { display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; border: 1px solid var(--chip-border); border-radius: 999px; background: var(--toast-bg); color: var(--toast-fg, var(--fg)); font-size: 13px; pointer-events: none; backdrop-filter: var(--blur); white-space: nowrap; }
-/* SP8-P1c2 Task 6: severity tiers. 'info' (the default/omitted case) keeps the
+/* Severity tiers. 'info' (the default/omitted case) keeps the
    base .toast rule above untouched — existing show(text)/show(text, ms) call
    sites across the app render identically to before this task. */
 .toast[data-tier="warning"] { background: var(--toast-warn-bg); color: var(--toast-warn-fg); }

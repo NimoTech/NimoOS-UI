@@ -1,7 +1,8 @@
-// Task 10(SP7-P6a 地点·地图主视图):placesMapThemes.ts —— 地图主题预设表 + resolveMapTheme
-// 语义。逐条对应 task-10-brief.md 的「必含测试清单」+ 26 个色值逐字断言 + 5 处删码验证。
+// placesMapThemes.ts — map theme preset table + resolveMapTheme
+// semantics. Corresponds to the mandatory test checklist item-by-item, plus a character-for-character
+// assertion for all 26 color values and 5 dead-code-removal checks.
 //
-// Plan E Task 6 (2026-08-15): updated for the Vue 2 panel PR #106 sub-commits 1-3 (git show
+// Updated for the Vue 2 panel PR #106 sub-commits 1-3 (git show
 // 78cf3335) — the dotBg contrast finals (bumped twice: 0.10→0.20→0.30, plus the ocean/sand/mono
 // variants) and the custom-mode picker remap (Land dot color → dotBg via hexToRgba fixed-alpha
 // wash, City light color → dot solid, bg/grid following isLight). CUSTOM_GRID_DEFAULT is renamed
@@ -18,13 +19,13 @@ import {
   swatchColors,
 } from '../placesMapThemes'
 
-// ── 预设表:id/nameKey/descKey 齐备 ──────────────────────────────────────────
-describe('MAP_THEME_PRESETS 齐备性', () => {
-  it('恰好 4 个预设,id 顺序为 default/ocean/sand/mono', () => {
+// ── Preset table: id/nameKey/descKey completeness ──────────────────────────────────────────
+describe('MAP_THEME_PRESETS completeness', () => {
+  it('exactly 4 presets, id order is default/ocean/sand/mono', () => {
     expect(MAP_THEME_PRESETS.map((p) => p.id)).toEqual(['default', 'ocean', 'sand', 'mono'])
   })
 
-  it('每个预设的 nameKey/descKey 都是 photosPlacesTheme* 系列键', () => {
+  it('every preset\'s nameKey/descKey is a photosPlacesTheme* key', () => {
     expect(MAP_THEME_PRESETS.map((p) => p.nameKey)).toEqual([
       'photosPlacesThemeDefault', 'photosPlacesThemeOcean', 'photosPlacesThemeSand', 'photosPlacesThemeMono',
     ])
@@ -34,9 +35,9 @@ describe('MAP_THEME_PRESETS 齐备性', () => {
   })
 })
 
-// ── 26 个色值逐字断言(Vue2 PhotosPlacesView.vue:88-113,一个字符不许改)────────
-describe('26 个色值逐字断言(保真移植合同)', () => {
-  it('default 预设', () => {
+// ── 26 color values asserted character-for-character (Vue2 PhotosPlacesView.vue:88-113, not one character may change) ────────
+describe('26 color values asserted character-for-character (fidelity porting contract)', () => {
+  it('default preset', () => {
     const p = MAP_THEME_PRESETS[0]
     expect(p.bg).toBe('#0A0A0C')
     expect(p.land).toBe('#6E5BFF')
@@ -49,7 +50,7 @@ describe('26 个色值逐字断言(保真移植合同)', () => {
     })
   })
 
-  it('ocean 预设', () => {
+  it('ocean preset', () => {
     const p = MAP_THEME_PRESETS[1]
     expect(p.bg).toBe('#0a121a')
     expect(p.land).toBe('#5AC8FA')
@@ -62,7 +63,7 @@ describe('26 个色值逐字断言(保真移植合同)', () => {
     })
   })
 
-  it('sand 预设', () => {
+  it('sand preset', () => {
     const p = MAP_THEME_PRESETS[2]
     expect(p.bg).toBe('#1a1612')
     expect(p.land).toBe('#FF9F0A')
@@ -75,7 +76,7 @@ describe('26 个色值逐字断言(保真移植合同)', () => {
     })
   })
 
-  it('mono 预设', () => {
+  it('mono preset', () => {
     const p = MAP_THEME_PRESETS[3]
     expect(p.bg).toBe('#0A0A0C')
     expect(p.land).toBe('#9aa0a6')
@@ -88,79 +89,79 @@ describe('26 个色值逐字断言(保真移植合同)', () => {
     })
   })
 
-  it('两个自定义默认色(Vue2 :86-87)', () => {
+  it('the two custom default colors (Vue2 :86-87)', () => {
     expect(CUSTOM_DOT_DEFAULT).toBe('#6E5BFF')
     expect(CUSTOM_CITY_DEFAULT).toBe('#9C8EFF')
   })
 })
 
-// ── hexToRgba:custom 模式陆地点阵固定 0.30 alpha 的转换辅助(Vue2 :67-79)────────
+// ── hexToRgba: the fixed-0.30-alpha conversion helper for custom mode's land-dot matrix (Vue2 :67-79) ────────
 describe('hexToRgba', () => {
-  it('6 位 hex 转 rgba,alpha 原样代入', () => {
+  it('6-digit hex converts to rgba, alpha passed through as-is', () => {
     expect(hexToRgba('#111111', 0.3)).toBe('rgba(17,17,17,0.3)')
   })
 
-  it('3 位 hex 先展开再转换', () => {
+  it('3-digit hex is expanded before converting', () => {
     expect(hexToRgba('#fff', 0.5)).toBe('rgba(255,255,255,0.5)')
   })
 
-  it('不带 # 前缀也能识别', () => {
+  it('recognized even without a # prefix', () => {
     expect(hexToRgba('abcdef', 1)).toBe('rgba(171,205,239,1)')
   })
 
-  it('非 hex 输入原样透传(Vue2 :72-73 的降级路径)', () => {
+  it('non-hex input passes through unchanged (Vue2 :72-73\'s degrade path)', () => {
     expect(hexToRgba('not-a-color', 0.3)).toBe('not-a-color')
   })
 })
 
-// ── resolveMapTheme 语义(Vue2 :134-151,custom 分支已按 #106 sub-commit 3 更新)───
+// ── resolveMapTheme semantics (Vue2 :134-151, the custom branch updated per #106 sub-commit 3) ───
 describe('resolveMapTheme', () => {
-  it('custom 模式 + 深色:bg/grid 取深色字面量,dot 取 customCityColor 原样,dotBg 是 customDotColor 经 hexToRgba(0.30) 转换的洗色', () => {
+  it('custom mode + dark: bg/grid take the dark literals, dot takes customCityColor as-is, dotBg is customDotColor run through hexToRgba(0.30) as a wash', () => {
     expect(resolveMapTheme('custom', '#111111', '#222222', false)).toEqual({
       bg: '#0A0A0C', grid: 'rgba(255,255,255,0.04)', dot: '#222222', dotBg: 'rgba(17,17,17,0.3)',
     })
   })
 
-  it('custom 模式 + 浅色:bg/grid 跟随 default 预设的 light 变体,dot/dotBg 不变(#106 sub-commit 3:custom 画布跟随 app 主题,不再硬编码暗色)', () => {
+  it('custom mode + light: bg/grid follow the default preset\'s light variant, dot/dotBg unchanged (#106 sub-commit 3: the custom canvas now follows the app theme instead of being hardcoded dark)', () => {
     expect(resolveMapTheme('custom', '#111111', '#222222', true)).toEqual({
       bg: 'oklch(0.975 0.004 80)', grid: 'rgba(28,28,30,0.07)', dot: '#222222', dotBg: 'rgba(17,17,17,0.3)',
     })
   })
 
-  it('ocean + 深色:grid 取自 land 字段(不是 grid 字段)', () => {
+  it('ocean + dark: grid comes from the land field (not a grid field)', () => {
     expect(resolveMapTheme('ocean', '#111111', '#222222', false)).toEqual({
       bg: '#0a121a', dot: '#5AC8FA', grid: '#5AC8FA', dotBg: null,
     })
   })
 
-  it('ocean + 浅色:四个字段全取 light.*', () => {
+  it('ocean + light: all four fields come from light.*', () => {
     expect(resolveMapTheme('ocean', '#111111', '#222222', true)).toEqual({
       bg: 'oklch(0.97 0.008 230)', dot: '#0A84C2', grid: 'rgba(10,100,160,0.08)', dotBg: 'rgba(10,100,160,0.32)',
     })
   })
 
-  it('未知 id 回落 default,深色', () => {
+  it('unknown id falls back to default, dark', () => {
     expect(resolveMapTheme('nonexistent', '#111111', '#222222', false)).toEqual({
       bg: '#0A0A0C', dot: '#6E5BFF', grid: '#6E5BFF', dotBg: null,
     })
   })
 
-  it('未知 id 回落 default,浅色', () => {
+  it('unknown id falls back to default, light', () => {
     expect(resolveMapTheme('nonexistent', '#111111', '#222222', true)).toEqual({
       bg: 'oklch(0.975 0.004 80)', dot: '#6E5BFF', grid: 'rgba(28,28,30,0.07)', dotBg: 'rgba(28,28,30,0.30)',
     })
   })
 })
 
-// ── mapThemeStyleVars:dotBg 条件展开(Vue2 :974)─────────────────────────────
+// ── mapThemeStyleVars: dotBg's conditional spread (Vue2 :974) ─────────────────────────────
 describe('mapThemeStyleVars', () => {
-  it('dotBg 为 null 时结果里没有 --map-dot-bg 键', () => {
+  it('when dotBg is null, the result has no --map-dot-bg key', () => {
     const vars = mapThemeStyleVars({ bg: '#0A0A0C', dot: '#6E5BFF', grid: '#6E5BFF', dotBg: null })
     expect(vars).toEqual({ background: '#0A0A0C', '--map-dot': '#6E5BFF', '--map-grid': '#6E5BFF' })
     expect('--map-dot-bg' in vars).toBe(false)
   })
 
-  it('dotBg 非 null 时结果里有 --map-dot-bg 键', () => {
+  it('when dotBg is non-null, the result has a --map-dot-bg key', () => {
     const vars = mapThemeStyleVars({ bg: 'oklch(0.975 0.004 80)', dot: '#6E5BFF', grid: 'rgba(28,28,30,0.07)', dotBg: 'rgba(28,28,30,0.10)' })
     expect(vars).toEqual({
       background: 'oklch(0.975 0.004 80)',
@@ -171,13 +172,13 @@ describe('mapThemeStyleVars', () => {
   })
 })
 
-// ── swatchColors:深浅两态各取对应 bg/dot(Vue2 :921-922)─────────────────────
+// ── swatchColors: each light/dark state takes the corresponding bg/dot (Vue2 :921-922) ─────────────────────
 describe('swatchColors', () => {
-  it('深色:取预设自身的 bg/dot', () => {
+  it('dark: takes the preset\'s own bg/dot', () => {
     expect(swatchColors(MAP_THEME_PRESETS[1], false)).toEqual({ bg: '#0a121a', dot: '#5AC8FA' })
   })
 
-  it('浅色:取预设 light.bg / light.dot', () => {
+  it('light: takes the preset\'s light.bg / light.dot', () => {
     expect(swatchColors(MAP_THEME_PRESETS[1], true)).toEqual({ bg: 'oklch(0.97 0.008 230)', dot: '#0A84C2' })
   })
 })

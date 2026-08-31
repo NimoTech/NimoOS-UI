@@ -1,4 +1,4 @@
-// SP15-P1-T7: the moment detail page skeleton. Target: Vue 2 899af59b:PhotosMomentDetail.vue:1-121
+// The moment detail page skeleton. Target: Vue 2 899af59b:PhotosMomentDetail.vue:1-121
 // (top bar + two columns + About/Stats/By month) and :203-291 (the computed properties).
 // ★ In New-UI this page is a real **route** (Vue 2 renders it as an inline child component), so
 //   it gains one path Vue 2 never had: the cold deep link — the backend has no GET /moments/:id,
@@ -21,7 +21,7 @@ const svc = vi.hoisted(() => ({
     thumbnailUrl: vi.fn((id: string, size: string) => `mock://${id}/${size}`),
     listMoments: vi.fn(async (): Promise<unknown> => []),
     getMomentAssets: vi.fn(async (_id?: string, _featured?: boolean, _withMembers?: boolean): Promise<unknown> => []),
-    // SP15-P1-T9: the write endpoints behind store.pin / store.exclude, plus the timeline the
+    // The write endpoints behind store.pin / store.exclude, plus the timeline the
     // library picker loads when it opens. Mocked at the service boundary rather than by
     // replacing the store methods, so the count that comes back really does travel
     // response → store → both views.
@@ -40,7 +40,7 @@ const svc = vi.hoisted(() => ({
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 
-// SP15-P1-T8: useLightbox is a module-level singleton — every call to useLightbox()
+// useLightbox is a module-level singleton — every call to useLightbox()
 // returns a **fresh object literal**, but its `openAt` property points at the same
 // module-top-level function either way. `vi.spyOn(freshObject, 'openAt')` only shadows
 // that one object's own property; the component's separate `useLightbox()` call gets a
@@ -233,9 +233,9 @@ describe('top bar and header', () => {
 describe('About sidebar', () => {
   // Asserted by equality, not by "does not contain an en dash": the placeholder DASH is an *em*
   // dash, so the old negative assertion was equally satisfied by the label collapsing to the
-  // placeholder — the range branch went untested either way (fix round 1 · finding 3).
+  // placeholder — the range branch went untested either way.
   //
-  // fix round 2 (task 8 carry-over): the fixture used to be '01:00Z' / '09:00Z'. That is the
+  // The fixture used to be '01:00Z' / '09:00Z'. That is the
   // same calendar day only from roughly UTC−2 eastward — at UTC−3 or further west (e.g.
   // America/New_York, UTC−4/−5) 01:00Z is still the *previous* local day, so `fmt(from)` and
   // `fmt(to)` land on different dates and the component renders a range instead of one date,
@@ -322,7 +322,7 @@ describe('Stats and the month distribution', () => {
     const bars = w.findAll('[data-test="mo-dist-bar"]')
     expect(bars).toHaveLength(2)
     // Asserted by equality: `toContain('2')` was satisfied by December's title too ('Dec 2016 · 1'
-    // contains the 2 of the year), so reversing the sort left it green (fix round 1 · finding 2).
+    // contains the 2 of the year), so reversing the sort left it green.
     expect(bars[0].attributes('title')).toBe('Nov 2016 · 2')
     expect(bars[1].attributes('title')).toBe('Dec 2016 · 1')
   })
@@ -377,7 +377,7 @@ describe('route parameter changes', () => {
     expect(w.find('[data-test="mo-about-place"]').text()).toBe('place-m2')
   })
 
-  // fix round 1 · deviation 11. Vue 2 got this for free because its detail component was v-if'd
+  // Vue 2 got this for free because its detail component was v-if'd
   // and remounted on every switch; a params-only route change does not remount.
   it('clears the previous moment assets on an :id change instead of showing them under the new title', async () => {
     let releaseM2: () => void = () => {}
@@ -456,7 +456,7 @@ describe('route parameter changes', () => {
   })
 })
 
-// fix round 1 · finding 1. The two asset requests must fail independently; a single Promise.all
+// The two asset requests must fail independently; a single Promise.all
 // under a single catch threw away whichever response had already arrived.
 describe('partial load failures', () => {
   it('a rejected all-assets request does not discard the detail response that already arrived', async () => {
@@ -492,7 +492,7 @@ describe('partial load failures', () => {
   })
 })
 
-// fix round 1 · finding 4. Three outcomes, three distinct screens.
+// Three outcomes, three distinct screens.
 describe('a failed list fetch is not reported as a deleted moment', () => {
   it('renders its own failure state, not not-found, when the list request fails', async () => {
     const err = muteConsoleError()
@@ -537,8 +537,8 @@ describe('a failed list fetch is not reported as a deleted moment', () => {
   })
 })
 
-// SP15-P1-T8: the two photo grids (Featured + All photos) and the selection state that
-// backs Task 9's bulk removal. Ported from Vue2 899af59b:PhotosMomentDetail.vue :52-79
+// The two photo grids (Featured + All photos) and the selection state that
+// backs the bulk removal below. Ported from Vue2 899af59b:PhotosMomentDetail.vue :52-79
 // (template) and photos-smartview.scss (.sv-grid-photos/.tile/.sv-pin-tag/.sv-tile-check/
 // .sv-select-bar rule bodies).
 describe('the two photo grids', () => {
@@ -621,7 +621,7 @@ describe('the two photo grids', () => {
     expect(w.find('[data-test="mo-select-bar"]').text()).toContain('1')
   })
 
-  // fix round 1 (Important): the case above never clicks a Featured tile, so a regression
+  // The case above never clicks a Featured tile, so a regression
   // that always passed `allAssets` as the entry list — even for a Featured tile — kept every
   // existing test green. Featured and All photos here deliberately hold disjoint ids ('f1' vs
   // 'a1'/'a2') so that passing the wrong list is detectable by content, not just by length.
@@ -656,12 +656,12 @@ describe('the two photo grids', () => {
     expect(w.find('.lightbox').exists()).toBe(true)
   })
 
-  // Plan F Task 5 (2026-08-15): flipped from OUTSIDE to INSIDE -- the Fix-8 round 4 rule this
-  // test used to assert no longer applies. Plan F Tasks 3-5 re-skinned PhotoLightbox.vue's DOM/
+  // Flipped from OUTSIDE to INSIDE -- an earlier rule this
+  // test used to assert no longer applies. The re-skin re-skinned PhotoLightbox.vue's DOM/
   // CSS onto parity's own grid shape and retired the local skeleton CSS that used to duplicate
-  // parity's `.photos-root .lightbox`/`.lb-*` selectors (Task 5), removing the same-specificity
-  // cascade tie that made nesting unsafe. See task-5-report.md for the full sweep.
-  it('the lightbox renders INSIDE .photos-root (Plan F Task 5: the re-skin removed the F8-r4 cascade tie)', async () => {
+  // parity's `.photos-root .lightbox`/`.lb-*` selectors, removing the same-specificity
+  // cascade tie that made nesting unsafe.
+  it('the lightbox renders INSIDE .photos-root (the re-skin removed the earlier cascade tie)', async () => {
     mockAssets([], [{ id: 'a1' }])
     const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
     const { w } = await mountDetail()
@@ -704,7 +704,7 @@ describe('the two photo grids', () => {
     expect(w.get('[data-test="album-picker-overlay"]').element).toBeTruthy()
   })
 
-  // Strengthened beyond the brief's original assertion (self-review requirement: a test
+  // Deliberately strengthened assertion (a test
   // must fail if the behavior it names is removed). The bar's own `v-if` is
   // `selecting && selectedIds.length` — turning `selecting` off already hides the bar for
   // free, so asserting only "the bar is gone right after leaving" would pass even if
@@ -725,7 +725,7 @@ describe('the two photo grids', () => {
   })
 })
 
-// SP15-P1-T9: adding photos to the moment (pin) and removing them from it (exclude).
+// Adding photos to the moment (pin) and removing them from it (exclude).
 // Ported from Vue2 899af59b:PhotosMomentDetail.vue :26-28 + :122-125 + :143-151 (template) and
 // :340-381 (onPickPhotos / removeSelected).
 //
@@ -790,7 +790,7 @@ describe('adding and removing photos', () => {
     expect(w.find('[data-test="mo-stat-photos"]').text()).toBe('44')
     // Both grids reload afterwards (featured + all = two requests).
     expect(svc.photos.getMomentAssets).toHaveBeenCalledTimes(2)
-    // fix round 1 · finding 4: exactly one toast, and it is the success one carrying the count —
+    // Exactly one toast, and it is the success one carrying the count —
     // a duplicate, or a danger toast fired alongside it, has to fail here.
     expect(show).toHaveBeenCalledTimes(1)
     expect(show).toHaveBeenCalledWith(zh.photosMoAddedN.replace('{n}', '2'))
@@ -810,13 +810,13 @@ describe('adding and removing photos', () => {
     await flushPromises()
 
     expect(s.byId('m1')?.assetCount).toBe(42)
-    // fix round 1 · finding 4: only the danger toast — no success toast leaking onto this path.
+    // Only the danger toast — no success toast leaking onto this path.
     expect(show).toHaveBeenCalledTimes(1)
     expect(show).toHaveBeenCalledWith(expect.stringContaining('失败'), expect.anything(), 'danger')
     // The panel stays up with the user's selection still in it (same contract as the album pages).
     const picker = w.findComponent(PhotosLibraryPicker)
     expect(picker.props('open')).toBe(true)
-    // fix round 1 · finding 1: the busy flag has to come back down in the handler's `finally`, or
+    // The busy flag has to come back down in the handler's `finally`, or
     // the panel is left with a permanently disabled "Adding…" button and no way to retry.
     expect(picker.props('submitting')).toBe(false)
     picker.vm.$emit('confirm', ['x'])
@@ -844,7 +844,7 @@ describe('adding and removing photos', () => {
     expect(s.byId('m1')?.assetCount).toBe(41)
     expect(w.find('[data-test="mo-select-bar"]').exists()).toBe(false)
     expect(svc.photos.getMomentAssets).toHaveBeenCalledTimes(2)
-    // fix round 1 · finding 4: exactly one toast, and it is the success one with the count.
+    // Exactly one toast, and it is the success one with the count.
     expect(show).toHaveBeenCalledTimes(1)
     expect(show).toHaveBeenCalledWith(zh.photosMoRemovedN.replace('{n}', '1'))
 
@@ -868,7 +868,7 @@ describe('adding and removing photos', () => {
     await flushPromises()
 
     expect(s.byId('m1')?.assetCount).toBe(42)
-    // fix round 1 · finding 4: only the danger toast — no success toast on the failure path.
+    // Only the danger toast — no success toast on the failure path.
     expect(show).toHaveBeenCalledTimes(1)
     expect(show).toHaveBeenCalledWith(expect.stringContaining('失败'), expect.anything(), 'danger')
     // Vue2 :386-387 clears the selection in the success branch only — deliberately, so a failed
@@ -914,7 +914,7 @@ describe('adding and removing photos', () => {
   })
 })
 
-// SP15-P1-T10: exporting a moment as a static album, and deleting a moment outright. Ported
+// Exporting a moment as a static album, and deleting a moment outright. Ported
 // from Vue2 899af59b:PhotosMomentDetail.vue :20-22 (Save as Album button), :29-45 (more menu),
 // :295-305 (the document mousedown listener that closes it — the listener Task 7 deliberately
 // deferred, see this file's own header), :138-152 (delete confirm dialog) and :406-436
@@ -940,7 +940,7 @@ describe('save as album', () => {
   // Locale is zh_cn on purpose: the assertion below checks a substring of Vue 2's own Chinese
   // copy for this key (photosMoAlbumExists), not its English translation.
   //
-  // The substring is '已有同名', not the brief's original '已存在' — Vue 2's own zh_CN.json
+  // The substring is '已有同名', not '已存在' — Vue 2's own zh_CN.json
   // (899af59b:src/assets/lang/zh_CN.json:1960) translates "An album with this name already
   // exists" as '已有同名相册', which does not contain '已存在'. Asserting that substring would
   // be checking a mistranslation, not this feature's real copy (file-header deviation 19).
@@ -1033,7 +1033,7 @@ describe('delete moment', () => {
     expect(router.currentRoute.value.path).toBe('/photos/smart-views')
   })
 
-  // The two behaviors the brief calls out as deliberate, not oversights: staying on the page
+  // Two deliberate behaviors, not oversights: staying on the page
   // (the dialog itself is not dismissed) and answering inline rather than via a toast.
   it('a failed delete stays on the page with the dialog open and the message inline, not a toast', async () => {
     const err = muteConsoleError()
@@ -1048,7 +1048,7 @@ describe('delete moment', () => {
     expect(router.currentRoute.value.path).toBe('/photos/moments/m1')
     expect(w.find('[data-test="mo-delete-confirm"]').exists()).toBe(true)
     expect(w.find('[data-test="mo-delete-error"]').exists()).toBe(true)
-    // Strengthened beyond the brief: this really is inline, not merely "a toast that has not
+    // Deliberately strengthened: this really is inline, not merely "a toast that has not
     // fired yet" — no toast call happens at all on this path.
     expect(show).not.toHaveBeenCalled()
     err.mockRestore()
@@ -1074,7 +1074,7 @@ describe('delete moment', () => {
     expect(w.find('[data-test="mo-delete"]').exists()).toBe(false)
   })
 
-  // Self-review requirement: the debt Task 7 deliberately left for this task (file-header
+  // The requirement here (file-header
   // deviation 16) is not just "a listener exists" but "it is torn down on unmount" — a leaked
   // listener keeps the component instance's closures alive and can fire after teardown.
   it('removes its document mousedown listener on unmount, leaking none', async () => {
@@ -1180,7 +1180,7 @@ describe('delete moment', () => {
 // same nav as the Moments · For You list page, so
 // title='For You' and sub=the topbar's own default full-library computation (no 'smart' entry
 // in topbarSubContext's navMap, PhotosTimeline.vue:229-234).
-describe('Fix-1 item 1: PhotosTopbar restored (title=For You, default full-library sub)', () => {
+describe('PhotosTopbar restored (title=For You, default full-library sub)', () => {
   it('renders the topbar with title=For You, no search box', async () => {
     const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
     const { w } = await mountDetail('m1', 'zh_cn')

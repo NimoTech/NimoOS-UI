@@ -1,10 +1,10 @@
 <!--
-  SP8-P3a Task 5 — read-only half, excerpt from Vue2 src/views/AI/Skills/SkillDetail.vue (271 lines).
+  Read-only half, excerpt from Vue2 src/views/AI/Skills/SkillDetail.vue (271 lines).
   This task only takes a subset from brief §5.1: empty state / top bar (no switch or more menu) / four info cells /
   description section / SKILL.md section / bundled files section. Write operations (switch, more menu, copy/export/delete,
   TestPanel/runTest) all left to P3b (brief §5.2); this file does not contain any related state or methods.
 
-  SP8-P3b Task 6 — top bar write operations (switch + more menu + copy/export) + delete/uninstall confirmation dialog.
+  Top bar write operations (switch + more menu + copy/export) + delete/uninstall confirmation dialog.
   Align with Vue2 :21-56 (top bar controls) and :155-184 (confirmation dialog); details in inline comments below.
 
   [Deviation notice 1, shared constraints §3 deviation 12] Copy uses `useCopyFeedback` (internal `copyText` fallback
@@ -62,7 +62,7 @@
   `.sk-section` blocks. P3a does not render it, two sections directly adjacent; template below leaves one comment line marking
   where P3b should reinsert it, avoid inserting in wrong order.
 
-  SP8-P3b Task 7 — D4 dialog (disabled skill "try in chat" prompts first) + mount TestPanel.
+  D4 dialog (disabled skill "try in chat" prompts first) + mount TestPanel.
 
   [Deviation notice 3, shared constraint §3 deviation 3 / task D4] Address P3a backlog ③: backend
   `NimoOS-AI/service/skills_runtime.go:57` excludes `disabled` skills from runtime view, disabled

@@ -1,38 +1,38 @@
-// SP8-P5c Task 8 + Task 9 — component test for `SettingsView.vue`.
+// Component test for `SettingsView.vue`.
 // Blueprint: the Vue 2 panel (main@7a6ee6b7) `src/views/AI/Knowledge/SettingsView.vue` (322 lines).
-// **T8** covers upper half: service card · three config rows (concurrency/device/OCR) · sandbox
+// **Upper half**: service card · three config rows (concurrency/device/OCR) · sandbox
 //   entry · danger zone + corresponding script functions
 //   (`controlState` / `deviceLabel` / `togglePause` / `setConcurrency` / `setDevice` /
 //   `toggleOcr` / `goSandbox`).
-// **T9** covers lower half: notes section (directory row + `openRootPicker` collapsible area +
+// **Lower half**: notes section (directory row + `openRootPicker` collapsible area +
 //   `FolderBrowser` integration + `onPick`/`dirProbe` four states + two button disabled logic +
 //   auto-capture toggle) · K29 reka migration dialog ·
 //   `browserRoots` / `created` / `applyRoot` / `doMigrate` / `closeMigrate` /
-//   `toggleAutoExtract`. All T9 test cases are after the `═══ T9 ═══` divider at the end.
+//   `toggleAutoExtract`. All lower-half test cases are after the divider at the end.
 //
-// 🔴 **T9 changes to T8 existing code in only 4 places, all mechanical byproducts of "inserting
-//   lower half"** (details in T9 report §3):
+// 🔴 **The lower-half addition changes upper-half existing code in only 4 places, all mechanical
+//   byproducts of "inserting the lower half"**:
 //   ① `vi.hoisted` mock skeleton +3 fields (`notes` / `wiki` / `folder`) — component now truly
 //     calls them;
 //   ② `mockAllOk()` **+5 lines** defaults (pure addition, existing 3 lines unchanged) — otherwise
-//     T8 existing cases would fail to mount with `getSettings()` returning undefined,
+//     the upper-half existing cases would fail to mount with `getSettings()` returning undefined,
 //     template reading `notesSettings.notesRoot` immediately throws TypeError;
 //   ③ danger zone assertion's **selector** (not the assertion value): after inserting notes
 //     section, `.k-section` has two, `w.find('.k-section .k-section-head')` hits notes section
 //     first (recorded as E-22);
 //   ④ "all four catches are parameterless catch" count **4 → 8** (lower half adds 4 catches,
 //     recorded as E-23).
-//   Apart from these, every T8 `expect` and DOM assertion is **verbatim unchanged**.
+//   Apart from these, every upper-half `expect` and DOM assertion is **verbatim unchanged**.
 //
 // ═══ mock strategy (governance §4.1 requires explicit documentation) ═══
 // 🔴 **mock shared package `service.ai.parserStats/parserState/parserControl`, use real
-//   `knowledgeStore`**, do not mock store. Same rationale as T6 `ParserStatus.test.ts`: every
+//   `knowledgeStore`**, do not mock store. Same rationale as `ParserStatus.test.ts`: every
 //   cell on this page must traverse K1 layer reduction
 //   (blueprint `store.state.controlState` → this repo `store.controlState`); mocking store
 //   would bypass the most error-prone thing: whether layer reduction and field names align;
 //   using real store makes every render assertion naturally an integration assertion — missing
 //   one layer or misspelling a field by one letter immediately shows empty/undefined in that cell.
-//   T9's `browserRoots` (K1's second layer reduction point, reads `store.wikiCandidates`) and
+//   The lower-half addition's `browserRoots` (K1's second layer reduction point, reads `store.wikiCandidates`) and
 //   `store.loadCandidates()` also use real store + real `service.wiki.getCandidates` mock.
 // 🔴 Shape: `service.ai.parserStats` / `parserState` both only `return res.data`
 //   (`the shared service package's src/ai.ts:591-596`, no transformation) → mock as **raw HTTP snake_case**,
@@ -40,7 +40,7 @@
 //   matching verbatim `parserStore.test.ts:207` / `knowledgeStore.parser.test.ts:136` /
 //   `ParserStatus.test.ts:182` (governance §4.1 red-flag self-check: same method different shapes
 //   in two test files = time bomb).
-// 🔴 **T9's four new mock layers, each aligned with §4.1 table**:
+// 🔴 **The lower-half addition's four new mock layers, each aligned with §4.1 table**:
 //   · `service.notes.getSettings` / `putSettings` → **camelCase with exactly two fields
 //     `{ notesRoot, autoExtract }`** (package-internal `normalizeSettings`,
 //     `the shared service package's src/notes.ts:131-137`). **HTTP layer is `notes_root` / `auto_extract`,
@@ -56,11 +56,11 @@
 //
 // ═══ fixtures are copies, not read at runtime (governance §4.4) ═══
 // Data copied verbatim into `FIXTURE-COPY-BEGIN/END` blocks below with attribution, **do not use
-// `node:fs` to read the capture directory at runtime** — that directory is gitignored (entire loss in SP7 once),
+// `node:fs` to read the capture directory at runtime** — that directory is gitignored (lost entirely once before),
 // this branch will merge to master, tests under `src/` crossing into it mysteriously fail as
 // "file not found".
-// Copy equivalence confirmed via **programmatic byte-for-byte verification** (output in T8 report
-// §5), not visual inspection.
+// Copy equivalence confirmed via **programmatic byte-for-byte verification**,
+// not visual inspection.
 // Reading `.vue` source files (A-1 / no bare color rules) always use `node:fs`, **never Vite's
 // `?raw`**
 //   (vitest's CSSEnablerPlugin replaces stylesheet source with empty string → assertion against
@@ -233,8 +233,8 @@ function makeRouter() {
     history: createWebHashHistory('/'),
     routes: [
       { path: '/ai/knowledge/settings', name: 'KnowledgeSettings', component: SettingsView },
-      // [Correction, SP8-P5d Task 9, governance §15.2] Blueprint `:318` target of `goSandbox()`;
-      // in production this route has long been flipped to the real ParserTest (P5c-T10 output),
+      // [Correction, governance §15.2] Blueprint `:318` target of `goSandbox()`;
+      // in production this route has long been flipped to the real ParserTest,
       // stub in this file's route table only manages href resolution, unrelated to production
       // presence.
       { path: '/ai/parser/test', name: 'AIParserTest', component: { template: '<div />' } },
@@ -817,9 +817,9 @@ describe('SettingsView — danger zone (blueprint :168-186)', () => {
 //              aiKbRebuild          en `Rebuild`       zh 恢复      ← forbidden (Vue2 mistranslation)
 //   ② N21 #2  aiKbSetSandboxTitle  en `Test Sandbox`  zh 测试沙盒  ← this page must use
 //              aiKbPrTestLink       en `Test sandbox`  zh 测试沙盒  ← ParserStatus's
-//   ③ 🔴 T8 full table rescan discovery: aiKbDeviceAuto en `Auto` / aiCfgAutoPlaceholder en `auto` (lowercase)
-//   ④ 🔴 T8 full table rescan discovery: aiKbSwitchFailed en `Switch failed` / aiCfgToggleFailed en `Toggle failed`
-// Rescan method and complete conclusions in T8 report §6 (this page 33 keys × full table 1499 keys,
+//   ③ 🔴 full table rescan discovery: aiKbDeviceAuto en `Auto` / aiCfgAutoPlaceholder en `auto` (lowercase)
+//   ④ 🔴 full table rescan discovery: aiKbSwitchFailed en `Switch failed` / aiCfgToggleFailed en `Toggle failed`
+// Rescan method and complete conclusions (this page 33 keys × full table 1499 keys,
 // zh collisions 15 pairs, of which en-different 4 pairs all land in this assertion group, remainder zero).
 // 🔴 locale is global singleton → must restore with try/finally, else pollutes following test cases
 // in file.
@@ -1091,8 +1091,8 @@ const dangerFootBtn = (host: HTMLElement) =>
 // 🔴 governance §4.1 — guard for mock **layer** (review "gap hunt ①", 5th time this period
 // "product code correct, guard zero"). Review probe: give `notes.getSettings` mock **extra**
 // `distill_roots` / `distill_daily_cap` / `background_model` → **112/112 pass**. The half about
-// "camelCase and **exactly two fields**" was only guarded by `p5c-task-9-fixture-verify.mjs` in
-// ledger **not entering three gates** → whoever turns fixture copy into raw HTTP snake_case or
+// "camelCase and **exactly two fields**" was only guarded by a fixture-verify script
+// not entering the three gates → whoever turns fixture copy into raw HTTP snake_case or
 // casually adds fields, three gates miss it. Here pin key set to equality assertion.
 describe('SettingsView/T9 — §4.1: fixture copy mock layer (key set equality)', () => {
   it('🔴 notes two copies are **after layer reduction** shape: key set exactly equal, not one more or less', () => {
@@ -1933,15 +1933,15 @@ describe('SettingsView/T9 — §9.2/§9.3 bidirectional same-family scan: this c
     }
     // Full-table key count is computed via **real module import** (governance §9.3 clause 2:
     // text parsing would undercount).
-    // Originally 1503 (the snapshot introduced by P5c-T9, never touched since); after P5d-T1
-    // added 92 keys it was corrected to 1595 --
+    // Originally 1503 (the snapshot introduced when this test was written, never touched since); after
+    // a later task added 92 keys it was corrected to 1595 --
     // per coordinator ruling R15 / E-43 (this snapshot is unrelated to what this test case actually
-    // covers -- T9's own 29 keys -- it just happens to be embedded in the same test case, so every
-    // subsequent key-adding milestone collides with it once; D-3 is filed pending P5e's decision on
+    // covers -- T9_KEYS's own 29 keys -- it just happens to be embedded in the same test case, so every
+    // subsequent key-adding milestone collides with it once; D-3 is filed pending a decision on
     // whether to switch to a lower-bound assertion; this pass only corrects the number, it does not
     // refactor this guard).
-    // P5c-T9 introduced the snapshot -> P5d-T1 corrected 1503->1595 (ruling R15 / erratum E-43) ->
-    // P5e switched to a lower-bound assertion per governance §0.1 (debt ticket D-3). The original
+    // The snapshot was introduced, then corrected 1503->1595 (ruling R15 / erratum E-43), then
+    // switched to a lower-bound assertion per governance §0.1 (debt ticket D-3). The original
     // two lines were:
     //   expect(Object.keys(zh)).toHaveLength(1595)
     //   expect(Object.keys(en)).toHaveLength(1595)

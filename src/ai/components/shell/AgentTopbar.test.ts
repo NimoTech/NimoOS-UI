@@ -16,7 +16,7 @@ const i18n = createI18n({
     zh_cn: {
       aiBack: '返回',
       aiNewConversation: '新对话',
-      // SP8-P1c2 Task 9 — all copy needed for the AI-rename button tooltip and the
+      // All copy needed for the AI-rename button tooltip and the
       // ModelPicker (mounted for real, not stubbed).
       aiRename: 'AI 重命名',
       aiLocalOllama: '本地 Ollama',
@@ -111,7 +111,7 @@ describe('AgentTopbar', () => {
     expect(push).not.toHaveBeenCalled()
   })
 
-  it('SP8-P1c2 Task 9: ModelPicker and the AI-rename button are filled in (placeholder comment gone)', () => {
+  it('ModelPicker and the AI-rename button are filled in (placeholder comment gone)', () => {
     const w = mount(AgentTopbar, {
       props: { sessionId: 's1' },
       global: { plugins: [i18n] },
@@ -124,7 +124,7 @@ describe('AgentTopbar', () => {
     expect(w.findAll('.icon-btn')).toHaveLength(4)
   })
 
-  it('SP8-P1c2: right panel toggle button emits toggle-right, data-active reflects !rightCollapsed (Vue2 shell/AgentTopbar.vue:43-45)', async () => {
+  it('Right panel toggle button emits toggle-right, data-active reflects !rightCollapsed (Vue2 shell/AgentTopbar.vue:43-45)', async () => {
     const w = mount(AgentTopbar, {
       props: { sessionId: 's1', rightCollapsed: false },
       global: { plugins: [i18n] },
@@ -140,7 +140,7 @@ describe('AgentTopbar', () => {
     expect(w.findAll('.icon-btn')[3].attributes('data-active')).toBe('false')
   })
 
-  it('SP8-P1c2 Task 8: ThinkingBar is mounted on the second row, its props are destructured from thinking (Vue2 shell/AgentTopbar.vue:47-54)', () => {
+  it('ThinkingBar is mounted on the second row, its props are destructured from thinking (Vue2 shell/AgentTopbar.vue:47-54)', () => {
     const w = mount(AgentTopbar, {
       props: {
         sessionId: 's1',
@@ -158,7 +158,7 @@ describe('AgentTopbar', () => {
     })
   })
 
-  it('SP8-P1c2 Task 8: ThinkingBar update:enabled/update:level are remapped to thinking-enabled/thinking-level and re-emitted upward', async () => {
+  it('ThinkingBar update:enabled/update:level are remapped to thinking-enabled/thinking-level and re-emitted upward', async () => {
     const w = mount(AgentTopbar, {
       props: {
         sessionId: 's1',
@@ -176,7 +176,7 @@ describe('AgentTopbar', () => {
     expect(w.emitted('update:level')).toBeUndefined()
   })
 
-  it('SP8-P1c2 Task 8: uses default values when the thinking prop is not passed (enabled=true, level=medium, supportsThinking=false)', () => {
+  it('Uses default values when the thinking prop is not passed (enabled=true, level=medium, supportsThinking=false)', () => {
     const w = mount(AgentTopbar, {
       props: { sessionId: 's1' },
       global: { plugins: [i18n] },
@@ -190,7 +190,7 @@ describe('AgentTopbar', () => {
     })
   })
 
-  it('SP8-P1c2 Task 9: ModelPicker receives availableModels/selectedModel, select/open-settings are forwarded as select-model/open-settings', async () => {
+  it('ModelPicker receives availableModels/selectedModel, select/open-settings are forwarded as select-model/open-settings', async () => {
     const models = [{ key: 'local:a', source: 'local' as const, displayName: 'A' }]
     const w = mount(AgentTopbar, {
       props: { sessionId: 's1', availableModels: models, selectedModel: 'local:a' },
@@ -205,7 +205,7 @@ describe('AgentTopbar', () => {
     expect(w.emitted('open-settings')).toHaveLength(1)
   })
 
-  it('SP8-P1c2 Task 9: clicking sparkle emits regenerate-title; disabled while this session is regenerating (foreground or background), the title input is disabled only for foreground regeneration', async () => {
+  it('Clicking sparkle emits regenerate-title; disabled while this session is regenerating (foreground or background), the title input is disabled only for foreground regeneration', async () => {
     const w = mount(AgentTopbar, {
       props: { sessionId: 's1', storedTitle: '旧标题' },
       global: { plugins: [i18n] },
@@ -248,7 +248,7 @@ describe('AgentTopbar', () => {
     expect(w.find('.topbar-title-input').attributes('disabled')).toBeDefined()
   })
 
-  it('SP8-P1c2 Task 9: sparkle is also disabled while the title input has focus (Vue2 shell/AgentTopbar.vue:24 isFocused)', async () => {
+  it('Sparkle is also disabled while the title input has focus (Vue2 shell/AgentTopbar.vue:24 isFocused)', async () => {
     const w = mount(AgentTopbar, {
       props: { sessionId: 's1' },
       global: { plugins: [i18n] },

@@ -1,5 +1,5 @@
 <!--
-  SP8-P2a Task 11 — 1:1 port from Vue2
+  1:1 port from Vue2
   `src/views/AI/Settings/sections/PrivacySection.vue` (74 lines). Three configurations:
   allow cloud requests (toggle) · default backend (dropdown: local/cloud) · confirm on
   local failure (toggle). Each change calls `store.updatePolicyField(field, value)`;

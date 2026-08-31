@@ -1,4 +1,4 @@
-// SP8-P3b Task 2 — align with Vue2 src/views/AI/Skills/TestPanel.vue:160-172 SSE event reduction logic.
+// Aligns with Vue2 src/views/AI/Skills/TestPanel.vue:160-172 SSE event reduction logic.
 //
 // Vue2 pushes a new string to output.steps every time it receives a message/message_delta/text chunk
 // (:162 `this.output.steps.push(ev.content)`); when streaming word-by-word, the result list explodes

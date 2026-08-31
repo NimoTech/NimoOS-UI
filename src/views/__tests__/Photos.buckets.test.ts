@@ -95,7 +95,7 @@ function seedUnloadedBucket(store: ReturnType<typeof useTimelineStore>) {
   store.buckets = [{ year: 2026, month: 8, count: 10, videoCount: 2, ocrCount: 0 }]
 }
 
-describe('Photos.vue bucket-mode wiring (SP15-P3-T8)', () => {
+describe('Photos.vue bucket-mode wiring', () => {
   it('keeps unloaded months in gridMonths so the grid can render skeletons', async () => {
     const w = await mountPhotos()
     const store = useTimelineStore()

@@ -268,7 +268,7 @@ export default {
   welcomeDone: '全部完成！',
   welcomeRegisterFailed: '注册失败',
   welcomeLanguage: '语言',
-  // ── 主页:系统应用名 ──
+  // ── Home: system app names ──
   appFiles: '文件',
   appStorage: '存储',
   appPhotos: '照片',
@@ -277,7 +277,7 @@ export default {
   appVm: 'KVM',
   appSettings: '设置',
   appAppStore: 'AppStore',
-  // ── 主页:组件标题与描述 ──
+  // ── Home: widget titles & descriptions ──
   widgetClockTitle: '时间',
   widgetClockDesc: '本地时间与日期',
   widgetStorageTitle: '存储',
@@ -292,7 +292,7 @@ export default {
   widgetGpuDesc: '显卡使用率、温度与显存',
   widgetCpuTitle: '处理器',
   widgetCpuDesc: 'CPU 与内存使用率',
-  // ── 主页:组件内部 ──
+  // ── Home: widget internals ──
   widgetUsed: '已使用',
   widgetTotal: '总容量',
   widgetAvail: '可用',
@@ -316,7 +316,7 @@ export default {
   widgetEventsEmpty: '暂无活动',
   widgetEventsEmptyHint: '系统事件将显示在此',
   widgetPeak: '峰值',
-  // ── 主页:时间组件 ──
+  // ── Home: clock widget ──
   clockWeekdays: '星期日,星期一,星期二,星期三,星期四,星期五,星期六',
   clockDate: '{m}月{d}日',
   clockGreetDawn: '凌晨好',
@@ -324,7 +324,7 @@ export default {
   clockGreetNoon: '中午好',
   clockGreetAfternoon: '下午好',
   clockGreetEvening: '晚上好',
-  // ── 主页:添加面板 ──
+  // ── Home: add-widget panel ──
   addPanelTitle: '添加',
   addPanelAdded: '✓ 已添加',
   addPanelTabWidget: '组件',
@@ -350,16 +350,16 @@ export default {
   appWidgetRetry: '重试',
   appWidgetNotRunning: '应用未运行',
   addPanelAppWidgetDesc: '来自应用的小组件',
-  // ── 主页:拖拽/缩放 ──
+  // ── Home: drag / resize ──
   dragResized: '已调整为 {w}×{h}',
   dragNoRoom: '空间不够,放不下',
   dragPlaced: '已放置,旁边组件已让位',
   dragCantFit: '这一屏实在放不下了,已归位',
-  // ── 主页:网格项 ──
+  // ── Home: grid items ──
   gridRemove: '移除',
   gridResize: '缩放',
   gridCanvas: '主页画布',
-  // ── 主页:打开动作 ──
+  // ── Home: open actions ──
   startAppTitle: '启动应用',
   startAppMessage: '「{name}」已停止,是否启动?',
   startAppConfirm: '启动',
@@ -367,15 +367,15 @@ export default {
   startAppStarting: '正在启动 {name}…',
   startAppStarted: '{name} 已启动',
   startAppFailed: '{name} 启动失败',
-  // ── 主页:Dock ──
+  // ── Home: Dock ──
   dockDone: '完成',
   dockAllApps: '所有应用',
   dockAria: '程序坞',
-  // ── 主页:相对时间 ──
+  // ── Home: relative time ──
   homeRelJustNow: '刚刚',
   homeRelMinutes: '{n} 分钟前',
   homeRelHours: '{n} 小时前',
-  // ── 主页:事件时间线 ──
+  // ── Home: event timeline ──
   eventAppFallback: '应用',
   eventDiskAdded: '新磁盘接入：{model}',
   eventDiskAddedUnknown: '检测到新磁盘',
@@ -386,14 +386,14 @@ export default {
   eventAppInstalling: '{app} 安装中',
   eventAppApplyChanges: '{app} 设置已更新',
   eventAppUpdate: '{app} 已更新',
-  // ── 文件查看器:错误提示 ──
+  // ── File viewer: error messages ──
   filesViewerConvertFailed: '文档转换失败或超时,建议下载后用本地软件打开',
   filesViewerPdfLoadFailed: 'PDF 加载失败,文件可能已损坏或加密',
   filesViewerPdfRenderFailed: 'PDF 渲染失败,文件可能损坏',
   filesViewerOfficeLegacy: '文件可能是旧版二进制格式(如 .doc/.xls)或已损坏,无法预览',
   filesViewerParseFailed: '文件解析失败,无法预览',
   filesViewerFetchFailed: '获取文件失败,请重试',
-  // ── 主页:顶栏 ──
+  // ── Home: top bar ──
   topbarSearch: '搜索',
   topbarSearchKbd: '搜索 (⌘K)',
   topbarAdd: '添加',
@@ -402,7 +402,7 @@ export default {
   themeToggle: '主题',
   themeLight: '白色',
   themeBlue: '蓝色',
-  // ── 主页:搜索面板 ──
+  // ── Home: search panel ──
   searchPlaceholder: '你在找什么?',
   searchClose: '关闭',
   searchSearching: '搜索中…',
@@ -421,7 +421,7 @@ export default {
   searchTabImages: '图片',
   searchTabAudio: '音频',
   searchTabVideos: '视频',
-  // ── 应用区 ──
+  // ── Apps area ──
   appsTitle: '应用',
   appsNavInstalled: '已装应用',
   appsEmpty: '还没有安装任何应用',
@@ -476,7 +476,7 @@ export default {
   appsInstallTipsConfirm: '继续安装',
   appsStoreIncompatible: '与本机架构({arch})不兼容',
   appsInstallStalled: '长时间未收到安装进度,请稍后在应用列表确认',
-  // ── 自定义安装(/apps/custom) ──
+  // ── Custom install (/apps/custom) ──
   appsNavCustom: '自定义安装',
   appsCustomTabYaml: 'YAML 安装',
   appsCustomTabImport: '命令导入',
@@ -499,14 +499,14 @@ export default {
   appsCustomLinkDeleteConfirm: '删除这个外部链接?',
   appsCustomLinkHostInvalid: '地址必须以 http:// 或 https:// 开头',
   appsCustomLinkEmpty: '还没有外部链接',
-  // ── 应用设置:行编辑器 ──
+  // ── App settings: row editor ──
   appsSettingsAdd: '添加',
   appsSettingsRemove: '删除',
   appsSettingsPortHost: '主机端口',
   appsSettingsPortContainer: '容器端口',
   appsSettingsPortProtocol: '协议',
   appsSettingsPortExtraNote: '以下端口条目由系统原样保留,不支持在表单中编辑',
-  // ── 应用设置:表单(服务tab/WebUI/高级/提示) ──
+  // ── App settings: form (Service tab / WebUI / Advanced / hints) ──
   appsSettingsSectionWeb: 'Web 界面',
   appsSettingsSectionPorts: '端口',
   appsSettingsSectionEnv: '环境变量',
@@ -573,7 +573,7 @@ export default {
   appsConsoleLogs: '日志',
   appsConsoleNotFound: '应用不存在或没有运行中的容器',
   appsConsoleLoadFailed: '加载失败,请重试',
-  // ── 商店源(/apps/sources) ──
+  // ── Store sources (/apps/sources) ──
   appsNavSources: '商店源',
   appsSourcesTitle: '商店源',
   appsSourcesDesc: '第三方应用商店源,添加后其中的应用会并入应用商店。',
@@ -595,7 +595,7 @@ export default {
   appsSourcesLoadFailed: '加载失败,请重试',
   appsSourcesRetry: '重试',
   appsSourcesEmpty: '暂无商店源',
-  // ── storage 存储区 ──
+  // ── Storage area ──
   storageUnmountSuccess: '存储已移除',
   storageUnmountFailed: '移除失败,请检查密码后重试',
   storageTitle: '存储',
@@ -678,7 +678,7 @@ export default {
   raidRecoverSuccess: '阵列已恢复',
   raidRecoverFailed: '识别失败,请检查磁盘连接',
   raidReplaceNoTarget: '无法识别需要更换的磁盘',
-  // 收回成员盘(2026-08-12,后端 reattachable_members / recover readded,LocalStorage PR #22)
+  // Reclaim member disk (2026-08-12; backend reattachable_members / recover readded, LocalStorage PR #22)
   raidReclaimHint: '检测到本阵列成员盘 {serials} 已插回——可一键收回并增量同步',
   raidReclaimCardHint: '检测到成员盘 {serials} 已插回——进入详情可一键收回',
   raidReclaimBtn: '收回成员盘',
@@ -688,8 +688,8 @@ export default {
   raidReclaimFailed: '收回失败，请检查磁盘连接',
   raidReclaimDoneHealthy: '成员盘已收回，阵列已恢复健康',
   raidReclaimDoneStillDegraded: '成员盘已收回，但阵列仍未恢复健康——可能还有别的盘有问题',
-  // 重建 ETA(2026-08-12,后端 rebuild_eta_seconds;文案 1:1 移植 Vue2 028837e8 的
-  // "eta */duration *" 键,键名按本仓 camelCase 约定)
+  // Rebuild ETA (2026-08-12; backend rebuild_eta_seconds; copy ported 1:1 from Vue2 commit 028837e8's
+  // "eta */duration *" keys, key names follow this repo's camelCase convention)
   raidEtaCalculating: '正在估算剩余时间…',
   raidEtaRemaining: '剩余约 {duration}',
   raidEtaDoneToday: '预计今天 {time} 完成',
@@ -699,7 +699,7 @@ export default {
   raidEtaDurationHm: '{h} 小时 {m} 分钟',
   raidEtaDurationM: '{m} 分钟',
   raidEtaUnderMinute: '不到 1 分钟',
-  // RAID 残留(外来/废弃阵列遗留超块)与磁盘详情(2026-08-11,对齐 Vue2 b6cffd6c)
+  // RAID leftovers (foreign/abandoned array residual superblocks) and disk details (2026-08-11, aligned with Vue2 commit b6cffd6c)
   raidResidue: 'RAID 残留',
   raidResidueExplain: '该磁盘带有阵列“{name}”的 RAID 残留元数据。它不属于本机阵列，清除残留后即可使用。',
   raidResidueWipeConfirm: '该磁盘带有阵列“{array}”的 RAID 元数据（创建于 {created}，最后活动 {updated}）。如果那个阵列还有用，请不要继续。确认清除元数据并用这块盘重建？',
@@ -724,7 +724,7 @@ export default {
   raidBayClear: '清空',
   raidBayFilterAll: '全部',
   raidBaySelected: '已选 {n} 块 · {size}',
-  // 选盘卡片悬浮提示(文案 1:1 取 Vue2 assets/lang/zh_CN.json 的 "Temperature"/"Power-on time")
+  // Disk-selection card hover tooltip (copy taken 1:1 from Vue2's assets/lang/zh_CN.json "Temperature"/"Power-on time")
   raidDriveTemp: '温度',
   raidDrivePowerOn: '通电时间',
   raidTaskMeta: 'RAID-{level} · {n} 块盘 · {fs}',
@@ -759,7 +759,7 @@ export default {
   raidMembersTitleEmptySlots: '成员磁盘 ({n} 块 · {slots} 个空槽位)',
   raidBtrfsFreeEst: 'btrfs 估算可用',
   raidBtrfsCachedAt: '缓存于',
-  // 逐字转录自 Vue2 面板的 RaidDetailPanel.vue L267-290(levelFaultTolerance/levelReadSpeed/levelWriteSpeed,按 level 0/1/5/6)
+  // Transcribed verbatim from the Vue2 panel's RaidDetailPanel.vue L267-290 (levelFaultTolerance/levelReadSpeed/levelWriteSpeed, by level 0/1/5/6)
   raidLevel0Tolerance: '无(0 块盘)',
   raidLevel1Tolerance: 'n-1 块盘',
   raidLevel5Tolerance: '1 块盘',
@@ -772,19 +772,20 @@ export default {
   raidLevel1Write: '良好',
   raidLevel5Write: '中等',
   raidLevel6Write: '中等',
-  // level 10:RaidDetailPanel 无对应分支,按 Vue2 面板的 utils/raidUtils.js RAID_LEVELS(id:10)补——
-  // tolerance:'half' 对应 toleranceText() 的 "up to N (1 per pair)" 分支(此处为通用静态文案,略去具体盘数 n);
-  // read/write 为该表原始 1-5 评分(5、4),转录为评分文本。
+  // level 10: RaidDetailPanel has no matching branch, filled in from the Vue2 panel's utils/raidUtils.js
+  // RAID_LEVELS (id:10) — tolerance: 'half' maps to toleranceText()'s "up to N (1 per pair)" branch (this
+  // is generic static copy here, the specific disk count n is omitted); read/write are that table's
+  // original 1-5 rating (5, 4), transcribed into rating text.
   raidLevel10Tolerance: '至多一半磁盘(每镜像对 1 块)',
   raidLevel10Read: '—',
   raidLevel10Write: '—',
-  // desc:raidUtils.js 源文件中 desc 字段本身即占位字符串(如 'RAID 0 Description'),逐字转录(非我方发明)
+  // desc: in the raidUtils.js source file, the desc field itself is already a placeholder string (e.g. 'RAID 0 Description'), transcribed verbatim (not something we invented)
   raidLevel0Desc: 'RAID 0 说明',
   raidLevel1Desc: 'RAID 1 说明',
   raidLevel5Desc: 'RAID 5 说明',
   raidLevel6Desc: 'RAID 6 说明',
   raidLevel10Desc: 'RAID 10 说明',
-  // RaidMatrix(P4 T4)级别对比矩阵:行标签 + 各级别适用场景(usecase,逐字翻译自 raidLevels.ts 的英文常量)
+  // RaidMatrix (P4 T4) level-comparison matrix: row labels + each level's applicable use cases (usecase, translated verbatim from the English constants in raidLevels.ts)
   raidMatrixLayout: '布局',
   raidMatrixMinDrives: '最少盘数',
   raidMatrixSurvives: '可承受故障',
@@ -800,7 +801,7 @@ export default {
   raidLevel5Usecase: '通用 NAS、媒体服务器、小型企业',
   raidLevel6Usecase: '大型阵列、归档、任何重要数据',
   raidLevel10Usecase: '数据库、虚拟化、高写入负载',
-  // RAID 创建向导(P4 T5)
+  // RAID creation wizard (P4 T5)
   raidCreateBtn: '创建 RAID',
   raidCreateNoDisk: '暂无可用磁盘,请先插入或格式化硬盘',
   raidCreateStepDrives: '选盘与级别',

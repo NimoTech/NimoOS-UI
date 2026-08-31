@@ -1,17 +1,17 @@
-// Task 6 (SP7-P4 Album): PhotosLibraryPicker.vue — pick photos from library to add to this
-// album (shared by T7 "manual select" / T8 "add photos" buttons).
+// PhotosLibraryPicker.vue — pick photos from library to add to this
+// album (shared by the "manual select" / "add photos" buttons).
 // Mounts Pinia + i18n (real zh_cn entries); mocks shared package @nimotech/nimoos-service,
 // end-to-end verification via real useTimelineStore()/usePhotosAlbums()/useToast() —
 // tile source, in-album determination, add action all use real store, not pure whitebox.
-// [T9] Superseded in part by Step 0 note below: add action no longer issued by this
+// Superseded in part by the generalization note below: add action no longer issued by this
 // component, so toast store no longer involved here.
 //
 // Invariant cross-check: album assets use numeric id (via fetchAlbumAssets→assetToPhoto
 // real conversion pipeline get Photo.id as number), timeline photos use string id (same
-// assetToPhoto path), existingIds must String() normalize to match — this is the task's
-// core assertion.
+// assetToPhoto path), existingIds must String() normalize to match — this is the
+// core assertion here.
 //
-// SP15-P1-T9 · Step 0 (generalisation): the component's props moved from the album-specific
+// Generalisation: the component's props moved from the album-specific
 // {open, albumId, albumName} to the generic {open, title, existingIds, existingLabel,
 // submitLabel, submitting}, and submitting no longer writes to the album store — it emits
 // `confirm` and the caller writes. Every case below therefore mounts with the props the album
@@ -193,10 +193,10 @@ describe('PhotosLibraryPicker.vue', () => {
     expect(w.emitted('confirm')).toEqual([[['t-newest', 't-mid']]])
   })
 
-  // Step 0 · brief's new case: submitting must not reach album store anymore — write
-  // belongs to caller now. Spying on real store instance (not service mock) makes this fail
-  // if any half of old album-specific behavior is left behind.
-  it('SP15-P1-T9 generalization: submitting only emits confirm — neither writes to store nor closes itself', async () => {
+  // New behavior: submitting must not reach the album store anymore — write
+  // belongs to the caller now. Spying on the real store instance (not a service mock) makes this fail
+  // if any half of the old album-specific behavior is left behind.
+  it('generalization: submitting only emits confirm — neither writes to store nor closes itself', async () => {
     seedTimeline()
     const albums = usePhotosAlbums()
     const spy = vi.spyOn(albums, 'addAssetsToAlbum')
@@ -218,10 +218,10 @@ describe('PhotosLibraryPicker.vue', () => {
   // pages (asserted there); what component still owes user is caller who leaves panel open
   // finds selection exactly as it was, can resubmit.
   //
-  // fix round 1 · finding 1: deliberately replays caller's whole lifecycle — submitting goes
-  // true while write in flight, back to false in caller's `finally`. Earlier version never
-  // turned submitting on at all, so "button recovered" was true before click too and proved
-  // nothing. (That callers really do reset flag asserted in their own tests; here premise.)
+  // This deliberately replays the caller's whole lifecycle — submitting goes
+  // true while the write is in flight, back to false in the caller's `finally`. An earlier version never
+  // turned submitting on at all, so "button recovered" was true before the click too and proved
+  // nothing. (That callers really do reset the flag is asserted in their own tests; it's a premise here.)
   it("caller's write fails, keeps panel open → selection survives, button recovers, second submit sent", async () => {
     seedTimeline()
     const w = mountPicker(albumProps())
@@ -312,9 +312,9 @@ describe('PhotosLibraryPicker.vue', () => {
     expect(w.text()).toContain(zh.photosSelectedCount.replace('{count}', '1'))
   })
 
-  // Review gap: Vue2 source (PhotosAlbumLibraryPicker.vue:10-12) header has X close button
-  // (@click="onScrimClose"), behavior same as clicking overlay/cancel — "confirm before
-  // discarding unsaved selection" hierarchy. Brief structure list omits it, but this period's
+  // Gap found on review: Vue2 source (PhotosAlbumLibraryPicker.vue:10-12) header has an X close button
+  // (@click="onScrimClose"), with the same behavior as clicking overlay/cancel — the "confirm before
+  // discarding unsaved selection" hierarchy. It wasn't in the original structure list, but the
   // "UI strictly 1:1 per Vue2" discipline requires adding it.
   it('header X close button: with selection, click → show confirm bar, update:open not emitted; no selection, close directly', async () => {
     seedTimeline()
@@ -408,9 +408,9 @@ describe('PhotosLibraryPicker.vue', () => {
     expect(w.emitted('update:open')).toContainEqual([false])
   })
 
-  // Task 8b (owner ruling): in bucket mode `months` arriving doesn't mean any photos in
-  // hand — this grid is `timeline.allPhotos` flattened, without fetchNewestBuckets picker
-  // would render empty even though directory says library has photos.
+  // In bucket mode, `months` arriving doesn't mean any photos are in
+  // hand — this grid is `timeline.allPhotos` flattened, so without fetchNewestBuckets the picker
+  // would render empty even though the directory says the library has photos.
   it('on open (bucket mode) call fetchNewestBuckets to fetch newest months, not just wait for directory', async () => {
     svc.photos.getTimelineBuckets.mockReset().mockResolvedValueOnce([
       { year: 2026, month: 8, count: 1, videoCount: 0 },
@@ -433,9 +433,9 @@ describe('PhotosLibraryPicker.vue', () => {
     expect(svc.photos.getTimelineBucket).toHaveBeenCalledWith(2026, 6, 500, 0)
   })
 
-  // Task 8b (owner ruling, second half): scrolling near bottom pages in next unloaded
-  // dated bucket. Two scroll events fired back to back (before first bucket photos
-  // landed) must not fire two requests for same month.
+  // Scrolling near the bottom pages in the next unloaded
+  // dated bucket. Two scroll events fired back to back (before the first bucket's photos
+  // landed) must not fire two requests for the same month.
   it('scroll near bottom, fetch next unloaded dated bucket; two successive scrolls do not repeat request for same bucket', async () => {
     svc.photos.getTimelineBuckets.mockReset().mockResolvedValueOnce([
       { year: 2026, month: 8, count: 1, videoCount: 0 },
@@ -463,10 +463,10 @@ describe('PhotosLibraryPicker.vue', () => {
     expect(svc.photos.getTimelineBucket).toHaveBeenCalledWith(2026, 5, 500, 0)
   })
 
-  // Whole-branch review fix (minor 12): paging used to be reachable ONLY from
-  // `scroll` event, so library whose three newest months fit in panel never fired
-  // one — no scrollbar, nothing to drag, every earlier month unreachable. Picker
-  // looked like library ended three months ago.
+  // Paging used to be reachable ONLY from the
+  // `scroll` event, so a library whose three newest months fit in the panel never fired
+  // one — no scrollbar, nothing to drag, every earlier month unreachable. The picker
+  // looked like the library ended three months ago.
   it('page in more months when newest three do not fill panel', async () => {
     svc.photos.getTimelineBuckets.mockReset().mockResolvedValueOnce([
       { year: 2026, month: 8, count: 1, videoCount: 0 },

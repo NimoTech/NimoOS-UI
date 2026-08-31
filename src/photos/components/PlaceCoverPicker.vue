@@ -1,22 +1,29 @@
 <script setup lang="ts">
-// P6b-T7: PlaceCoverPicker.vue —— 地点详情面板的"设置封面"全屏弹层(标签页/搜索/
-// 8 列候选网格/分页/恢复默认)。逐段照 Vue2
-// src/views/Photos/PhotosPlacesView.vue:1253-1335(模板)、:296-312(watch,activeId
-// 切换重置 coverTab/coverSearch/coverPage——该重置属于容器状态管理,归 T8)、
-// :374-377(coverTabLabel 回落链)、:517-560(loadCoverCandidates/setCover/resetCover,
-// 同样归 T8)移植;样式照 photos-places.scss:1026-1184。
+// PlaceCoverPicker.vue — the place detail panel's full-screen "set cover" overlay
+// (tabs/search/8-column candidate grid/pagination/reset to default). Ported
+// section-by-section from Vue2 src/views/Photos/PhotosPlacesView.vue:1253-1335 (template),
+// :296-312 (watch, resetting coverTab/coverSearch/coverPage on activeId change — that reset
+// belongs to the container's own state management, not this component), :374-377
+// (coverTabLabel fallback chain), :517-560 (loadCoverCandidates/setCover/resetCover, likewise
+// the container's responsibility); styles follow photos-places.scss:1026-1184.
 //
-// 纯组件,不接线:状态与请求都在容器(T8),本组件只 emit。
+// Pure presentational component, not wired up itself: state and requests both live in the
+// container; this component only emits.
 //
-// 浮层规范(本仓已确立先例 PlacesFilterMenu.vue/PlacesThemeMenu.vue):Esc 走
-// document 级 keydown,watch(open) 挂/摘,onUnmounted 兜底摘除;不调用
-// stopPropagation/stopImmediatePropagation——本页同时挂着 Filters、地图主题两个弹层,
-// 三者独立监听同一个 document keydown,一次 Esc 要让三个各自都收到、各自都关
-// (T8 集成断言)。onDocKeydown 内部除"非 Escape 直接 return"外没有第二条早退
-// (P5-T10 bug 形态:两个弹层共享一个判定函数、漏检第二个分支导致同开时 Esc 只关一个;
-// 本组件不共享判定函数,不会重现,但仍照铁律钉死写法)。
+// Overlay convention (precedent already established in this repo by
+// PlacesFilterMenu.vue/PlacesThemeMenu.vue): Escape goes through a document-level keydown
+// handler, attached/detached by a watch(open), with a fallback removal in onUnmounted;
+// stopPropagation/stopImmediatePropagation are never called — this page also has the Filters
+// and map-theme overlays mounted at the same time, all three independently listening on the
+// same document keydown, so a single Escape press needs to reach and close each of them
+// independently (verified by the container's integration tests). Aside from the "return
+// immediately if not Escape" guard, onDocKeydown has no second early-return (this guards
+// against a bug shape seen elsewhere: two overlays sharing one predicate function, where a
+// missed second branch meant Escape only closed one of them when both were open at once; this
+// component doesn't share its predicate function so that specific bug can't recur here, but
+// the pattern is still followed as a hard rule).
 //
-// Task 2 (Plan E, 2026-08-15): outer wrapper moved off the New-UI-only in-place
+// Outer wrapper moved off the New-UI-only in-place
 // `.cp-scrim` invention onto Vue2's own body-portal semantics (PhotosPlacesView.vue
 // mounted()/beforeDestroy() appendChild/removeChild, :1338 class binding). `<Teleport
 // to="body">` replaces the manual appendChild/removeChild — behavior-equivalent
@@ -30,7 +37,7 @@
 // own `.places-cover-portal` family (z-index 1200, Vue2's own value) now governs 100% of
 // this component's visuals; the handful of true New-UI-only survivor rules (hover
 // feedback, busy-disabled states, two inline-Vue2-style-to-CSS-class conversions) were
-// folded into that same file's own "New-UI additions (Task 2 ...)" section.
+// folded into that same file's own "New-UI additions" section.
 // `data-test="cp-scrim"` is kept as a bare test anchor even though the CSS class backing
 // it is now `places-cover-portal`, not the old New-UI-only `cp-scrim` name.
 import { onUnmounted, watch } from 'vue'
@@ -63,8 +70,9 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const { themeClass } = usePhotosTheme()
 
-// 标签文案回落链(照搬 Vue2 :374-377):先查 photosPlacesCoverTab{Recent|Top|Fav|All}
-// (按 t.id 映射),没有则回落 t.label,再没有回落 t.id。只此一处消费,不进 util。
+// Tab label fallback chain (copied from Vue2 :374-377): look up
+// photosPlacesCoverTab{Recent|Top|Fav|All} first (mapped by t.id), fall back to t.label if
+// missing, then fall back to t.id. Only used here, so it doesn't live in util.
 const TAB_LABEL_KEYS: Record<string, string> = {
   recent: 'photosPlacesCoverTabRecent',
   top: 'photosPlacesCoverTabTop',
@@ -77,7 +85,7 @@ function coverTabLabel(tb: { id: string, label: string }): string {
   return tb.label || tb.id
 }
 
-// 照搬 Vue2 :1284。
+// Copied from Vue2 :1284.
 function tabCountText(count: number): string {
   return count > 999 ? `${Math.round(count / 100) / 10}k` : String(count)
 }
@@ -100,7 +108,7 @@ function onReset(): void {
   if (props.busy) return
   emit('reset')
 }
-// 钳制照搬 Vue2 :1322/:1328。
+// Clamping copied from Vue2 :1322/:1328.
 function onPrevPage(): void {
   emit('update:page', Math.max(0, props.page - 1))
 }
@@ -156,8 +164,8 @@ onUnmounted(() => {
             :class="['cp-tab', { 'is-active': tab === tb.id }]"
             @click="onTabClick(tb.id)"
           >
-            <!-- 图标按 t.icon 分支(后端契约 NimoOS-Photos service/places.go:756-759:
-                 clock/sparkles/star/grid 四值),未知值回落通用图标。 -->
+            <!-- Icon branches on t.icon (backend contract NimoOS-Photos service/places.go:756-759:
+                 one of clock/sparkles/star/grid), falling back to a generic icon for unknown values. -->
             <svg
               v-if="tb.icon === 'clock'" data-test="cp-tab-ico-clock"
               viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor"
@@ -208,9 +216,11 @@ onUnmounted(() => {
             @click="onCellClick(assetId)"
           >
             <img :src="service.photos.thumbnailUrl(assetId, 'small')" alt="">
-            <!-- .cp-cell-check 背景为 var(--accent) 饱和实底,白勾压在上面 ——
-                 这是 --on-accent 的正确用法(与 hero 前景色不同:那处压在照片+暗化
-                 渐变上,一律钉死浅色 + theme-exception;这里背景确为 accent 纯色)。 -->
+            <!-- .cp-cell-check has a solid var(--accent) background with a white checkmark on
+                 top — this is the correct use of --on-accent (unlike the hero foreground color,
+                 which sits over a photo plus darkening gradient and is pinned to a light color
+                 plus a theme-exception comment; here the background really is a solid accent
+                 color). -->
             <span v-if="isCurrentCover(assetId)" class="cp-cell-check">
               <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7" /></svg>
             </span>

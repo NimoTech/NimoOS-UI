@@ -34,7 +34,7 @@ export interface KvmVM {
   /** ⚠️ GET /vms real device verification **does return values** (2026-08-02 curl, not "doesn't return"). The reality is ListVMs
    *  directly outputs an in-memory snapshot (service/vm_service.go:245-262 ListVMs), while GetVMVNCInfo writes back
    *  the same pointer (:700-703) — so values in the list **may be stale / become 0 after process restart**, not absent.
-   *  Consumers need to do heartbeat merging; see SP9-P5 plan (specific implementation file to be created in follow-up tasks). */
+   *  Consumers need to do heartbeat merging; this is not yet implemented and should be addressed in a follow-up. */
   spicePort: number
   spiceTlsPort: number
   autostart: boolean

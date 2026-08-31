@@ -1,5 +1,5 @@
-// Task 10(SP7-P6a 地点·地图主视图):PlacesThemeMenu.vue —— 地图工具栏「地图主题」胶囊按钮 +
-// 下拉弹层(4 预设 + 自定义两取色器)。逐条对应「必含测试清单」。
+// PlacesThemeMenu.vue — the "map theme" pill button in the map toolbar plus its
+// dropdown popover (4 presets + two custom color pickers). Covers the required test checklist item by item.
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
@@ -41,30 +41,30 @@ afterEach(() => {
   document.body.innerHTML = ''
 })
 
-// ── chip 按钮 ────────────────────────────────────────────────────────────────
-describe('chip 按钮', () => {
-  it('文案走 i18n 键 photosPlacesMapTheme', () => {
+// ── chip button ────────────────────────────────────────────────────────────────
+describe('chip button', () => {
+  it('text uses the i18n key photosPlacesMapTheme', () => {
     const w = mountMenu()
     expect(w.get('[data-test="mtm-chip"]').text()).toContain('地图主题')
   })
 
-  it('点 chip → emit update:open 取反', async () => {
+  it('clicking the chip emits update:open toggled', async () => {
     const w = mountMenu({ open: false })
     await w.get('[data-test="mtm-chip"]').trigger('click')
     expect(w.emitted('update:open')).toEqual([[true]])
   })
 })
 
-// ── 四个预设项 ────────────────────────────────────────────────────────────────
-describe('预设列表', () => {
-  it('渲染四个 .mtp-item,顺序 default/ocean/sand/mono', () => {
+// ── the four presets ────────────────────────────────────────────────────────────────
+describe('preset list', () => {
+  it('renders four .mtp-item elements in order default/ocean/sand/mono', () => {
     const w = mountMenu({ open: true })
     const items = w.findAll('[data-test="mtm-preset"]')
     expect(items).toHaveLength(4)
     expect(items.map((it) => it.attributes('data-theme-id'))).toEqual(['default', 'ocean', 'sand', 'mono'])
   })
 
-  it('当前项(mapTheme 命中的那个)有 .is-active 且含 check 图标,其余没有', () => {
+  it('the current item (matching mapTheme) has .is-active and a check icon, the rest do not', () => {
     const w = mountMenu({ open: true, selection: defaultSelection({ mapTheme: 'ocean' }) })
     const items = w.findAll('[data-test="mtm-preset"]')
     expect(items[1].classes()).toContain('is-active')
@@ -75,13 +75,13 @@ describe('预设列表', () => {
     }
   })
 
-  it('mapTheme=custom 时四个预设项都没有 .is-active(custom 不是任何预设)', () => {
+  it('none of the four presets has .is-active when mapTheme=custom (custom is not any preset)', () => {
     const w = mountMenu({ open: true, selection: defaultSelection({ mapTheme: 'custom' }) })
     const items = w.findAll('[data-test="mtm-preset"]')
     for (const i of items) expect(i.classes()).not.toContain('is-active')
   })
 
-  it('预设名/描述走 i18n 键(断言中文文案,不是 Ocean 字面)', () => {
+  it('preset name/description use i18n keys (asserts the Chinese copy, not the literal "Ocean")', () => {
     const w = mountMenu({ open: true })
     const items = w.findAll('[data-test="mtm-preset"]')
     expect(items[1].get('.mtp-name').text()).toBe('海洋')
@@ -89,7 +89,7 @@ describe('预设列表', () => {
     expect(items[1].text()).not.toContain('Ocean')
   })
 
-  it('.mtp-swatch 背景与内圆点颜色随 isLight 切换', () => {
+  it('the .mtp-swatch background and inner dot color switch with isLight', () => {
     const dark = mountMenu({ open: true, isLight: false })
     const darkSwatch = dark.findAll('[data-test="mtm-swatch"]')[1]
     expect(darkSwatch.attributes('style')).toContain('background-color: rgb(10, 18, 26)') // #0a121a
@@ -108,7 +108,7 @@ describe('预设列表', () => {
   // (PhotosPlacesView.vue:1005): absolutely centered, 4x4px, fully rounded. This guard pins
   // that geometry to this file's own raw `<style>` text (jsdom does not compute layout, so a
   // rendered-DOM assertion can't catch a missing width/height the way a real browser would).
-  it('.mtp-dot 有几何形状(绝对居中 + 4x4 圆形),不再是零尺寸的裸 <span>', () => {
+  it('.mtp-dot has real geometry (absolutely centered, 4x4 circle), no longer a zero-size bare <span>', () => {
     const style = extractStyleBlock(placesThemeMenuRaw)
     const m = /\.mtp-dot\s*\{([^}]*)\}/.exec(style)
     expect(m, '未找到 .mtp-dot 规则').not.toBeNull()
@@ -122,7 +122,7 @@ describe('预设列表', () => {
     expect(decls).toMatch(/border-radius:\s*99px/)
   })
 
-  it('点预设 → emit update:selection(mapTheme 变该 id,颜色字段原样保留)+ emit update:open(false)', async () => {
+  it('clicking a preset emits update:selection (mapTheme changes to that id, color fields stay unchanged) and emits update:open(false)', async () => {
     const original = defaultSelection({ customDotColor: '#123456', customCityColor: '#abcdef' })
     const w = mountMenu({ open: true, selection: original })
     await w.get('[data-theme-id="sand"]').trigger('click')
@@ -132,20 +132,20 @@ describe('预设列表', () => {
   })
 })
 
-// ── 自定义取色器 ──────────────────────────────────────────────────────────────
-describe('自定义取色器', () => {
-  it('自定义标题走 i18n 键 photosPlacesMapThemeCustom', () => {
+// ── custom color pickers ──────────────────────────────────────────────────────────────
+describe('custom color pickers', () => {
+  it('the custom title uses the i18n key photosPlacesMapThemeCustom', () => {
     const w = mountMenu({ open: true })
     expect(w.text()).toContain('自定义')
   })
 
-  it('两个 <input type="color"> 存在', () => {
+  it('both <input type="color"> elements exist', () => {
     const w = mountMenu({ open: true })
     expect(w.get('[data-test="mtm-dot-input"]').attributes('type')).toBe('color')
     expect(w.get('[data-test="mtm-grid-input"]').attributes('type')).toBe('color')
   })
 
-  it('陆地点颜色 @input → emit payload.mapTheme===custom 且 customDotColor 被更新,customCityColor 原样保留', async () => {
+  it('the land-dot color @input emits a payload with mapTheme===custom and customDotColor updated, customCityColor unchanged', async () => {
     const original = defaultSelection({ mapTheme: 'ocean', customCityColor: '#abcdef' })
     const w = mountMenu({ open: true, selection: original })
     const input = w.get<HTMLInputElement>('[data-test="mtm-dot-input"]')
@@ -157,7 +157,7 @@ describe('自定义取色器', () => {
     expect(next.customCityColor).toBe('#abcdef')
   })
 
-  it('城市灯颜色 @input → emit payload.mapTheme===custom 且 customCityColor 被更新,customDotColor 原样保留', async () => {
+  it('the city-light color @input emits a payload with mapTheme===custom and customCityColor updated, customDotColor unchanged', async () => {
     const original = defaultSelection({ mapTheme: 'sand', customDotColor: '#123456' })
     const w = mountMenu({ open: true, selection: original })
     const input = w.get<HTMLInputElement>('[data-test="mtm-grid-input"]')
@@ -169,7 +169,7 @@ describe('自定义取色器', () => {
     expect(next.customDotColor).toBe('#123456')
   })
 
-  it('取色器不关闭弹层(与点预设不同,不 emit update:open)', async () => {
+  it('the color picker does not close the popover (unlike clicking a preset, it does not emit update:open)', async () => {
     const w = mountMenu({ open: true })
     const input = w.get<HTMLInputElement>('[data-test="mtm-dot-input"]')
     input.element.value = '#ff00ff'
@@ -178,9 +178,9 @@ describe('自定义取色器', () => {
   })
 })
 
-// ── 浮层规范:document mousedown / keydown(同 T9)───────────────────────────────
-describe('浮层规范', () => {
-  it('open=true 时 document mousedown 在容器外 → emit update:open(false)', async () => {
+// ── popover conventions: document mousedown / keydown ───────────────────────────────
+describe('popover conventions', () => {
+  it('when open=true, a document mousedown outside the container emits update:open(false)', async () => {
     const w = mountMenu({ open: true })
     await w.vm.$nextTick()
     const outside = document.createElement('div')
@@ -191,7 +191,7 @@ describe('浮层规范', () => {
     outside.remove()
   })
 
-  it('open=true 时 document mousedown 在容器内(弹层内部) → 不 emit', async () => {
+  it('when open=true, a document mousedown inside the container (inside the popover) does not emit', async () => {
     const w = mountMenu({ open: true })
     await w.vm.$nextTick()
     w.get('[data-test="mtm-pop"]').element.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
@@ -199,7 +199,7 @@ describe('浮层规范', () => {
     expect(w.emitted('update:open')).toBeUndefined()
   })
 
-  it('Esc(document 级派发,bubbles:true) → emit update:open(false)', async () => {
+  it('Escape (dispatched at document level, bubbles: true) emits update:open(false)', async () => {
     const w = mountMenu({ open: true })
     await w.vm.$nextTick()
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
@@ -207,7 +207,7 @@ describe('浮层规范', () => {
     expect(w.emitted('update:open')).toEqual([[false]])
   })
 
-  it('非 Escape 键不触发关闭', async () => {
+  it('a non-Escape key does not trigger closing', async () => {
     const w = mountMenu({ open: true })
     await w.vm.$nextTick()
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
@@ -215,7 +215,7 @@ describe('浮层规范', () => {
     expect(w.emitted('update:open')).toBeUndefined()
   })
 
-  it('open=false 时 document mousedown/keydown 不再触发 emit(监听已摘)', async () => {
+  it('when open=false, document mousedown/keydown no longer trigger an emit (listeners removed)', async () => {
     const w = mountMenu({ open: true })
     await w.vm.$nextTick()
     await w.setProps({ open: false })
@@ -229,7 +229,7 @@ describe('浮层规范', () => {
     outside.remove()
   })
 
-  it('卸载后 document 上的监听摘干净(比对函数引用)', async () => {
+  it('listeners on document are fully removed after unmount (compares function references)', async () => {
     const addSpy = vi.spyOn(document, 'addEventListener')
     const w = mountMenu({ open: true })
     await w.vm.$nextTick()
@@ -246,9 +246,9 @@ describe('浮层规范', () => {
   })
 })
 
-// ── 英文 locale sanity ────────────────────────────────────────────────────────
-describe('英文 locale sanity', () => {
-  it('en_us 下 chip 与预设文案切到英文', () => {
+// ── English locale sanity ────────────────────────────────────────────────────────
+describe('English locale sanity', () => {
+  it('chip and preset copy switch to English under en_us', () => {
     const w = mountMenu({ open: true }, makeI18n('en_us'))
     expect(w.get('[data-test="mtm-chip"]').text()).toContain('Map theme')
     const items = w.findAll('[data-test="mtm-preset"]')
@@ -256,15 +256,18 @@ describe('英文 locale sanity', () => {
   })
 })
 
-// ── theme-exception 注释合规(照 color-guard 的豁免窗口规则)────────────────────
-describe('theme-exception 注释合规', () => {
-  it('样式块里若出现裸颜色字面量,必被紧邻的 theme-exception 注释豁免窗口覆盖', () => {
-    // 逐字复刻 src/styles/color-guard.test.ts 的豁免窗口状态机:exempt 遇到
-    // theme-exception 注释后打开,遇到下一个 ; 或 } 就关闭。这里不假设本组件一定需要
-    // 例外(与 PlacesMap.vue 那条不同,本组件预期零字面色——全部走 token 或经由 :style
-    // 绑定在样式块之外),所以不额外断言 comments.length > 0:若实现里确实一个字面色都
-    // 没有,offenders 数组为空即通过,且天然与全仓 color-guard.test.ts 的判定口径一致;
-    // 若未来有人往这里加了字面色又忘记豁免注释,这条测试会先于全量 color-guard 抓到它。
+// ── theme-exception comment compliance (per color-guard's exemption-window rules) ────────────────────
+describe('theme-exception comment compliance', () => {
+  it('any bare color literal in the style block must be covered by an adjacent theme-exception exemption window', () => {
+    // Reproduces verbatim the exemption-window state machine from src/styles/color-guard.test.ts:
+    // exempt turns on after a theme-exception comment and turns off at the next ; or }. This
+    // doesn't assume the component necessarily needs an exception (unlike the PlacesMap.vue
+    // case, this component is expected to have zero literal colors — everything goes through a
+    // token or is bound via :style outside the style block), so it deliberately doesn't also
+    // assert comments.length > 0: if the implementation genuinely has no literal colors at all,
+    // an empty offenders array is a pass, matching the same standard as the repo-wide
+    // color-guard.test.ts; if someone later adds a literal color here and forgets the exemption
+    // comment, this test will catch it before the full color-guard suite does.
     const m = /<style[^>]*>([\s\S]*?)<\/style>/.exec(placesThemeMenuRaw)
     expect(m).not.toBeNull()
     const styleText = m![1]
@@ -277,19 +280,21 @@ describe('theme-exception 注释合规', () => {
       if (!exempt && (HEX.test(line) || FUNC.test(line))) offenders.push(line)
       if (line.includes(';') || line.includes('}')) exempt = false
     }
-    expect(offenders, `裸颜色未被豁免窗口覆盖:\n${offenders.join('\n')}`).toEqual([])
+    expect(offenders, `bare color not covered by an exemption window:\n${offenders.join('\n')}`).toEqual([])
   })
 })
 
-// ── 样式级联:.mtp-item.is-active:hover 归属变体(hover 级联铁律)─────────────────
-describe('cssCascade: .mtp-item.is-active:hover 归属变体', () => {
+// ── style cascade: .mtp-item.is-active:hover ownership variant (the hover-cascade rule) ─────────────────
+describe('cssCascade: .mtp-item.is-active:hover ownership variant', () => {
   const styleText = extractStyleBlock(placesThemeMenuRaw)
 
-  it('.mtp-item.is-active:hover 背景归属变体规则(优先级更高,而非源码顺序 tie-break)', () => {
-    // 同 PlacesFilterMenu.test.ts 的既有教训(T9):若只断言 winner.value 包含期望 token,
-    // 在变体自己的 :hover 规则被删掉后,winningHoverBackground 可能靠"同优先级取源码顺序
-    // 更靠后那条"的 tie-break 规则,巧合选中同一个 background 值,测试拿不到 RED。这里
-    // 额外钉死 winner.selector 必须自带显式 :hover,证明它是靠更高优先级赢的。
+  it('.mtp-item.is-active:hover background follows the ownership-variant rule (wins on specificity, not source-order tie-break)', () => {
+    // Same lesson already learned in PlacesFilterMenu.test.ts: asserting only that winner.value
+    // contains the expected token isn't enough — once the variant's own :hover rule is deleted,
+    // winningHoverBackground can fall back to the "same-priority, later in source order wins"
+    // tie-break rule and coincidentally pick the same background value, so the test never turns
+    // RED. This additionally pins down that winner.selector must itself carry an explicit
+    // :hover, proving it wins on higher specificity rather than by tie-break.
     const winner = winningHoverBackground(styleText, ['map-theme-pop', 'mtp-item', 'is-active'])
     expect(winner.selector).toContain('is-active')
     expect(winner.selector).toContain(':hover')

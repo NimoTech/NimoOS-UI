@@ -6,7 +6,7 @@ import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import { service } from '@nimotech/nimoos-service'
 import { assetToPhoto, type Photo } from '../util/assetToPhoto'
-// SP15-P2b final fix wave: the two conversion actions are mirror images living in the two
+// The two conversion actions are mirror images living in the two
 // stores they create into, so each has to evict the source object from the other store. That
 // makes this import pair mutual (smartViews.ts imports this file for the same reason). Safe
 // because neither side touches the other's binding at module-evaluation time -- both calls sit
@@ -19,9 +19,9 @@ export const usePhotosAlbums = defineStore('photosAlbums', () => {
   // Vue2 state.albums stores **raw backend objects** (view layer maps them to AlbumView), copied verbatim.
   const albums = ref<RawAlbum[]>([])
   // New-UI addition: empty state gating. Set to true only on fetchAlbums success path, leave false on failure for retry
-  // (P3 hard lesson: unconditional setting makes transient failure indistinguishable from "confirmed zero albums").
+  // (a hard lesson learned elsewhere: unconditional setting makes transient failure indistinguishable from "confirmed zero albums").
   const albumsLoaded = ref(false)
-  // Task 9 (P8a, P4 legacy closure): independent failure flag—never merge/reuse with albumsLoaded.
+  // Independent failure flag—never merge/reuse with albumsLoaded.
   // albumsLoaded set to true only on success path is intentional (see comment above); a transient failure must be distinguishable
   // by view as "load failure" not "still in skeleton screen", that is the sole reason loadError exists.
   const loadError = ref(false)
@@ -59,7 +59,7 @@ export const usePhotosAlbums = defineStore('photosAlbums', () => {
     next[idx] = { ...next[idx], ...patch }
     albums.value = next
   }
-  // SP15-P2b final fix wave: drop an album the server no longer has, without a refetch.
+  // Drop an album the server no longer has, without a refetch.
   // Exported because the *smart views* store needs it -- convertFromAlbum deletes the source
   // album server-side, and leaving it in this list keeps a detail route alive for an object
   // that is gone (albumsLoaded stays true, so PhotosAlbumDetail.vue:442 never refetches).
@@ -72,7 +72,7 @@ export const usePhotosAlbums = defineStore('photosAlbums', () => {
   // ── actions—
 
   // Vue2 :910-917—full replace, catch only logs not throws (the only "swallowed-error" album action).
-  // Task 9 correction: `loadError` used to be reset to false at the top of
+  // Correction: `loadError` used to be reset to false at the top of
   // this function (before the await). That created a window, on every retry
   // (success *or* failure), where loadError was already false but
   // albumsLoaded was still false too — i.e. a transient "nothing failed"
@@ -126,7 +126,7 @@ export const usePhotosAlbums = defineStore('photosAlbums', () => {
   // Vue2 :933-936—**not optimistic**: after backend succeeds, use **backend-returned name** (not input param) to write back locally. Exception throws up.
   // Line-by-line review of Vue2 :934-935 found divergence: Vue2 is `res.data.name` no fallback (if backend omits name
   // writes undefined); brief snapshot added `?? name` fallback. Following Vue2 source, drop fallback, strictly use
-  // backend return value only (see task-2-report.md divergence record).
+  // backend return value only (this divergence from the source was verified during review).
   async function renameAlbum(id: string | number, name: string): Promise<void> {
     const res = (await service.photos.updateAlbum(id, { name })) as RawAlbum
     updateAlbumLocal(id, { name: res.name })
@@ -209,11 +209,11 @@ export const usePhotosAlbums = defineStore('photosAlbums', () => {
     return created
   }
 
-  // SP15-P2c Task 2. Vue2 does this purely on the front end -- there is no duplicate endpoint.
+  // Vue2 does this purely on the front end -- there is no duplicate endpoint.
   // Read the target (33b05636 PhotosAlbumDetail.vue :708-730, `duplicateAlbum` method): it
   // computes `${this.album.title} copy` and the source album's member ids, then just dispatches
   // the existing `photos/saveAsAlbum` action -- it is a thin wrapper, not a fresh
-  // create+addAssets combination. Reuse decision (this task's brief left it open): reuse
+  // create+addAssets combination. Reuse decision: reuse
   // `saveAsAlbum` rather than `createAlbum` + `addAssetsToAlbum`, because that is exactly what
   // Vue2 does and their sequencing matches (create -> batchAdd -> refetch -> return); the
   // store's own `addAssetsToAlbum` action has different semantics (optimistic count patch +
@@ -230,7 +230,7 @@ export const usePhotosAlbums = defineStore('photosAlbums', () => {
   const duplicateBusy = ref(false)
   async function duplicateAlbum(id: string | number): Promise<RawAlbum> {
     // Re-entry guard, same shape as smartViews.ts:170's duplicateBusy. Without it a double
-    // click creates two albums, and P1's final review caught exactly this class of bug on the
+    // click creates two albums, and an earlier review caught exactly this class of bug on the
     // one write path that lacked a guard.
     if (duplicateBusy.value) throw new Error('duplicate already in flight')
     duplicateBusy.value = true
@@ -247,12 +247,12 @@ export const usePhotosAlbums = defineStore('photosAlbums', () => {
     }
   }
 
-  // SP15-P2b: a smart view solidifies into a manual album in place. Mirror image of
+  // A smart view solidifies into a manual album in place. Mirror image of
   // smartViews.convertFromAlbum — see its comment for why there is no refetch. The raw backend
   // object is stored as-is, matching this store's convention of keeping albums unmapped (the
   // views map them through albumToView).
   //
-  // The source smart view MUST leave the other store (final fix wave): the backend deletes it,
+  // The source smart view MUST leave the other store: the backend deletes it,
   // but smartViews.listLoaded stays true and PhotosSmartViewDetail.vue:96 skips its own fetch
   // when it is, so one browser Back press after a successful conversion would otherwise land on
   // a fully interactive detail page for a smart view the server has already deleted.

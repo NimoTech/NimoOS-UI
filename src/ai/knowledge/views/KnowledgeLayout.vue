@@ -1,5 +1,5 @@
 <!--
-  SP8-P5a Task 10 — Knowledge base section shell, 1:1 port from Vue2 blueprint
+  Knowledge base section shell, 1:1 port from Vue2 blueprint
   the Vue 2 panel (main@7a6ee6b7) `src/views/AI/Knowledge/KnowledgeLayout.vue` (210
   lines, read via `git show main:`, governance file §1: worktree is old branch, not
   trustworthy).

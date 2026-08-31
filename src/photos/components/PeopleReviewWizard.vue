@@ -1,14 +1,14 @@
 <script setup lang="ts">
-// PeopleReviewWizard.vue (people-confirm-polish, 2026-08-21) — full-screen Apple-style review
+// PeopleReviewWizard.vue — full-screen Apple-style review
 // wizard for the People page's "待确认/To confirm" section (pattern ① primary + pattern ②
-// integrated, the design the user picked after an interactive three-pattern demo). Replaces the
+// integrated design). Replaces the
 // old per-group card grid (inline ✓/✕ buttons, group-level Confirm-all/Reject-all) and its
 // click-to-enlarge peek overlay entirely — PhotosPeople.vue now only renders a compact entry
 // card (count + preview thumbs + this wizard's own open trigger).
 //
 // One suggestion at a time, across ALL groups sequentially. Division of labor: unlike
 // ClusterActionDialog.vue (which only collects input and emits — the host owns every store
-// call), this component owns its OWN store interaction end-to-end. Brief basis for that choice:
+// call), this component owns its OWN store interaction end-to-end. The rationale for that choice:
 // "No other store changes expected — the wizard iterates suggestionGroups" (i.e. it reads the
 // store directly, not through a prop the host would have to keep in sync) and "Busy state: …
 // local in-flight flag" (i.e. the in-flight guard is this component's own state, not something
@@ -21,7 +21,7 @@
 // Skip is the one path that needs an explicit local marker (skippedIds) — the store never removes
 // a skipped item, only this component's own session state does.
 //
-// Merge-cards feature (2026-08-21): cluster-merge questions (whole-cluster-pair review, not a
+// Merge-cards feature: cluster-merge questions (whole-cluster-pair review, not a
 // single face) now join this same queue, AFTER every per-face suggestion — `flat` below is a
 // discriminated union so one sequential wizard can walk both kinds in order without a second
 // component. `skippedIds`/`current`/`totalAtOpen`/progress all operate on the union uniformly
@@ -45,8 +45,8 @@ type FlatItem =
   | { kind: 'face'; item: SuggestionItem; group: SuggestionGroup }
   | { kind: 'merge'; pair: MergeQuestionPair }
 
-// Face items first, merge questions after — per the brief ("merge questions join the review
-// queue AFTER the face suggestions").
+// Face items first, merge questions after — merge questions join the review
+// queue AFTER the face suggestions.
 const flat = computed<FlatItem[]>(() => [
   ...people.suggestionGroups.flatMap((g) => g.suggestions.map((item) => ({ kind: 'face' as const, item, group: g }))),
   ...people.mergeQuestions.map((pair) => ({ kind: 'merge' as const, pair })),
@@ -56,7 +56,7 @@ function flatKey(f: FlatItem): string {
   return f.kind === 'face' ? `face:${f.item.id}` : `merge:${f.pair.id}`
 }
 
-// Session-local skip set (brief: "Skip = purely client-side advance", never touches the store).
+// Session-local skip set (skip is purely a client-side advance, never touches the store).
 // Wholesale-reassignment convention for ref<Set<…>> (this repo's established pattern for this
 // shape of state — see e.g. PhotosPeople.vue's pre-rework suggestionBusy).
 const skippedIds = ref<Set<string>>(new Set())
@@ -65,14 +65,14 @@ const skippedIds = ref<Set<string>>(new Set())
 const totalAtOpen = ref(0)
 const busy = ref(false)
 const viewMode = ref<'original' | 'compare'>('original')
-// Merge-card legibility fix (2026-08-21): the zoom lightbox used to be single-purpose (always
+// Merge-card legibility fix: the zoom lightbox used to be single-purpose (always
 // the face-suggestion body's own contextUrl). It is now a generic "show this one URL, big" overlay
 // so the merge body's face tiles can reuse the exact same mechanism -- `null` = closed, any string
 // = open showing that URL. openLightbox()/closeLightbox() are the only mutators; nothing sets
 // lightboxUrl directly outside them, so every open path is traceable to one of the two callers
 // below (the face body's context-photo click, or a merge-card tile click).
 const lightboxUrl = ref<string | null>(null)
-// T12b (face-locate box, 2026-08-27 addendum): the currently-opened tile's normalized bbox, if
+// Face-locate box addendum: the currently-opened tile's normalized bbox, if
 // any -- a merge tile's own preview data (fromFaces/intoFaces[i].bbox), or null for every other
 // lightbox-opening path (face-suggestion context photo, a face-crop-only fallback tile). Paired
 // 1:1 with lightboxUrl through openLightbox/closeLightbox; nothing else mutates it.
@@ -81,7 +81,7 @@ const lightboxFaceBox = ref<number[] | null>(null)
 // no box to draw, or the box/element geometry doesn't resolve to a content frame yet).
 const lightboxImgEl = ref<HTMLImageElement | null>(null)
 const faceBoxRect = ref<FaceRect | null>(null)
-// T12c (suggestion-card face-locate box, 2026-08-28 addendum): the SAME overlay mechanism, but
+// Suggestion-card face-locate box addendum: the SAME overlay mechanism, but
 // for the pattern-①/② body's own INLINE context photo (`.prw-context-img`), a separate <img>
 // element from the lightbox's -- own el ref / rect state, never shared with lightboxImgEl/
 // faceBoxRect above (independent geometry, independent lifecycle: this one can be visible while
@@ -104,7 +104,7 @@ const reviewedCount = computed(() => Math.max(0, totalAtOpen.value - remaining.v
 // ── Face-suggestion-only view state (pattern ① / ② body) ──
 const currentPerson = computed<Person | null>(() => (current.value?.kind === 'face' ? current.value.group.person : null))
 const currentName = computed(() => currentPerson.value?.name || t('photosPersonUnnamedTitle'))
-// Up to 5 reference faces (brief: "4-5"). NEW optional backend field — absent on older backends,
+// Up to 5 reference faces (the design calls for 4-5). NEW optional backend field — absent on older backends,
 // feature-detected purely by presence (no separate capability flag needed: the field IS the
 // detection). An empty array is treated the same as absent here (nothing to render either way).
 // Defensive dedupe: the backend contract excludes the person's own coverFaceId from this list,
@@ -119,7 +119,7 @@ const exemplarFaces = computed(() => (
 function faceThumb(faceId: string): string {
   return service.photos.faceThumbnailUrl(faceId)
 }
-// Fix round 1 precedent carried over from the old peek overlay (PhotosPeople.vue, deleted by
+// Precedent carried over from the old peek overlay (PhotosPeople.vue, deleted by
 // this rework): deliberately thumbnailUrl(assetId,'large'), NOT originalUrl. A suggestion's
 // assetId can point at a video (face detection runs on video keyframes too, and
 // person_suggestions has no video-exclusion filter) — Original streams back the raw video file
@@ -139,7 +139,7 @@ const coverFaceUrl = computed(() => {
 const scorePct = computed(() => (current.value?.kind === 'face' ? mergeConfidencePct(current.value.item.score) : 0))
 
 // ── Merge-card-only view state (merge-cards feature; large-tile grid + zoom is the
-// merge-card-legibility fix, 2026-08-21) ──
+// merge-card legibility fix) ──
 const currentPair = computed<MergeQuestionPair | null>(() => (current.value?.kind === 'merge' ? current.value.pair : null))
 function sideName(p: Person | undefined): string {
   return p?.name || t('photosPersonUnnamedTitle')
@@ -153,11 +153,11 @@ function sidePhotosCount(p: Person | undefined): string {
 // suggestion's candidate face does), and OPTIONALLY an assetId (present only when the backend's
 // new fromFaces/intoFaces field is there). assetId is what the click handler below needs to zoom
 // to the full original photo instead of just the face crop.
-// T12b (face-locate box, 2026-08-27 addendum): bbox rides along with faceId/assetId -- only
+// Face-locate box addendum: bbox rides along with faceId/assetId -- only
 // ever present when the tile ALSO has an assetId (fromFaces/intoFaces entries), since the
 // fallback id-only path has nowhere to draw a box (no full-photo lightbox target either).
 interface MergeTile { faceId: string; assetId?: string; bbox?: number[] }
-// Up to 4 preview faces per side (brief: "≤4"). Feature-detected by presence of the NEW
+// Up to 4 preview faces per side (the design calls for ≤4). Feature-detected by presence of the NEW
 // fromFaces/intoFaces field (an array, even if empty, means the backend has it) -- falls back to
 // the older bare fromFaceIds/intoFaceIds (id-only, no assetId) so a not-yet-upgraded backend still
 // renders a usable, just degraded, grid (see MergeTile's own comment).
@@ -170,13 +170,13 @@ function sideTiles(pair: MergeQuestionPair, side: 'from' | 'into'): MergeTile[] 
 const fromTiles = computed<MergeTile[]>(() => (currentPair.value ? sideTiles(currentPair.value, 'from') : []))
 const intoTiles = computed<MergeTile[]>(() => (currentPair.value ? sideTiles(currentPair.value, 'into') : []))
 // 1-2 faces stack in a single full-width column so each tile gets the whole card's width (the
-// "grow bigger" half of the brief); 3-4 switch to a 2-column grid once a single column would make
+// "grow bigger" requirement); 3-4 switch to a 2-column grid once a single column would make
 // the card awkwardly tall. Read by the template as a `data-cols` attribute (CSS keys off it),
 // following this file's existing `data-active`-attribute convention rather than inline styles.
 function gridCols(tiles: MergeTile[]): 1 | 2 {
   return tiles.length >= 3 ? 2 : 1
 }
-// Distance is shown subtly (brief), not run through mergeConfidencePct — it's a raw
+// Distance is deliberately shown subtly, not run through mergeConfidencePct — it's a raw
 // complete-linkage distance (lower = closer), not the same "confidence" semantics that
 // percentage formatter was built for elsewhere in this file.
 const distLabel = computed(() => (
@@ -193,9 +193,9 @@ function close(): void {
   emit('update:open', false)
 }
 
-// Merge-card legibility fix (2026-08-21): the shared zoom-lightbox mutators (see lightboxUrl's
+// Merge-card legibility fix: the shared zoom-lightbox mutators (see lightboxUrl's
 // own declaration comment above for why this is generic rather than face-body-specific now).
-// T12b (2026-08-27 addendum): bbox is an explicit, optional second argument -- every call site
+// Addendum: bbox is an explicit, optional second argument -- every call site
 // states its own intent (a merge tile passes its own bbox; every other opener omits it, which
 // defaults to null) rather than some callers relying on a previous call's leftover value.
 function openLightbox(url: string, bbox: number[] | null = null): void {
@@ -209,8 +209,8 @@ function closeLightbox(): void {
 // A merge tile's click target: the FULL original photo (service.photos.thumbnailUrl(assetId,
 // 'large') -- same precedent as contextUrl above re: thumbnailUrl over originalUrl, video-safe)
 // when the backend's new fromFaces/intoFaces gave this tile an assetId; degrades to the enlarged
-// face crop (faceThumb) when it didn't (old backend, id-only arrays) -- "degraded but usable" per
-// the brief, not a broken click. The bbox overlay only ever accompanies the full-photo path (a
+// face crop (faceThumb) when it didn't (old backend, id-only arrays) -- "degraded but usable"
+// by design, not a broken click. The bbox overlay only ever accompanies the full-photo path (a
 // face-crop-only fallback tile has nowhere sensible to draw a locate-box).
 function onMergeTileClick(tile: MergeTile): void {
   if (tile.assetId) {
@@ -220,7 +220,7 @@ function onMergeTileClick(tile: MergeTile): void {
   }
 }
 
-// T12b (face-locate box, 2026-08-27 addendum): recomputes the mapped rect from the CURRENT
+// Face-locate box addendum: recomputes the mapped rect from the CURRENT
 // lightbox image element + bbox. Called on the <img>'s @load (first paint) and by the
 // ResizeObserver below (window resize / lightbox re-layout) -- same two triggers
 // PhotoImageViewer.vue's own OCR-highlight overlay uses for the identical reason (naturalWidth/
@@ -251,7 +251,7 @@ watch(lightboxUrl, async (url) => {
   }
 })
 
-// T12c (suggestion-card face-locate box, 2026-08-28 addendum): identical recompute/observer
+// Suggestion-card face-locate box addendum: identical recompute/observer
 // pairing as recomputeFaceBox/faceBoxResizeObserver above, for the context photo's OWN <img> +
 // rect state -- see contextImgEl/contextBoxRect's declaration comment for why these stay separate
 // rather than reusing the lightbox's. Note the 'cover' fit argument (see the same comment).
@@ -371,7 +371,7 @@ onUnmounted(() => {
       <template v-if="!done && current">
         <div class="prw-progress" data-test="prw-progress">{{ t('photosPeopleReviewProgress', { k: reviewedCount, n: totalAtOpen }) }}</div>
 
-        <!-- ── Face-suggestion body (pattern ① / ②; T12c 2026-08-28 addendum: the original view's
+        <!-- ── Face-suggestion body (pattern ① / ②; the original view's
              context photo now also draws a `.prw-face-box` locate overlay when the suggestion has
              a bbox, same as the merge-card lightbox already did) ── -->
         <template v-if="current.kind === 'face'">
@@ -445,7 +445,7 @@ onUnmounted(() => {
           </div>
         </template>
 
-        <!-- ── Merge-card body (merge-card legibility fix, 2026-08-21): a whole cluster-pair, two
+        <!-- ── Merge-card body (merge-card legibility fix): a whole cluster-pair, two
              sides side-by-side, each side a LARGE square face-tile grid (same body scale as the
              face-suggestion compare view above -- .prw-body-compare's sizing is this body's
              reference) + photo count + name. Any tile click opens the shared zoom lightbox. ── -->
@@ -500,7 +500,7 @@ onUnmounted(() => {
       </div>
 
       <div v-if="lightboxUrl !== null" class="prw-lightbox" data-test="prw-lightbox" @click.self="closeLightbox">
-        <!-- T12b (face-locate box, 2026-08-27 addendum): `.prw-lightbox-frame` shrink-wraps
+        <!-- Face-locate box addendum: `.prw-lightbox-frame` shrink-wraps
              tightly around the <img> (display:inline-flex, no width/height of its own -- same
              role PhotoImageViewer.vue's `.img-wrap` plays for its OCR overlay), so the box
              overlay's absolute inset:0 origin coincides exactly with the <img>'s own rendered
@@ -683,7 +683,7 @@ onUnmounted(() => {
 }
 .prw-score { color: var(--text-3); font-variant-numeric: tabular-nums; }
 
-/* ── Merge-card body (merge-card legibility fix, 2026-08-21): two sides side-by-side, each a
+/* ── Merge-card body (merge-card legibility fix): two sides side-by-side, each a
    LARGE square face-tile grid + photo count + name -- matches .prw-body-compare's sizing above
    (same "two equal columns, square images at the panel's own scale" body, not a shrunken stamp
    like the pre-fix .prw-merge-collage this replaces). Reuses .prw-compare-side's overall
@@ -707,7 +707,7 @@ onUnmounted(() => {
    the grid spans the side's full width edge-to-edge so each tile gets as much room as this
    panel's fixed width allows. 1-2 faces: a single column, each tile the full side width ("grow
    bigger" -- a lone face lands close to .prw-compare-img's own ~230px). 3-4 faces: 2 columns,
-   each tile still comfortably above the ~120px floor the brief calls for. */
+   each tile still comfortably above the ~120px floor the design calls for. */
 .prw-merge-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -724,7 +724,7 @@ onUnmounted(() => {
 }
 .prw-merge-count { font-size: 11.5px; color: var(--text-3); font-variant-numeric: tabular-nums; padding: 0 10px; text-align: center; }
 .prw-merge-name { font-size: 13.5px; font-weight: 600; color: var(--text-1); text-align: center; padding: 0 10px; }
-/* Distance shown subtly (brief) — small, muted, no visual competition with the question line. */
+/* Distance shown subtly — small, muted, no visual competition with the question line. */
 .prw-merge-dist { align-self: center; font-size: 11px; color: var(--text-3); font-variant-numeric: tabular-nums; }
 
 .prw-question { text-align: center; font-size: 14px; font-weight: 500; color: var(--text-1); }
@@ -764,7 +764,7 @@ onUnmounted(() => {
   background: var(--overlay-bg);
   backdrop-filter: var(--overlay-blur);
 }
-/* T12b (face-locate box, 2026-08-27 addendum): shrink-to-fit wrap around just the <img> (not the
+/* Face-locate box addendum: shrink-to-fit wrap around just the <img> (not the
    close button) -- see the template comment above for why this has to be the overlay's
    positioning parent rather than `.prw-lightbox` itself (a definite-size, padded flex box the
    image never actually fills edge-to-edge once object-fit:contain letterboxes it). */
@@ -781,7 +781,7 @@ onUnmounted(() => {
   border-radius: var(--r-md);
   box-shadow: var(--card-shadow-hi);
 }
-/* Face-locate box (T12b, 2026-08-27 addendum): deliberately NOT a copy of `.lb-ocr-hit` (that one
+/* Face-locate box: deliberately NOT a copy of `.lb-ocr-hit` (that one
    is a yellow filled hit-highlight for OCR text regions) -- this is a face-rectangle affordance,
    so a rounded outline + a soft dark halo for contrast against any photo background, no fill. */
 .prw-face-box {

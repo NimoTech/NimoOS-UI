@@ -191,7 +191,7 @@ describe('Photos.vue lightbox wiring', () => {
     expect(photosToast.toasts.value).toHaveLength(0)
   })
 
-  // Owner-acceptance Fix-3 follow-up (delete-chain diagnosis): onLightboxDelete used to
+  // Delete-chain diagnosis follow-up: onLightboxDelete used to
   // show the success+Undo toast unconditionally, ignoring store.deleteAssets's real
   // return value (it hardcoded count: 1). This asserts the honest failure path: a
   // backend delete that reports zero actual successes must show an error toast with no
@@ -257,14 +257,14 @@ describe('Photos.vue lightbox wiring', () => {
 // of its DOM descendant, so `.photos-root .album-picker-panel`'s `background: var(--surface-2)`
 // (a `.photos-root`-local custom property with no global fallback, vue2-parity/
 // photos.scss:1072-1102) resolved to nothing outside it — the picker panel likely rendered with
-// a transparent background. Same fix as Fix-1 item 3 / Fix-2 item 5: nest it back inside
+// a transparent background. Same fix: nest it back inside
 // `.photos-root`.
 //
 // PhotoLightbox was ALSO nested here by that same fix, on the same reasoning -- Fix-8 round 4
 // (2026-08-14) found that reasoning didn't hold for this one component specifically (see that
 // test's own comment below) and un-nested it again. The two now have opposite intended
 // positions, which is why they are asserted separately below rather than as one shared case.
-describe('Fix-4 item 1 / Fix-8 round 4: the album picker is a real descendant of .photos-root; the lightbox is deliberately NOT', () => {
+describe('the album picker is a real descendant of .photos-root; the lightbox is deliberately NOT', () => {
   it('the album picker overlay renders inside .photos-root (so parity .album-picker-panel can match)', async () => {
     svc.photos.listAlbums.mockResolvedValue([{ id: 9, name: 'Solo', assetCount: 0 }])
     const w = await mountPhotos()
@@ -283,17 +283,16 @@ describe('Fix-4 item 1 / Fix-8 round 4: the album picker is a real descendant of
     expect(overlay.closest('.photos-root')).not.toBeNull()
   })
 
-  // Plan F Task 5 (2026-08-15): this case used to assert the OPPOSITE (Fix-8 round 4 flipped
+  // This case used to assert the OPPOSITE (Fix-8 round 4 flipped
   // `<PhotoLightbox>` back OUT of `.photos-root` because nesting it activated parity's own
   // `.photos-root .lightbox`/`.lb-*` rule family against this component's then-current,
   // pre-Plan-F self-contained flex layout -- a genuine same-specificity cascade tie, collapsing
-  // the overlay). Plan F Tasks 3-5 removed that tie: the component's DOM/CSS was re-skinned onto
+  // the overlay). Tasks 3-5 removed that tie: the component's DOM/CSS was re-skinned onto
   // parity's own grid shape (Task 3), then the interim local skeleton CSS that kept it
   // standalone-renderable was retired once nesting actually happened (Task 5) -- there is no
   // longer a competing local rule for parity's selectors to tie with. Flipped back to a
-  // descendant of `.photos-root` (a sibling of `.app`, same position as AlbumPickerDialog) --
-  // see task-5-report.md for the full retirement/re-nest sweep.
-  it('the lightbox renders INSIDE .photos-root (Plan F Task 5: the re-skin removed the cascade tie F8-r4 guarded against)', async () => {
+  // descendant of `.photos-root` (a sibling of `.app`, same position as AlbumPickerDialog).
+  it('the lightbox renders INSIDE .photos-root (the re-skin removed the cascade tie F8-r4 guarded against)', async () => {
     const w = await mountPhotos()
     const store = useTimelineStore()
     store.timelineGroups = [{ year: 2026, month: 7, assets: [asset('a')] }]

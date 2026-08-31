@@ -1,4 +1,4 @@
-// SP15-P1-T1: moments HTTP layer. Checked against the backend source:
+// Moments HTTP layer. Checked against the backend source:
 // NimoOS-Photos/route/v1/moments.go — List returns {moments:[…]} (wrapped in an envelope
 // key, not a bare array); Assets returns {assets,members,places} when with_members=1, and
 // a bare array otherwise; Pin/Exclude return {ok,asset_count}; CreateAlbum returns 201

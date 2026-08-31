@@ -1,4 +1,4 @@
-// SP15-P2a task 4 (carried-in defect fix): the moment detail page's two grids set
+// A carried-in defect fix: the moment detail page's two grids set
 // `:data-selected` on their tiles, but scoped styles never cross a component boundary in
 // this repo — every existing `[data-selected]` rule lived inside a *different* component's
 // own scoped style (PhotosGrid.vue, PersonAssetGrid.vue, PhotosLibraryPicker.vue), so

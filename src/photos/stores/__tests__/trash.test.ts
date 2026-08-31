@@ -225,9 +225,9 @@ describe('photosTrash store — bucket mode refresh routing', () => {
   })
 })
 
-// Task 12 (SP15-P3): NimoOS-Photos#54 turned an absent limit into 500, so trash has to be
-// paged the same way Task 11 paged favorites — same seven shapes, see favorites.test.ts.
-describe('photosTrash store — pagination (Task 12)', () => {
+// NimoOS-Photos#54 turned an absent limit into 500, so trash has to be
+// paged the same way favorites is paged — same seven shapes, see favorites.test.ts.
+describe('photosTrash store — pagination', () => {
   const T = (id: string) => ({ id, mimeType: 'image/jpeg' })
   const page = (n: number, from = 0) => Array.from({ length: n }, (_, i) => T(`t${from + i}`))
 

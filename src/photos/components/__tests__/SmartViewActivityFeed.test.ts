@@ -1,5 +1,4 @@
-// SP7-P7a-T8: SmartViewActivityFeed.vue — activity feed, right panel segment 4 of smart view details page.
-// Covers the test suite checklist for SmartViewActivityFeed's "Step 1: Write failing tests".
+// SmartViewActivityFeed.vue — activity feed, right panel segment 4 of the smart view details page.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
@@ -54,16 +53,16 @@ describe('One case each for 6 eventTypes', () => {
     expect(w.find('.sv-activity-text b').exists()).toBe(true)
   })
 
-  // fix round 1 · I3(Important, controller verified zh_CN.json and corrected): <b> wraps the entire phrase
-  // "3 new photos", not just the number — symmetric with single-photo line (<b>1 new photo</b>), otherwise
-  // adjacent lines would have one with entire phrase bold and one with only number bold, self-contradictory.
-  it('matched (3 photos) → entire phrase "3 new photos" is inside <b> (symmetric with single-photo form, I3 regression)', () => {
+  // The zh_CN.json string wraps the entire phrase "3 new photos" in <b>, not just the number —
+  // symmetric with the single-photo line (<b>1 new photo</b>), otherwise adjacent lines would
+  // have one with the entire phrase bold and one with only the number bold, which is self-contradictory.
+  it('matched (3 photos) → entire phrase "3 new photos" is inside <b> (symmetric with single-photo form)', () => {
     const w = mountFeed([act({ eventType: 'matched', assetIds: ['p1', 'p2', 'p3'] })])
     expect(w.find('.sv-activity-text b').text()).toBe(zh.photosSvActNMatchedBold.replace('{n}', '3'))
     expect(w.find('.sv-activity-text b').text()).toBe('3 张新照片')
   })
 
-  it('Single-photo and multi-photo lines rendered adjacently ⇒ both <b> wrap entire phrase, forms consistent (I3 main guard)', () => {
+  it('Single-photo and multi-photo lines rendered adjacently ⇒ both <b> wrap entire phrase, forms consistent', () => {
     const w = mountFeed([
       act({ id: 'a1', eventType: 'matched', assetIds: ['p1'] }),
       act({ id: 'a2', eventType: 'matched', assetIds: ['p1', 'p2', 'p3', 'p4', 'p5'] }),
@@ -90,7 +89,7 @@ describe('One case each for 6 eventTypes', () => {
   })
 })
 
-// ── SP15-P2b Task 8: converted_from_album (Task 8's reverse of Task 7's convertFromAlbum) ──
+// ── converted_from_album (the reverse transition of convertFromAlbum) ──
 describe('converted_from_album', () => {
   const NOW = '2026-07-31T00:00:00Z'
 

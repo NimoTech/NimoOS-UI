@@ -1,4 +1,4 @@
-// Task 1 (SP7-P6a Places): Overlap-aware greedy clustering for places map.
+// Overlap-aware greedy clustering for places map.
 // Line-by-line copy of the Vue 2 panel src/utils/placesCluster.js, only adding TS types
 // and generics — algorithm unchanged. Vue2 module has zero tests; this file's __tests__ are brand new.
 // (Not listing specific line numbers: they drift with upstream changes, file paths don't.)

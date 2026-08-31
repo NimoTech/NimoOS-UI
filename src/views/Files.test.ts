@@ -428,7 +428,7 @@ describe('Files.vue browse pipe', () => {
     expect(service.batch.task).toHaveBeenCalledWith(expect.objectContaining({ style: 'rename', to: '/DATA' }))
   })
 
-  // 2026-08-13 contract change (owner requested): right-click no longer pulls the row into
+  // Contract change: right-click no longer pulls the row into
   // the selection (the old behaviour, selectOnly, would light up the row's selected state
   // and pop up the top SelectionToolbar). The menu target is now decided by ctxEntry +
   // contextTargets. This guards: after right-click sets ctxEntry on a row, the same event
@@ -923,7 +923,7 @@ describe('restore orchestration wiring (Task 14)', () => {
     expect(spy).toHaveBeenCalledTimes(1)
     const [items, , , opts] = spy.mock.calls[0]!
     expect(items).toEqual([{ path: target.path, name: target.name, is_dir: target.is_dir }])
-    // Fix round 1: the context-menu entry point is the ONE caller that passes
+    // The context-menu entry point is the ONE caller that passes
     // singleItemFlow -- it's what makes restoreItems show Vue2's snapBrowseRestored copy instead of
     // the count-based tmRestoredCount copy every other entry point uses (see buildRestoreToasts).
     expect(opts).toEqual({ singleItemFlow: true })
@@ -956,7 +956,7 @@ describe('restore orchestration wiring (Task 14)', () => {
     expect(spy).toHaveBeenCalledTimes(1)
     const [items, , , opts] = spy.mock.calls[0]!
     expect(items).toEqual([{ path: target.path, name: target.name, is_dir: target.is_dir }])
-    // Fix round 1: even a one-item selection keeps the banner's own
+    // Even a one-item selection keeps the banner's own
     // count-based tmRestoredCount copy -- entry point decides, not item count (contrast with
     // the context-menu case above, which DOES pass singleItemFlow for the exact same shape call).
     expect(opts?.singleItemFlow).toBeFalsy()

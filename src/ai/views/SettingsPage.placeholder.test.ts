@@ -1,4 +1,4 @@
-// SP8-P4 fix round (final review Important I2) — placeholder contract behavior coverage.
+// Placeholder contract behavior coverage.
 //
 // Background: after `DEFERRED_SECTIONS` empties, two branches in `SettingsPage.vue` have no
 // test cases reaching them: ① `placeholderProps(id)` valid return path where
@@ -10,8 +10,8 @@
 // intent is keeping mechanism as future-usable **capability**, not dead code nobody watches.
 //
 // 【Why single file instead of SettingsPage.test.ts】
-// `SECTION_COMPONENTS` (SettingsPage.vue internal literal, not exported — SP8-P2b Task 14
-// fix round already ruled no extra `<script>` block for testability to widen public surface)
+// `SECTION_COMPONENTS` (SettingsPage.vue internal literal, not exported — a fix round
+// already ruled no extra `<script>` block for testability to widen public surface)
 // and `DEFERRED_SECTIONS` (sections.ts export) are two independent mechanisms, currently
 // no runtime auto-sync: `SECTION_COMPONENTS` is hardcoded id→component literal, unchanged
 // by `DEFERRED_SECTIONS` array contents. `SettingsPage.vue` header comment "restore
@@ -113,7 +113,7 @@ describe('SettingsPage — placeholder contract mechanism is capability, not dea
     await flushPromises()
 
     // ① placeholderProps() valid return branch: renders SectionPlaceholder — detection method
-    // same as existing case (SettingsPage.test.ts "SP8-P4 final wiring"): page text contains
+    // same as existing case in SettingsPage.test.ts: page text contains
     // aiCfgPlaceholderBody, this copy is unique to placeholder panel.
     expect(w.text()).toContain(zh.aiCfgPlaceholderBody)
     // titleKey uses source section's own navigation text (sections.ts ALL_ITEMS mcp's

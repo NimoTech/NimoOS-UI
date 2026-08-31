@@ -1,4 +1,4 @@
-// P6a-T2: tests for places-map geometry / filter predicates / date parsing.
+// Tests for places-map geometry / filter predicates / date parsing.
 // The high-risk cases are lifted from the brief character-for-character
 // (parsePlaceLast/filterPlaces/buildPins/splitScaleFor/declutterPins/regionLabelKey/toPlace
 // describe blocks); the remaining 13 implementation constraints are filled in via regular

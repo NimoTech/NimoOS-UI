@@ -1,16 +1,19 @@
 <script setup lang="ts">
-// P6a-T8 (SP7-P6a 地点·地图主视图): PlacesZoomBar.vue —— 地图左侧垂直缩放滑杆。
-// 逐段照 Vue2 src/views/Photos/PhotosPlacesView.vue:952-970(模板)、
-// :666-692(zoombarSetFromEvent / onZoombarDown|Move|Up 拖拽换算与 pointer capture)、
-// photos-places.scss:234-284(样式)。
+// PlacesZoomBar.vue — the map's left-side vertical zoom slider.
+// Ported section-by-section from Vue2 src/views/Photos/PhotosPlacesView.vue:952-970
+// (template), :666-692 (zoombarSetFromEvent / onZoombarDown|Move|Up drag conversion and
+// pointer capture), photos-places.scss:234-284 (styles).
 //
-// 本组件不持有 scale 状态——只吃 T7 usePlacesView 派生的 zoomFrac,拖拽/按钮结果一律
-// emit 给 T11 容器,由它接线到 zoomBy/setScale/reset。onDown/onMove/onUp 直接用
-// e.currentTarget 取轨道元素(与 Vue2 :677/:686 的 setPointerCapture/releasePointerCapture
-// 读法一致),不额外建模板 ref——因为监听器本身就绑在 .zb-track 上,e.currentTarget 恒等于
-// Vue2 `this.$refs.zoomTrack`,只是同一元素的两种取法,不是行为改动。
+// This component holds no scale state of its own — it only consumes the zoomFrac derived by
+// the gesture composable, and always emits drag/button results to the container, which wires
+// them to zoomBy/setScale/reset. onDown/onMove/onUp use e.currentTarget directly to get the
+// track element (matching how Vue2 reads it at :677/:686 for
+// setPointerCapture/releasePointerCapture), without a separate template ref — since the
+// listeners themselves are bound on .zb-track, e.currentTarget is always equal to Vue2's
+// `this.$refs.zoomTrack`; it's just two ways of getting the same element, not a behavior
+// change.
 //
-// Shadowing cleanup (Plan E Task 3, 2026-08-15): this component's entire `<style scoped>`
+// Shadowing cleanup: this component's entire `<style scoped>`
 // block has been deleted. Every rule it carried was a byte-for-byte or same-resolved-value
 // duplicate of `src/photos/styles/vue2-parity/photos-places.scss:234-284` (`.map-zoombar`
 // family) — the old rationale below (kept for history) mapped Vue2's local
@@ -21,13 +24,13 @@
 // `.zb-track`/`.zb-thumb` rules already consume it directly. Since this component always
 // renders inside `.photos-root`, the scoped rules were shadowing parity's correct local-token
 // values with global-token values via `[data-v-xxxx]` specificity — same bug pattern as
-// PhotosFilterChip.vue's 2026-08-13 fix round. `.map-zoombar`'s own background/border and
+// PhotosFilterChip.vue's own earlier fix. `.map-zoombar`'s own background/border and
 // `.zb-fill`/`.zb-thumb`'s accent-driven parts already used shared or identical literals, so
 // nothing here was salvageable as a real deviation; deleting the block lets parity govern
 // 100% of `.map-zoombar`. `--zb-hover-bg`/`--zb-track-bg`/`--zb-thumb-shadow` in theme.css were
-// unused by any component at the time (grep-confirmed) — left in place then, as that task's
-// scope was the four component files, not theme.css pruning; the follow-up noted in that task's
-// report has since happened: Plan H Task 15 (2026-08-17) deleted all three token definitions
+// unused by any component at the time (grep-confirmed) — left in place then, since that pass's
+// scope was the four component files, not theme.css pruning; the noted follow-up has since
+// happened: a later pass deleted all three token definitions
 // from theme.css as confirmed dead.
 //
 // Historical rationale (superseded, kept only so the "why was this token created" question
@@ -41,7 +44,7 @@
 //     defined in photos.scss's `.photos-root` local token table; it was never "missing from this
 //     repo".
 //
-// Task 5 (Plan E #106 perf architecture port, 2026-08-15): `dotColor` used to feed the root
+// A later perf pass: `dotColor` used to feed the root
 // element's `--accent` via `:style="{ '--accent': dotColor }"` — a template binding, which ties
 // every colour pick to this component's own render effect (reading a prop in the template ties
 // it to that effect). Vue2's own applyMapVars() (PhotosPlacesView.vue :419-433) wrote to BOTH
@@ -55,7 +58,8 @@ import { MAX_SCALE } from '../util/placesMap'
 
 const props = defineProps<{
   zoomFrac: number
-  /** T10 地图主题的强调色,喂给 --accent 局部覆盖——D5 地图主题的一部分,不算违反 token 铁律。 */
+  /** The map theme's accent color, fed into a local --accent override — part of the map
+   *  theme, not a violation of the token hard rule. */
   dotColor: string
 }>()
 
@@ -74,19 +78,22 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
-// Vue2 :674-679/:684-691 的 _zoomDrag。
+// Vue2 :674-679/:684-691's _zoomDrag.
 let dragging = false
 
 // Vue2 :666-673. t = clamp((clientY - rect.top) / rect.height, 0, 1);
-// scale = MAX_SCALE - t * (MAX_SCALE - 1) —— 顶(t=0)= MAX_SCALE,底(t=1)= 1。
+// scale = MAX_SCALE - t * (MAX_SCALE - 1) — top (t=0) = MAX_SCALE, bottom (t=1) = 1.
 function setFromEvent(e: PointerEvent): void {
   const track = e.currentTarget as HTMLElement
   const rect = track.getBoundingClientRect()
-  // 评审 M4:Vue2 没有这条守卫,但 rect.height === 0(轨道尚未布局/被隐藏)会让下面的除法
-  // 产出 NaN,一路传导到 usePlacesView 的 view.scale/tx/ty 三个字段,而 applyZoom 里
-  // `clamped === old` 因 NaN !== NaN 恒不短路,写入即成事实;reset() 走 animateView 做插值,
-  // 从 NaN 起点算出的每一步都还是 NaN——连复位键也救不回来,只能重挂组件。这里提前 return
-  // 拦住这个不可恢复态,不让 NaN 有机会写进 view。
+  // Vue2 has no such guard, but rect.height === 0 (the track hasn't been laid out yet, or is
+  // hidden) would make the division below produce NaN, which then propagates into
+  // usePlacesView's view.scale/tx/ty fields; in applyZoom, `clamped === old` never
+  // short-circuits (NaN !== NaN is always true), so the write happens unconditionally;
+  // reset() goes through animateView's interpolation, and every step computed from a NaN
+  // starting point is still NaN — even the reset button can't recover from it, only
+  // remounting the component can. This early return here blocks that unrecoverable state, so
+  // NaN never gets a chance to be written into view.
   if (!rect.height) return
   const tFrac = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height))
   emit('set-scale', MAX_SCALE - tFrac * (MAX_SCALE - 1))
@@ -105,7 +112,8 @@ function onMove(e: PointerEvent): void {
     setFromEvent(e)
 }
 
-// Vue2 :684-691. releasePointerCapture 包 try/catch——丢失的 pointerup 会让 capture 泄漏。
+// Vue2 :684-691. releasePointerCapture is wrapped in try/catch — a lost pointerup would leak
+// the capture.
 function onUp(e: PointerEvent): void {
   dragging = false
   const track = e.currentTarget as HTMLElement & { releasePointerCapture?: (id: number) => void }

@@ -1,4 +1,4 @@
-// SP8-P2a Task 3 — 1:1 ported from Vue2 `src/views/AI/Settings/sections.js` (64 lines).
+// 1:1 ported from Vue2 `src/views/AI/Settings/sections.js` (64 lines).
 //
 // Left navigation groups sections into four collapsible categories; right content area renders one category at a time.
 // `stack: true` groups stack all sections within them vertically on one scrolling page (click nav → scroll;
@@ -101,7 +101,7 @@ export const SPLIT_SECTIONS: SectionId[] = ['skills', 'mcp']
 
 /**
  * Deferred for future phases, content area still renders `SectionPlaceholder` and pops info toast.
- * Empty from SP8-P4 onward — all 13 sections connected to real components (mcp is last, P4 closure).
+ * Empty now — all 13 sections connected to real components (mcp is last).
  * Mechanism itself retained (user explicit 2026-07-31 "reverse not delete"): when adding incomplete sections later,
  * add id back to this array to restore placeholder behavior, branches in `SettingsPage.vue` and
  * `SectionPlaceholder.vue` kept as-is.

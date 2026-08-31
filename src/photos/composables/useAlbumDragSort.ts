@@ -4,15 +4,15 @@
 //                                closure locals `inst`/`dragging`, no ref —
 //                                same "non-reactive plain flag" intent).
 //   :264-276 mounted()       -> initSortable() after $nextTick (here: caller
-//                                calls refresh() from a watch, see brief).
+//                                calls refresh() from a watch).
 //   :277-280 beforeDestroy() -> destroySortable() (here: destroy()).
 //   :385-405 initSortable()  -> Sortable.create() with the five verbatim
 //                                options + onStart/onEnd guard timing.
 //   :409     persistOrder()  -> DOM read order (composable stops at reading
 //                                the order; store dispatch + failure toast
-//                                are T8's job — kept out of this composable
-//                                by design so it stays unit-testable and has
-//                                no store/toast coupling).
+//                                are handled elsewhere — kept out of this
+//                                composable by design so it stays
+//                                unit-testable with no store/toast coupling).
 import Sortable from 'sortablejs'
 import { nextTick, type Ref } from 'vue'
 
@@ -47,7 +47,7 @@ export function useAlbumDragSort(opts: {
   container: Ref<HTMLElement | null>
   enabled: () => boolean
   onOrder: (assetIds: string[]) => void
-  /** SP15-P1-T6: the Moments grid reuses this composable. These three optional
+  /** The Moments grid reuses this composable. These three optional
    *  fields default to the album page's current values, so existing call sites need
    *  no edit and behave byte-identically to before this change. */
   itemSelector?: string
@@ -92,7 +92,7 @@ export function useAlbumDragSort(opts: {
           .map((n) => n.getAttribute('data-id'))
           .filter((id): id is string => id !== null)
         opts.onOrder(ids)
-        // Fix-6: cleared synchronously (unlike `dragging` below) -- the transitions this class
+        // Cleared synchronously (unlike `dragging` below) -- the transitions this class
         // suppresses only matter while the pointer is actively sweeping across siblings; nothing
         // about the post-drop click guard depends on it lingering an extra tick.
         el.classList.remove(DRAG_ACTIVE_CLASS)

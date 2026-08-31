@@ -55,7 +55,7 @@ function emptyIndexStatus(): IndexStatus {
 // lifecycle, so __resetForTest() must clear it explicitly between tests.
 let _pollTimer: ReturnType<typeof setInterval> | null = null
 
-// P8a-T10 (P1 pending): follow Vue2 module-scope taskTimers + scheduleTaskRemove
+// Pending: follow Vue2 module-scope taskTimers + scheduleTaskRemove
 // (store/modules/photos.js:8,50-58)—delayed-removal timer for done tasks, dedup by id (rescheduling same id clears old first).
 // Also module-level singleton, __resetForTest() must clear explicitly.
 const _doneRemovalTimers = new Map<string | number, ReturnType<typeof setTimeout>>()
@@ -111,8 +111,8 @@ export const useTimelineStore = defineStore('photos-timeline', () => {
   const bucketLoading = ref<Set<string>>(new Set())
   const bucketMode = ref(false)
 
-  // Returns a plain Month in the legacy branch and a Month with the SP15-P3
-  // bucket fields populated (loaded/count/videoCount) in the bucket branch —
+  // Returns a plain Month in the legacy branch and a Month with the bucket
+  // fields populated (loaded/count/videoCount) in the bucket branch —
   // see bucketToMonth in timelineBuckets.ts. Month itself carries those fields
   // as optional (assetToPhoto.ts), so no store-local widening type is needed.
   const months = computed<Month[]>(() => {
@@ -310,7 +310,7 @@ export const useTimelineStore = defineStore('photos-timeline', () => {
       tasks.value.push(task)
     }
 
-    // P8a-T10 (P1 pending, follow Vue2 _onTaskBus store/modules/photos.js:1382-1406): non-index-type
+    // Pending, follow Vue2 _onTaskBus store/modules/photos.js:1382-1406: non-index-type
     // done tasks auto-remove 5s later; running event means task revived, cancel pending removal timer.
     // index type intentionally not subject to this timer—it is managed by fetchIndexStatus's idle reconciliation (:118-120, settle by
     // real backend pending/queueLen progress), two mechanisms managing same task type becomes second truth source for task list
@@ -483,7 +483,7 @@ export const useTimelineStore = defineStore('photos-timeline', () => {
     if (!bucketMode.value || ids.length === 0) return
     const doomed = new Set(ids.map(String))
     const map = new Map(bucketAssets.value)
-    // Final-review finding 1: `ocrs` tracks OCR/document deletions alongside
+    // `ocrs` tracks OCR/document deletions alongside
     // `videos`, so the surviving-bucket branch below can decrement ocrCount the
     // same way it already decrements videoCount. Without it, deleting every
     // document out of a mixed month left ocrCount claiming assets that no

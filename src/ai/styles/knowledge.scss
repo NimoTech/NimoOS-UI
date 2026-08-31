@@ -1,5 +1,5 @@
 /* 1:1 ported from Vue2 src/views/AI/Knowledge/styles/knowledge.scss(base has 2561 lines total).
- * This file is SP8-P5a's **first batch** deployment: token declaration layer + .knowledge-app
+ * This file is the **first batch** deployment: token declaration layer + .knowledge-app
  * shell sections (rail/main/topbar/banner/mobile-tabs/badge/btn/scroll/skel/empty)
  * + global keyframes.
  * T10 (KnowledgeLayout.vue) · T11 (dashboard styles) · T12 (DashboardView.vue) are built
@@ -11,7 +11,7 @@
  * base (:59-1509) mixed with classes used only by P5b-P5f (tables/drawers/notes/Wiki/
  * dashboards…) — anything outside the allowlist is not ported.
  *
- * 【SP8-P5b Task 2 continuation】Second expansion of this file: port "index maintenance"
+ * Second expansion of this file: port "index maintenance"
  * two pages (collected files / task queue) shared base sections, total 7 sub-sections —
  * base :241-252(S1)· :253-257(S2)· :735-968(S3)· :1296-1316 + :1335-1341(S4)·
  * :1398-1428(S5)· :1484-1499(S6)· :2031-2039(S7). All nested into the existing
@@ -19,19 +19,19 @@
  * S6 merged into existing `@media (max-width: 860px)` per Appendix D.6, S7 re-nested
  * from top-level bare selectors via K9.
  * Allowlist 102 → 134 (Appendix D.1's 32 items). Three new tokens declared (see
- * "R2(P5b-T2 additions)" group in the two token blocks below), ownership per governance
+ * "R2" group in the two token blocks below), ownership per governance
  * file §6.2 token ownership table.
  * Explicit non-ports: K17's .k-modal-head/-title/-x/-body (reserved for P5c — already
- * fulfilled by P5c-T2a segment below) · K10's top-level duplicate confirm section
+ * fulfilled by the config-page segment below) · K10's top-level duplicate confirm section
  * (base :1676-1702, never effective in cascade) · Appendix D.5's .k-frow dead rule.
  *
- * 【SP8-P5b Task 6 continuation】Third expansion of this file: port "collected files"
+ * Third expansion of this file: port "collected files"
  * page exclusive sections (S8) — base :1705-2022 (318 lines: filter bar / file table /
  * status badge / type tag / expand details / pagination / bottom action bar). Entire
  * section re-nested from top-level bare selectors via K9 into the existing `.knowledge-app
  * { … }` base block, positioned in original base order between S6 (upper @media) and S7
  * (.kn-badge). Allowlist 134 → 187 (Appendix D.2's 53 items).
- * One new token declared: --purple-soft (see "R2(P5b-T6 additions)" group in the two
+ * One new token declared: --purple-soft (see "R2" group in the two
  * token blocks below).
  * Base :1844-1847 @keyframes row-done moved to top-level global keyframes section.
  * Two `[data-theme="dark"]` selectors (base :1862 / :1895) merged into two themes and
@@ -40,7 +40,7 @@
  * (base :1941) is a dangling reference (base has only k-fade-in), never played in Vue2,
  * copied anyway; keyframes existence guard registers explicit exception for this name.
  *
- * 【SP8-P5c Task 2a continuation】Fourth expansion of this file: port "knowledge base
+ * Fourth expansion of this file: port "knowledge base
  * configuration page (SettingsView) + folder browser (FolderBrowser)" sections used —
  * base :969-984 (A, .k-section four types) · :1141-1149 (B) · :1159-1179 (C) ·
  * :1181-1201 (D) · :1203-1225 (E) · :1227-1247 (F) · :1249-1265 (G) · :1267-1293 (H) ·
@@ -52,7 +52,7 @@
  * scope.
  * Allowlist 187 → 226 (Appendix D.1's 39 items); non-k* helper classes registry 9 → 10
  * (new: warn, base :1174 is nested warning row inside .k-set-row-desc).
- * Four new tokens declared (see "R2(P5c-T2a additions)" group in the two token blocks below):
+ * Four new tokens declared (see "R2" group in the two token blocks below):
  * --switch-thumb / --switch-thumb-shadow / --gloss-inset-dot / --grad-sandbox. All four are
  * theme-invariant (same value in both themes, same family as existing --purple/--pink/--teal/
  * --modal-scrim), values copied verbatim from AI tokens.scss (source noted at declaration
@@ -79,9 +79,9 @@
  * boundary is thus :969-984, not :969-988 — cutting at :988 would split it into half a rule,
  * sass compilation error).
  *
- * 【SP8-P5d Task 2 continuation】Fifth expansion of this file: port "notes area" (NotesView
+ * Fifth expansion of this file: port "notes area" (NotesView
  * / NoteEditPane / NotesMarkdownEditor) exclusive sections — base :2029 (A, .k-badge
- * [data-tone="warn"] residue, .kn-badge five items from P5b-T2 already ported, not duplicated)
+ * [data-tone="warn"] residue, .kn-badge five items already ported, not duplicated)
  * + :2040-2045 (A, .kn-type-ic/.kn-src/.kn-tag) · :2047-2056 (B, path strip) ·
  * :2057-2085 (C, draft inbox) · :2086-2121 (D, notes list) · :2122-2194 (E, edit pane,
  * includes :2171-2182's .kn-editor-body-wrap .nme-content .ProseMirror) · :2195-2241 (F,
@@ -117,7 +117,7 @@
  * see test file header); K44 top-level exception add one **new** set-equality assertion
  * (ruling R4).
  *
- * 【SP8-P5f Task 2 continuation】Seventh expansion (P5e-T2 was sixth, not logged here):
+ * Seventh expansion (an earlier pass was sixth, not logged here):
  * port knowledge base **last three pages** styles — base `:985-1141` (A, Allowlist main) ·
  * `:1342-1396` (B, Allowlist new rule modal) · `:2453-2561` (C, Wiki nav page) ·
  * `:1500-1503` (K60, .k-frow narrow-screen column width, merged into existing @media) + plus
@@ -126,22 +126,22 @@
  * (new: `cur`, base :2475 breadcrumb current item). Three new tokens declared (K55:
  * --grad-ext-docs/-text/-code, same in both themes, see declaration in two token blocks'
  * this batch group).
- * Guard changes (ruling **R1**, plan B, identical three-part pattern as P5c-T2a handling
+ * Guard changes (ruling **R1**, plan B, identical three-part pattern as the config-page handling
  * `fb-*`): "no over-porting" regex's `k(?:2|n)?-` expanded to `k(?:2|n|r|w)?-`, `kr-*`/`kw-*`
  * enter allowlist, `nonKClassNames` exclusion conditions synced — **expand range = harden**,
  * paired strict superset proof (old ⊆ new).
  *
- * 🔴 **P5f-T2 correction block (honor "reverse, don't delete", original text above preserved;
+ * 🔴 **Correction block (honor "reverse, don't delete", original text above preserved;
  * cite item number, not file:line)**:
- *   ① Above P5b-T2 segment ending sentence "explicit non-port …… Appendix D.5's .k-frow dead
+ *   ① Above segment's ending sentence "explicit non-port …… Appendix D.5's .k-frow dead
  *      rule" **now expired** — criterion is **conditional** ("no element in two templates uses
- *      class='k-frow'"), `AllowlistView` (P5f) now uses this class ⇒ premise expired, per
+ *      class='k-frow'"), `AllowlistView` now uses this class ⇒ premise expired, per
  *      ruling **R2** / deviation **K60** port this time.
- *   ② Above P5c-T2a segment's "【Explicit non-port】…… .k-section-body is AllowlistView-specific"
+ *   ② Above segment's "【Explicit non-port】…… .k-section-body is AllowlistView-specific"
  *      **now expired** — same conditional criterion, this period is precisely AllowlistView page
  *      ⇒ port this time (errata **E-67** recorded 67→69 difference 2, difference is precisely
  *      `.k-section-body` and `.k-frow`).
- *   ③ Above P5c-T2a segment's "【N15 explicit non-port】.k-progress-*" **remains valid** — those
+ *   ③ Above segment's "【N15 explicit non-port】.k-progress-*" **remains valid** — those
  *      6 are last 6 of 24 base dead classes, **this period zero allowed to port** (Appendix D
  *      §D.4 / governance §6.2).
  *
@@ -299,7 +299,7 @@
   --danger-soft-border: rgba(240, 119, 107, 0.24); /* AI tokens.scss:309 */
   --modal-scrim: rgba(0, 0, 0, 0.5); /* AI tokens.scss:338 */
 
-  /* R2(P5b-T2 additions) — shared base segment (queue/table/modal/confirm-box/kn-badge) additionally uses 3 tokens,
+  /* R2 — shared base segment (queue/table/modal/confirm-box/kn-badge) additionally uses 3 tokens,
      ownership see P5b governance file §6.2 token ownership table (Appendix B §B.1 same table, authoritative):
        --success-soft-border (base :2038 .kn-badge[data-s="curated"] border)
        --danger-soft-faint   (base :1417 .k-confirm-summary background; T6 segment :1972 uses again)
@@ -311,14 +311,14 @@
   --danger-soft-faint: rgba(240, 119, 107, 0.1); /* AI tokens.scss:314 */
   --danger-hover: #E35F52; /* no source repo-wide, design §6.2 given dark-theme value */
 
-  /* R2(P5b-T6 additions) — "collected files" segment (S8) newly uses only 1 token:
+  /* R2 — "collected files" segment (S8) newly uses only 1 token:
        --purple-soft (base :1894 .k-type-tag[data-kind="code"] background)
      Ownership see P5b governance file §6.2 / Appendix B §B.1 token ownership table (F2 errata ruled:
      --purple-soft belongs to T6, --danger-soft-faint belongs to T2). Values copied from AI tokens.scss
      corresponding theme block. This segment's --danger-soft-faint declared by T2, not repeated here. */
   --purple-soft: rgba(175, 82, 222, 0.18); /* AI tokens.scss:310 */
 
-  /* R2(P5c-T2a additions) — config page segment newly uses 4 tokens, all theme-invariant (same in both themes,
+  /* R2 — config page segment newly uses 4 tokens, all theme-invariant (same in both themes,
      same family as above --purple/--pink/--teal and --modal-scrim), values copied verbatim from AI tokens.scss:
        --switch-thumb / --switch-thumb-shadow (base :1217/:1218 .k-sw::after button foreground and
          shadow bare values; tokens.scss:201-202 / :345-346 comments say same iOS toggle button)
@@ -332,7 +332,7 @@
   --gloss-inset-dot: inset 0 0 0 0.5px rgba(255, 255, 255, 0.2); /* AI tokens.scss:321 */
   --grad-sandbox: linear-gradient(135deg, #5AC8FA, #007AFF); /* AI tokens.scss:236's --grad-sk-blue, renamed without value change */
 
-  /* K39 (P5d-T2 additions, ruling R11 approved gradient preserves base hue; Appendix B §B.1 is authoritative) —
+  /* K39 (ruling R11 approved gradient preserves base hue; Appendix B §B.1 is authoritative) —
      9 new tokens, explicit values in both themes, declaration marked line-by-line with base file:line:
        --grad-note-* (notesViewHelpers.js:6-9, 4 note-type gradients, theme-invariant;
          --grad-note-insight shared with .kn-inbox-icon below, don't declare twice — K39 mandates)
@@ -358,7 +358,7 @@
   --code-block-fg: #ffffff; /* NotesMarkdownEditor.vue:44, theme-invariant, verbatim match --text-on-accent but different semantic (near-black on code block, not on accent solid) */
   --media-stage-bg: #000000; /* AssetDetailDrawer.vue media stage, theme-invariant like the album lightbox's black letterbox; distinct from --code-block-bg (#0d0d0d) on purpose — video should sit on true black */
 
-  /* P5e-T2 additions — "file aggregate search" two screens (result card / detail drawer / in-app preview) uses 8
+  /* New additions — "file aggregate search" two screens (result card / detail drawer / in-app preview) uses 8
      tokens, remaining new declarations from mapping 17 color literals per-location in Appendix B §B.0.
      Explicit values in both themes, declaration marked line-by-line with base file:line + Appendix B section:
 
@@ -411,7 +411,7 @@
   --shadow-drawer: -20px 0 60px rgba(0, 0, 0, 0.55); /* knowledge.scss:1582 geometry + dark-theme shadow color (alpha from same-theme --shadow-lg first segment), ruling R4 */
   --mark-hl-bg: rgba(255, 235, 0, 0.22); /* knowledge.scss:1660, dark-theme lowered alpha, reason see comment above */
 
-  /* P5f-T2 additions — allowlist page "file-extension group" icons' three brand gradients (deviation K55,
+  /* New additions — allowlist page "file-extension group" icons' three brand gradients (deviation K55,
      Appendix B §B.1/§B.6). Base hard-coded in AllowlistView.vue's GROUPS_TEMPLATE const, rendered via `:style`;
      color-guard doesn't scan `.ts` const at all ⇒ not tokenizing is bare exposure (ticket B position ④).
      🔴 Same value in both themes (brand-id gradient, same family as existing --grad-note-* / --grad-sandbox),
@@ -504,15 +504,15 @@
   --danger-soft-border: rgba(215, 73, 59, 0.16); /* AI tokens.scss:132 */
   --modal-scrim: rgba(0, 0, 0, 0.5); /* AI tokens.scss:182 */
 
-  /* R2(P5b-T2 additions) — see dark-block's same-name comment, light-theme values. */
+  /* R2 — see dark-block's same-name comment, light-theme values. */
   --success-soft-border: rgba(46, 158, 84, 0.2); /* AI tokens.scss:130 */
   --danger-soft-faint: rgba(215, 73, 59, 0.06); /* AI tokens.scss:145 */
   --danger-hover: #A83226; /* no source repo-wide, design §6.2 given light-theme value */
 
-  /* R2(P5b-T6 additions) — see dark-block's same-name comment, light-theme values. */
+  /* R2 — see dark-block's same-name comment, light-theme values. */
   --purple-soft: rgba(175, 82, 222, 0.1); /* AI tokens.scss:133 */
 
-  /* R2(P5c-T2a additions) — see dark-block's same-name comment. These 4 are theme-invariant (same both themes),
+  /* R2 — see dark-block's same-name comment. These 4 are theme-invariant (same both themes),
      but per header comment's "hidden pit" section proof **light block must explicit write each**:
      above base-block's selector unconditional hit, leaving blank doesn't inherit, only direct hit by
      base-block's value (so "same both themes" must write twice, can't save one).
@@ -536,7 +536,7 @@
   --code-block-fg: #ffffff; /* NotesMarkdownEditor.vue:44, theme-invariant */
   --media-stage-bg: #000000; /* AssetDetailDrawer.vue media stage, theme-invariant (see the dark block) */
 
-  /* P5e-T2 additions (see dark-block's same-name comment) — light-theme values. --paper-surface and 5 --rtag-* are
+  /* New additions (see dark-block's same-name comment) — light-theme values. --paper-surface and 5 --rtag-* are
      theme-invariant (same both themes, per header comment's "hidden pit" section proof still must explicit write each);
      --shadow-drawer and --mark-hl-bg different values per theme. */
   --paper-surface: #ffffff; /* AI tokens.scss:193 (light-theme); knowledge.scss:599 */
@@ -548,7 +548,7 @@
   --shadow-drawer: -20px 0 60px rgba(40, 35, 25, 0.10); /* knowledge.scss:1582 geometry + light-theme warm-tone shadow color (alpha from same-theme --shadow-lg first segment), ruling R4 */
   --mark-hl-bg: rgba(255, 235, 0, 0.40); /* knowledge.scss:1660, light-theme copies base verbatim alpha, Appendix B §B.2.3 */
 
-  /* P5f-T2 additions (see dark-block's same-name comment) — three brand gradients theme-invariant, same both themes,
+  /* New additions (see dark-block's same-name comment) — three brand gradients theme-invariant, same both themes,
      still per header comment's "hidden pit" section proof explicit write each. */
   --grad-ext-docs: linear-gradient(135deg, #5AC8FA, #007AFF); /* AllowlistView.vue:160 · Appendix B §B.1-① */
   --grad-ext-text: linear-gradient(135deg, #5DD68A, #2EB05B); /* AllowlistView.vue:162 · Appendix B §B.1-② */
@@ -758,7 +758,7 @@
     display: grid; place-items: center;
     flex-shrink: 0;
   }
-  /* ---------- P5b-T2 · S1 (base :241-252) ---------- */
+  /* ---------- S1 (base :241-252) ---------- */
   .k-banner-close {
     margin-left: auto;
     padding: 2px 6px;
@@ -773,7 +773,7 @@
   /* Views whose root wraps .k-scroll plus siblings (modals, action bars) —
    * without this the anonymous wrapper is floored at content height and the
    * inner .k-scroll never gets a constrained height to overflow. */
-  /* ---------- P5b-T2 · S2 (base :253-257) ---------- */
+  /* ---------- S2 (base :253-257) ---------- */
   .k-view {
     display: flex; flex-direction: column;
     flex: 1;
@@ -792,7 +792,7 @@
     gap: 22px;
   }
 
-  /* ---------- P5e-T2 · S1 (base :351-367) — .k-hero-suggest + .k-suggest-chip base classes ----------
+  /* ---------- S1 (base :351-367) — .k-hero-suggest + .k-suggest-chip base classes ----------
      🔴 **Only these 17 lines are ported.** base :272-349 are 7 "dead code" classes (the k-hero
      family: orb/title/sub/search/search-go/search-kbd); :369-411 onward is k-status-strip plus
      another 5 dead classes (the k-stat family); :413-455 is another 6 (the k-quick family) —
@@ -803,7 +803,7 @@
      Appendix D §D.3's reproduction command greps the **raw text** bare, and writing them
      dotted would make it flag a false leak (this command already had 2 same-kind false
      positives on the baseline before T2, coming from this file's three existing comments at
-     :61 / :1318 / :1605 — see the errata section of the T2 report).
+     :61 / :1318 / :1605 — see the errata section of the acceptance report).
      knowledgeStyles.test.ts has a standing assertion that "the 24 dead classes appear zero
      times", which runs on the **comment-stripped** text and is the authoritative check for this.
 
@@ -840,9 +840,9 @@
     &:hover { border-color: var(--accent); color: var(--accent); }
   }
 
-  /* ---------- P5e-T2 · S2 (base :457-549, "Search page") ----------
+  /* ---------- S2 (base :457-549, "Search page") ----------
      🔴 Stops at :549 — base :551-571 is .k-seg (K43, already ported to below in this file by
-     P5d-T2), must not be re-ported.
+     the earlier segment above), must not be re-ported.
      The `.chev` nested inside .k-adv-toggle and the `.k-more-hint .chev` in S5 below are
      **two different descendant rules**, both must be ported; `chev` goes into the
      NON_K_HELPER_CLASSES registry (not a k*-prefixed class).
@@ -944,7 +944,7 @@
     }
   }
 
-  /* ---------- P5e-T2 · S3 (base :573-681, "Result card") ----------
+  /* ---------- S3 (base :573-681, "Result card") ----------
      🔴 Stops at :681 — base :683-717 is .k-empty* (already ported by P5a, right below),
      must not be re-ported.
      Three "nested zero-reference / element-selector" rules are **ported as part of their
@@ -1143,7 +1143,7 @@
   }
 
   /* ---------- Skeleton (only port base class .k-skel, k-skel-rcard not in allowlist) ---------- */
-  /* 【P5e-T2 correction (honor "reverse don't delete": above line's original text preserved)】
+  /* 【Correction (honor "reverse don't delete": above line's original text preserved)】
      Above "k-skel-rcard not in allowlist" records P5a's period status. .k-skel-rcard (base :726-732)
      is search page loading skeleton container, belongs to P5e — already ported here (see right below),
      and entered WHITELIST_348. */
@@ -1153,7 +1153,7 @@
     animation: k-shimmer 1.6s linear infinite;
     border-radius: 6px;
   }
-  /* ---------- P5e-T2 · S4 (base :726-732) ---------- 🔴 **doesn't include :720-725's .k-skel base class**
+  /* ---------- S4 (base :726-732) ---------- 🔴 **doesn't include :720-725's .k-skel base class**
      (P5a already ported, right above). This segment has zero color literals. */
   .k-skel-rcard {
     padding: 14px 16px;
@@ -1163,7 +1163,7 @@
     display: flex; gap: 12px;
   }
 
-  /* ---------- P5b-T2 · S3 first half (base :735-817, Queue page) ----------
+  /* ---------- S3 first half (base :735-817, Queue page) ----------
      Base :818-852's .k-btn sandwiched in this segment, P5a already ported (see existing block below),
      don't repeat here; after .k-btn :854-967 attaches after that block to preserve base order. */
   .k-queue-head {
@@ -1256,7 +1256,7 @@
   }
 
   /* ---------- Buttons (base :818-852) — the base class plus .ghost/.outline/.primary/:disabled
-     were ported by P5a; P5b-T2 only adds an &.danger inside the block (base :843-847), it doesn't
+     were already ported earlier; this only adds an &.danger inside the block (base :843-847), it doesn't
      rewrite the whole block. ---------- */
   .k-btn {
     padding: 7px 13px;
@@ -1285,7 +1285,7 @@
       &:hover:not(:disabled) { background: var(--accent-hover); }
     }
     &.danger {
-      /* Added by P5b-T2 (base :843-847) — P5a judged this class wasn't in the allowlist at the time, so didn't port it. */
+      /* Added later (base :843-847) — this class wasn't judged to be in the allowlist at the time, so wasn't ported initially. */
       background: var(--danger);
       color: var(--text-on-accent); /* base :845 foreground literal color → token */
       /* base :846 is a one-tier-darker danger-color hover background literal; no matching
@@ -1313,7 +1313,7 @@
     }
   }
 
-  /* ---------- P5b-T2 · S3 second half (base :854-967, Queue page table) ---------- */
+  /* ---------- S3 second half (base :854-967, Queue page table) ---------- */
   .k-table {
     background: var(--bg-elevated);
     border: 1px solid var(--line-faint);
@@ -1429,7 +1429,7 @@
     display: flex; align-items: center; gap: 6px;
   }
 
-  /* ---------- P5c-T2a · A (base :969-984) ----------
+  /* ---------- A (base :969-984) ----------
      Base section's header comment says "Allowlist page", but section-title four-piece
      (.k-section / -head / -title / -hint) reused by SettingsView, so ported this period.
      🔴 Base :985-991's .k-section-body AllowlistView-only, don't port this period — A segment boundary
@@ -1451,14 +1451,14 @@
     color: var(--text-quaternary);
   }
 
-  /* ---------- P5f-T2 · A (base :985-1141, "Allowlist page" main body) ----------
+  /* ---------- A (base :985-1141, "Allowlist page" main body) ----------
      🔴 **segment boundary only one number: `:985-1141`** (ruling R4 / errata E-69). Actual final
      content landing in this file is base `:1139`'s `}` (.k-priority-hint closure); `:1140` is blank,
      `:1141` is `/* ---------- Settings page ---------- *\/` section header comment — **that line don't port**
      (porting would point here to non-existent Settings segment, misleading).
 
      🔴 **Why can't "port whole segment :985-1160 then delete dead classes"** (Appendix D §D.3.1):
-     `:1142`'s .k-set-card and `:1159`'s .k-set-row **P5c-T2a already ported** (see B-H segments below),
+     `:1142`'s .k-set-card and `:1159`'s .k-set-row **already ported** (see B-H segments below),
      `:1152-1157`'s 6 .k-progress-* are last 6 of 24 base dead classes, three **interleave**. Porting whole
      would introduce **duplicate definitions** (allowlist assertion can't catch duplicates, only range-anchored
      counting assertion responds) and dead classes. ⇒ this segment strictly `:985` to `:1139`, not one char after `:1141`.
@@ -1642,7 +1642,7 @@
     }
   }
 
-  /* ---------- P5c-T2a · B-H (base :1141-1293, the whole "Settings page" section) ----------
+  /* ---------- B-H (base :1141-1293, the whole "Settings page" section) ----------
      This section was already inside .knowledge-app in the base, dropped in as-is with section
      order matching the base's original. Seven sub-sections:
        B :1141-1149  .k-set-card
@@ -1766,7 +1766,7 @@
     /* base :1250 danger-toned semi-transparent border literal → --danger-soft-border (already present in both tiers) */
     border-color: var(--danger-soft-border);
     /* base :1251 a lighter-tier danger-toned semi-transparent background literal than danger-soft →
-       --danger-soft-faint (already present in both tiers, declared by P5b-T2); the gradient
+       --danger-soft-faint (already present in both tiers, declared earlier); the gradient
        angle and the second color stop's transparent are copied verbatim */
     background: linear-gradient(135deg, var(--danger-soft-faint), transparent);
     .k-set-row-title { color: var(--danger); }
@@ -1818,8 +1818,8 @@
     box-shadow: var(--gloss-inset-dot);
   }
 
-  /* ---------- P5b-T2 · S4 (base :1296-1316 + :1335-1341, Modals) ----------
-     【P5c-T2a correction】K17's .k-modal-head / .k-modal-title / .k-modal-x / .k-modal-body
+  /* ---------- S4 (base :1296-1316 + :1335-1341, Modals) ----------
+     【Correction】K17's .k-modal-head / .k-modal-title / .k-modal-x / .k-modal-body
      (base :1317-1334) — neither of P5b's two views used these at the time, so they were left
      for P5c; **now ported this period**, landing below between .k-modal and .k-modal-foot
      (the base's original position), so this section is now one continuous span of base
@@ -1846,7 +1846,7 @@
     overflow: hidden;
     animation: k-modal-pop 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
   }
-  /* ---- P5c-T2a · I (base :1317-1334) — fulfills K17, P5b handoff item #1. Zero color literals in this section. ---- */
+  /* ---- I (base :1317-1334) — fulfills K17, P5b handoff item #1. Zero color literals in this section. ---- */
   .k-modal-head {
     padding: 16px 20px 8px;
     display: flex; align-items: center; gap: 10px;
@@ -1873,14 +1873,14 @@
     .right { margin-left: auto; display: flex; gap: 8px; }
   }
 
-  /* ---------- P5f-T2 · B (base :1342-1396, the "Allowlist add-folder-rule" modal form) ----------
+  /* ---------- B (base :1342-1396, the "Allowlist add-folder-rule" modal form) ----------
      🔴 **The segment's end boundary is `:1396`, not `:1400`** (ruling R4 / errata E-69):
-     `:1398` onward is `.k-confirm-body`, **already ported by P5b-T2** (right below, in that
+     `:1398` onward is `.k-confirm-body`, **already ported** (right below, in that
      section). Porting the whole segment up to `:1400` would create **duplicate definitions**
      — and duplicate definitions are **not** caught by the allowlist/dead-class assertions,
      only by the range-anchored count assertion (this file's K10 assertion guarding
      .k-confirm-* to exactly 1 occurrence exists precisely for this).
-     The segment lands after P5c-T2a·I (base :1317-1334) and before P5b-T2·S5 (base
+     The segment lands after  I (base :1317-1334) and before  S5 (base
      :1398-1428), matching the base's source order.
      Color: this section's actual scan found **3** color literals, all on lines `:1392` /
      `:1393`, all landing in the buckets P5a §B.2 already established (Appendix B §B.4 rows
@@ -1951,7 +1951,7 @@
   .k-radio-card-text { font-size: 13px; font-weight: 600; }
   .k-radio-card-desc { font-size: 11px; color: var(--text-tertiary); margin-top: 1px; }
 
-  /* ---------- P5b-T2 · S5 (base :1398-1428, confirm modal) ----------
+  /* ---------- S5 (base :1398-1428, confirm modal) ----------
      K10: base :1676-1702 also has a **top-level** copy of .k-confirm-icon/.k-confirm-title/
      .k-confirm-summary, whose declarations are byte-for-byte equivalent to the nested version
      here. In the cascade, the nested version is `.knowledge-app .k-confirm-*` (0,2,0) while
@@ -1997,14 +1997,14 @@
   }
 
   /* ---------- Responsive (base :1453-1507) — P5a ported .k-rail/.k-mobile-tabs/
-     .k-mobile-tab; P5b-T2 adds S6's two .k-row rules into the same @media per Appendix D.6
+     .k-mobile-tab; this adds S6's two .k-row rules into the same @media per Appendix D.6
      (see inside the block). k-quick-grid and k-status-strip are still not in the allowlist,
      .k-frow is a dead rule (Appendix D.5), none of these are ported. ---------- */
-  /* 🔴 **P5f-T2 correction block (honor "reverse, don't delete"; the original text above is
+  /* 🔴 **Correction block (honor "reverse, don't delete"; the original text above is
      preserved as-is)** — the line above, "`.k-frow` is a dead rule, not ported", **has now
      expired**. P5b's original criterion was **conditional** (verbatim: "no element in either
      template uses class='k-frow'"), which held true at the time of P5b; but
-     **`AllowlistView` (P5f) now uses exactly this class** ⇒ the premise has expired.
+     **`AllowlistView` now uses exactly this class** ⇒ the premise has expired.
      Per ruling **R2** / deviation **K60**, base `:1500-1503`'s narrow-screen column-width
      override **is ported by this cut** (see inside the @media block below). ⚠️ The other half
      of that statement (.k-quick-grid / .k-status-strip are not ported) **still holds** — don't
@@ -2037,18 +2037,18 @@
         top: 4px; right: calc(50% - 18px);
       }
     }
-    /* ---------- P5b-T2 · S6 (base :1484-1499) ----------
+    /* ---------- S6 (base :1484-1499) ----------
        Appendix D.6: in the base, these two rules were already written inside this
        `@media (max-width: 860px)`, so they're added into this repo's existing @media block
        rather than starting a new one. base :1482-1483's .k-quick-grid / .k-status-strip and
        :1500-1503's .k-frow are still not ported (for the latter see Appendix D.5: no element
        in either template uses class="k-frow" — the file table row uses .k-frow-f — so it's a
        dead rule). */
-    /* 🔴 **P5f-T2 correction block (honor "reverse, don't delete"; the original text above is
+    /* 🔴 **Correction block (honor "reverse, don't delete"; the original text above is
        preserved as-is)** — the statement above, "`:1500-1503`'s .k-frow is still not
        ported … it's a dead rule" **has now expired**: its criterion was **conditional**
        ("no element in either template uses class='k-frow'"), which held true at the time of
-       P5b; **`AllowlistView` (P5f) now uses this class** ⇒ the premise has expired. Per
+       earlier; **`AllowlistView` now uses this class** ⇒ the premise has expired. Per
        ruling **R2** / deviation **K60**, this cut ports that rule into the end of this block
        (see the K60 subsection below).
        ⚠️ The other half of that statement (.k-quick-grid / .k-status-strip are not ported)
@@ -2069,7 +2069,7 @@
       > *:nth-child(3), > *:nth-child(4), > *:nth-child(5) { display: none; }
       > *:nth-child(6) { display: revert; }
     }
-    /* ---------- P5f-T2 · K60 (ruling R2) — base :1500-1503's .k-frow narrow-screen
+    /* ---------- K60 (ruling R2) — base :1500-1503's .k-frow narrow-screen
        column-width override ----------
        🔴 Authorization source: deviation **K60** (the fourth item beyond the three segments
        governance originally authorized), approved by ruling **R2**.
@@ -2077,7 +2077,7 @@
        ported along with it** — every one of those four lines was read line by line; it
        contains only `.k-frow`'s grid-template-columns and font-size declarations, zero other
        classes.
-       Landing spot matches how P5b-T2 handled .k-row: merged into this repo's **existing**
+       Landing spot matches how .k-row was handled earlier: merged into this repo's **existing**
        `@media (max-width: 860px)` rather than starting a new one (the base already wrote it
        inside the same @media).
        Consequence of not porting it: on narrow screens, the Allowlist page's folder-rule
@@ -2092,7 +2092,7 @@
     .k-mobile-tabs { display: none; }
   }
 
-  /* ---------- P5b-T6 · S8 (base :1705-2022, the "Collected files" page's exclusive section) ----------
+  /* ---------- S8 (base :1705-2022, the "Collected files" page's exclusive section) ----------
      K9: this whole segment is a **top-level bare selector** in the base (not inside
      .knowledge-app), so the entire segment is re-nested into .knowledge-app — otherwise
      ① it would leak site-wide ② it couldn't reach tokens declared in this scope. After
@@ -2104,9 +2104,9 @@
      :1675-1703 is dropped entirely, and this segment **starts from :1705**, excluding it.
      Appendix D.5's other dead rule (:1500-1503's .k-frow) falls within S6's range; T2 already
      noted it's not ported.
-     🔴 **P5f-T2 correction block (honor "reverse, don't delete"; the sentence above is
+     🔴 **Correction block (honor "reverse, don't delete"; the sentence above is
      preserved as-is)**: the criterion for "`:1500-1503`'s .k-frow is a dead rule" is
-     **conditional**, and `AllowlistView` (P5f) now uses this class ⇒ the premise has expired;
+     **conditional**, and `AllowlistView` now uses this class ⇒ the premise has expired;
      per ruling **R2** / deviation **K60**, that rule has already been ported into the @media
      block above by this cut.
      base :1844-1847's `@keyframes row-done` was originally sandwiched in the middle of this
@@ -2506,7 +2506,7 @@
   }
   .k-ab-actions { margin-left: auto; display: flex; gap: 10px; }
 
-  /* ---------- P5b-T2 · S7 (base :2031-2039, Knowledge Notes' status badges) ----------
+  /* ---------- S7 (base :2031-2039, Knowledge Notes' status badges) ----------
      K9: this section is a **top-level bare selector** in the base (not inside
      .knowledge-app) — the whole section is re-nested inside .knowledge-app, otherwise
      ① it would leak site-wide and ② it couldn't reach the tokens declared in this scope
@@ -2527,7 +2527,7 @@
   /* base :2039 danger-toned semi-transparent background + border literals (two spots) → danger-soft / danger-soft-border (already present in both theme tiers) */
   .kn-badge[data-s="failed"] { background: var(--danger-soft); color: var(--danger); border: 1px solid var(--danger-soft-border); }
 
-  /* ---------- P5c-T2a · J (base :2250-2263, header comment reads verbatim "settings: picker
+  /* ---------- J (base :2250-2263, header comment reads verbatim "settings: picker
      actions + migrate modal") ----------
      K9: this section is a **top-level bare selector** in the base (not inside
      .knowledge-app) — the whole section is re-nested inside .knowledge-app, otherwise
@@ -2535,7 +2535,7 @@
      After nesting, every rule inside keeps the same relative specificity (each gains +1
      class selector).
      .kn-picked has two rules in the base, :2251 and :2252 (the latter is .kn-picked code) — both are ported.
-     ⚠️ .kn-badge (base :2031-2039) was already ported by P5b-T2, right above; not redefined here.
+     ⚠️ .kn-badge (base :2031-2039) was already ported right above; not redefined here.
      base :2040-2249 and the remaining .kn-* from :2264 onward belong to P5d, not ported. Zero color literals in this section. */
   .kn-picked { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-secondary); flex-wrap: wrap; }
   .kn-picked code { font-family: var(--font-mono); font-size: 11.5px; background: var(--bg-chip); padding: 2px 8px; border-radius: 6px; color: var(--text-primary); }
@@ -2551,7 +2551,7 @@
   .kn-checkline { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-primary); cursor: pointer; user-select: none; }
   .kn-checkline input { width: 15px; height: 15px; accent-color: var(--danger); cursor: pointer; }
 
-  /* ---------- P5c-T2a · FolderBrowser (base src/components/common/FolderBrowser.vue:82-143's
+  /* ---------- FolderBrowser (base src/components/common/FolderBrowser.vue:82-143's
      entire <style lang="scss" scoped> block) ----------
      🔴 In the base, this section is **not in knowledge.scss** — it's the component's own
      scoped style block. This repo's component has zero <style> blocks (carrying forward P5a
@@ -2638,8 +2638,8 @@
   }
   .fb-err { color: var(--danger); font-style: normal; }
 
-  /* ---------- P5d-T2 · A (base :2029 / :2040-2045, remnants of "Knowledge Notes"' shared base) ----------
-     .kn-badge's five rules (base :2031-2039) were already ported by P5b-T2 (currently at
+  /* ---------- A (base :2029 / :2040-2045, remnants of "Knowledge Notes"' shared base) ----------
+     .kn-badge's five rules (base :2031-2039) were already ported (currently at
      :1596-1607 onward), not redefined here; this section only fills in :2029's
      .k-badge[data-tone="warn"] and :2040-2045's .kn-type-ic/.kn-src/.kn-tag three classes.
      K9: the base has these as top-level bare selectors, re-nested inside .knowledge-app.
@@ -2653,7 +2653,7 @@
   .kn-src { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-tertiary); }
   .kn-tag { font-family: var(--font-mono); font-size: 10.5px; color: var(--text-tertiary); background: var(--bg-chip); border-radius: 999px; padding: 1px 8px; }
 
-  /* ---------- P5d-T2 · B (base :2047-2056, path strip — the note is really a disk file) ---------- Zero color literals in this section. */
+  /* ---------- B (base :2047-2056, path strip — the note is really a disk file) ---------- Zero color literals in this section. */
   .kn-pathstrip {
     display: flex; align-items: center; gap: 8px; padding: 9px 14px;
     border-radius: var(--r-sm); background: var(--bg-sunken);
@@ -2663,7 +2663,7 @@
   .kn-pathstrip a { color: var(--accent); text-decoration: none; font-weight: 500; display: inline-flex; align-items: center; gap: 3px; margin-left: auto; white-space: nowrap; cursor: pointer; }
   .kn-pathstrip a:hover { text-decoration: underline; }
 
-  /* ---------- P5d-T2 · C (base :2057-2085, draft inbox) ----------
+  /* ---------- C (base :2057-2085, draft inbox) ----------
      Color literals (Appendix B §B.2 item-by-item mapping):
        .kn-inbox's border amber-toned semi-transparent literal → --warning-soft-border (A-9);
        .kn-inbox's background gradient (two stops) → --grad-inbox-wash (newly created by K39, preserving the base's hue, ruling R11);
@@ -2703,7 +2703,7 @@
   .kn-inbox-foot { display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--warning-soft-border); background: var(--warning-soft); }
   .kn-inbox-foot-hint { font-size: 11.5px; color: var(--text-tertiary); flex: 1; }
 
-  /* ---------- P5d-T2 · D (base :2086-2121, notes list) ----------
+  /* ---------- D (base :2086-2121, notes list) ----------
      Color literals: .kn-act[data-tone="confirm"]'s background success-toned semi-transparent
      literal → --success-soft; the :hover background stays var(--success), and its pure-light
      foreground literal → --text-on-accent (on top of --success's solid background, one of
@@ -2745,7 +2745,7 @@
   .kn-list-foot { padding: 9px 16px; font-size: 11.5px; color: var(--text-tertiary); border-top: 1px solid var(--line-faint); background: var(--bg-sunken); display: flex; gap: 6px; align-items: center; }
   .kn-empty-filtered { padding: 44px 20px; text-align: center; color: var(--text-tertiary); font-size: 13px; display: flex; flex-direction: column; gap: 10px; align-items: center; }
 
-  /* ---------- P5d-T2 · E (base :2122-2194, edit pane) ----------
+  /* ---------- E (base :2122-2194, edit pane) ----------
      Color literals (Appendix B): .kn-draftbar's border amber-toned semi-transparent literal
      → --warning-soft-border; its background gradient (two stops) → --grad-draftbar-wash
      (newly created by K39, preserving the base's hue, ruling R11).
@@ -2829,7 +2829,7 @@
   }
   .kn-editor-status .spacer { flex: 1; }
 
-  /* ---------- P5d-T2 · F (base :2195-2241, edit aside) ---------- Zero color literals in this section.
+  /* ---------- F (base :2195-2241, edit aside) ---------- Zero color literals in this section.
      `spacer`/`mono`/`lbl` are logged in NON_K_HELPER_CLASSES. */
   .kn-edit-aside { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
   .kn-aside-card {
@@ -2877,7 +2877,7 @@
     font-size: 12.5px; font-family: inherit; padding: 7px 9px;
   }
 
-  /* ---------- P5d-T2 · G (base :2242-2249, conflict modal, 409) ----------
+  /* ---------- G (base :2242-2249, conflict modal, 409) ----------
      Color literals: .kn-diff-pane[data-side="theirs"]'s header background accent-toned
      semi-transparent literal → --accent-soft; .kn-diff-pane[data-side="mine"]'s header
      background amber-toned semi-transparent literal → --warning-soft. */
@@ -2888,7 +2888,7 @@
   .kn-diff-pane[data-side="mine"] .kn-diff-pane-head { background: var(--warning-soft); color: var(--warning); }
   .kn-diff-body { font-family: var(--font-mono); font-size: 11px; line-height: 1.7; padding: 8px 10px; color: var(--text-secondary); max-height: 180px; overflow-y: auto; white-space: pre-wrap; }
 
-  /* ---------- P5d-T2 · H (base :2265-2281, responsive) ---------- Zero color literals in this section. */
+  /* ---------- H (base :2265-2281, responsive) ---------- Zero color literals in this section. */
   @media (max-width: 980px) {
     .kn-edit { grid-template-columns: 1fr; }
     .kn-edit-aside { order: 2; }
@@ -2905,7 +2905,7 @@
     .kn-editor-toolbar { overflow-x: auto; flex-wrap: nowrap; }
   }
 
-  /* ---------- P5d-T2 · K43 (base :551-571, .k-seg, 21 lines, zero color literals) ----------
+  /* ---------- K43 (base :551-571, .k-seg, 21 lines, zero color literals) ----------
      Nested inside the base's Search page section (:457-733), but not search-exclusive — it's
      a shared segmented-control primitive at the .knowledge-app level; NoteEditPane.vue's
      "rich text / Markdown" mode toggle uses it (ruling R1's rationale).
@@ -2934,7 +2934,7 @@
   }
 }
 
-/* ---------- P5d-T2 · K44 (governance §6.2's only top-level exception, ruling R4) ----------
+/* ---------- K44 (governance §6.2's only top-level exception, ruling R4) ----------
    base NotesMarkdownEditor.vue:41-46 (the whole <style lang="scss"> block) — non-scoped global
    rules that apply to **any** .nme-content; nesting it inside .knowledge-app would narrow the
    scope = change the behavior, so it stays a top-level bare selector, not handled per K9. It's
@@ -2998,7 +2998,7 @@
   to   { opacity: 1; transform: translate(-50%, 0); }
 }
 
-/* [P5b-T6] base knowledge.scss:1844-1847 — only referenced by the S8 section's
+/* base knowledge.scss:1844-1847 — only referenced by the S8 section's
  * .k-frow-f[data-done="true"] (a one-shot highlight-fade for "this row just finished rebuilding").
  * In the base it sits sandwiched inside :1841-1849; this file moves it to the top-level global
  * keyframes area, per the exact same established convention as the T4 keyframes above and
@@ -3012,7 +3012,7 @@
   100% { background: transparent; }
 }
 
-/* [P5e-T2] base knowledge.scss:1541-1545's two @keyframes — the base itself writes them at the
+/* base knowledge.scss:1541-1545's two @keyframes — the base itself writes them at the
  * top level (**before** the `.knowledge-app { … }` block at :1547-1673); this file places them
  * in this top-level global keyframes area, per the exact same established convention as the
  * T4/T11/T6 batches above: an @keyframes nested inside a selector in scss would follow that
@@ -3027,7 +3027,7 @@
   to   { transform: translateX(0); opacity: 1; }
 }
 
-/* ===== P5e-T2 · S5 + S6 — ported 1:1 from the base knowledge.scss:1547-1673's **top-level
+/* ===== S5 + S6 — ported 1:1 from the base knowledge.scss:1547-1673's **top-level
  * `.knowledge-app { … }` block** ("file aggregate search: match pill + detail drawer") =====
  * 🔴 The base's `.knowledge-app` wrapping is kept as-is (K9 / K44: no new top-level bare
  * selector is introduced — `bareTopLevelSelectors()`'s set-equality assertion still reads
@@ -3039,7 +3039,7 @@
  *   · :1564-1568's `.k-btn.outline` + hover is the base's own **duplicate section** (it also
  *     has a copy at :831); this file's .k-btn block's `&.outline` was already ported by P5a and
  *     is verbatim-equivalent → porting it again would pollute the .k-btn block;
- *   · :1569-1570's `.k-btn.text` + hover is **K45 (already ported by P5d-T2)**; porting it
+ *   · :1569-1570's `.k-btn.text` + hover is **K45 (already ported earlier)**; porting it
  *     again would fail the "&.text appears exactly 2 times inside the .k-btn block" count
  *     assertion — **that's intentional**.
  *
@@ -3202,7 +3202,7 @@
     .k-asset-stage { min-height: 160px; }
   }
 
-  /* ---------- P5e-T2 · KF — the base KFileViewer.vue's `<style lang="scss" scoped>` ----------
+  /* ---------- KF — the base KFileViewer.vue's `<style lang="scss" scoped>` ----------
      Port range = **`:71-76` + `:102-119`** (ruling R3.1 / correction M-1: Appendix B §B.4 /
      D §D.2's body originally said `:103-119`, which would drop `:102`'s closing `}` and leave
      `.k-fileviewer-host` unclosed).
@@ -3313,9 +3313,9 @@
  *   --danger-soft-faint/--teal-soft) were checked line-by-line against the base :2282-2452 and
  *   confirmed unused in this section, so not declared (don't declare tokens that won't be used —
  *   avoid a different kind of noise than "inventing" tokens).
- *   [P5b-T2 addendum] The "unused in this section" statement above still holds; but of those,
- *   --success-soft-border and --danger-soft-faint have since been used by P5b-T2's shared-base
- *   section, so both theme tiers now have declarations for them (see the "R2 (P5b-T2 addendum)"
+ *   [Addendum] The "unused in this section" statement above still holds; but of those,
+ *   --success-soft-border and --danger-soft-faint have since been used by the shared-base
+ *   section, so both theme tiers now have declarations for them (see the "R2"
  *   group above in the file), and the R2 assertion count grew accordingly, 6→9. --purple-soft
  *   belongs to T6, and --teal-soft remains unused by anyone so far, still not declared.
  *
@@ -3518,13 +3518,13 @@
   background: color-mix(in srgb, var(--text-on-accent) 50%, transparent);
 }
 
-/* ===== P5f-T2 · C — Wiki navigation page (/ai/knowledge/wiki) · amber TREE tier =====
+/* ===== C — Wiki navigation page (/ai/knowledge/wiki) · amber TREE tier =====
  * Ported 1:1 from the base knowledge.scss **:2453-2561** (section boundaries match what
  * governance wrote, no correction needed).
  * 🔴 **K9**: the base's `:2456` `.knowledge-app {` is the **section header**, not a class to
  * port — this file already has `.knowledge-app` in 6 places, so per this file's established
  * practice, **another top-level `.knowledge-app { … }` block is started** to hold the whole
- * section (same as the Dashboard v2 section above and P5e-T2's S5+S6 section); the relative
+ * section (same as the Dashboard v2 section above and the S5+S6 section); the relative
  * specificity of every rule inside matches the base exactly. Section is placed following the
  * base's original ordering, after Dashboard v2 (:2282-2452) = end of the file.
  *
@@ -3532,7 +3532,7 @@
  * (Appendix D §D.8): the base's `:2551-2553` (max-width: 1080px) and `:2554-2560` (max-width:
  * 860px). ⚠️ These are **different blocks** from the existing `@media (max-width: 860px)` above
  * in this file (in the .knowledge-app grid-layout context) — **started separately per the
- * base's source ordering, not merged** — P5b-T2 merged once before, because the base itself
+ * base's source ordering, not merged** — it was merged once before, because the base itself
  * wrote those inside the same @media; this section is not that situation.
  *
  * 🔴 **Color: this section's actual scan found 0 color literals, this is not a guess**
@@ -3652,7 +3652,7 @@
   }
 }
 
-/* ===== P5f-T2 · K53 — RootsView's entire `<style lang="scss" scoped>` block ported in =====
+/* ===== K53 — RootsView's entire `<style lang="scss" scoped>` block ported in =====
  * Source: the base `src/views/AI/Knowledge/RootsView.vue:223-289` (66 lines / 9 `kr-*` classes).
  * 🔴 **Errata E-63**: these 9 classes are **not in** `p5-master-plan.md` §2's diff-set list —
  * that diff set only counts against `knowledge.scss`, **structurally blind to a `.vue` file's
@@ -3671,7 +3671,7 @@
  * §B.2, fixed):
  *   · `.kr-input` (base `:254`) `var(--border, …)` → **`var(--line)`**
  *   · `.kr-badge` (base `:243`) `var(--bg-tertiary, …)` → **`var(--bg-chip)`**
- * Rationale = this repo's **established precedent** (P5c-T2a's FolderBrowser section, right
+ * Rationale = this repo's **established precedent** (the FolderBrowser section, right
  * above in this file, already handled **the same fallback for the same token pair** this way) +
  * alpha ordering preserved (a neutral tone over a dark background, larger α is lighter; the
  * precedent mapped 0.25/0.18 to --line/--line-faint, here 0.12 > the precedent's 0.06 ⇒ take
@@ -3713,7 +3713,7 @@
     /* base :243's var(--bg-tertiary, <neutral-toned fallback>) → var(--bg-chip) (K54 / Appendix B §B.2.2-①).
        🔴 This spot is a **visible change**, not an equivalent substitution (E-73): --bg-tertiary
        has zero declarations on both sides, so the fallback has been in effect all along. Value
-       basis = the established precedent of this file's P5c-T2a · FolderBrowser section above + alpha ordering preserved. */
+       basis = the established precedent of this file's  FolderBrowser section above + alpha ordering preserved. */
     background: var(--bg-chip);
   }
   .kr-label {

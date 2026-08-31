@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// SP7-P7a-T8: SmartViewSidePanel.vue — smart view detail panel right column, three sections
+// SmartViewSidePanel.vue — smart view detail panel right column, three sections
 // (threshold / settings / stats), mounted at data-test="sv-side-mount" in PhotosSmartViewDetail.vue
 // (T6 placeholder mount point). Ported section by section from the Vue 2 panel's
 // src/views/Photos/PhotosSmartViewDetail.vue:152-209 (template), :288-291 + :345-371
@@ -7,9 +7,9 @@
 // :424 + :444 (formatMB / distStyle); styles photos-smartview.scss:528-658 (the slider itself
 // at :543-563 already extracted to PhotosThreshSlider.vue by T5, not repeated here).
 //
-// ── Architectural simplification vs Vue2 (required per brief; fix round 2 correction:
-//    prior sections conflicted with `dragging` guard added 40 lines below; corrected in-place
-//    per fix-2-findings, not rewritten as alternate formulation) ───────────────────────
+// ── Architectural simplification vs Vue2 (prior sections conflicted with the `dragging`
+//    guard added 40 lines below; corrected in place, not rewritten as an alternate
+//    formulation) ───────────────────────
 // Vue2 uses "local thresh/paused/includeVideos + syncingSv flag + three watchers" to suppress
 // the self-feedback loop: "prop change → copy to local state → local watcher emits PATCH again"
 // (:288-291, :345-371). New-UI emits('patch', ...) only on user interaction (@input/@click);
@@ -17,7 +17,7 @@
 // is not needed**, New-UI has no equivalent.
 // But "prop reflux needs no guard" is not the right conclusion: between PATCH round-trips,
 // while user has uncommitted local edits, the old value brought back by prop must not
-// overwrite display, else we get the real bug reproduced in fix round 1 · I1: "drag to 92
+// overwrite display, else we get a real bug that was reproduced: "drag to 92
 // → response lands → display flips back to 92 → right then, clobber the 60 user already
 // dragged to". **What we need is the `dragging` guard below**, guarding something different:
 // don't yank the display back to server's stale value while user's finger still presses
@@ -27,7 +27,7 @@
 // still pressing" intermediate state unlike thresholds, so no debounce/throttle needed and
 // no `dragging` guard needed.
 //
-// ── busy guard (net-new; T7 SmartViewConditionEditor.vue same-pattern constraint, logged) ──
+// ── busy guard (same-pattern constraint as SmartViewConditionEditor.vue) ──
 // Vue2 has zero notion of preventing "PATCH not back yet, click again". Host passes in
 // store.patchBusy; here during busy we short-circuit toggle clicks and threshold debounce
 // final emits to avoid concurrent PATCH races — button exposes visual state via data-busy,
@@ -43,7 +43,7 @@
 // `data-theme`), `--chip-bg`/`--chip-bg-hi` are still a glass gradient in the dark tier rather
 // than the flat fill parity wants, and `--card-border`'s dark-tier opacity (0.36) is far more
 // prominent than parity's `--line` (0.06/0.10). Both paths produced the "the switch / action
-// pill doesn't look like Vue2" deviation in this task's owner screenshots — already wrong in
+// pill doesn't look like Vue2" deviation seen in review screenshots — already wrong in
 // the dark tier, and degrading into unreadably low-contrast text in the light tier. Corrected:
 // the style block below is back on parity's own tokens (--surface-2/3, --text-1/2/3/4, --line,
 // --accent-hi). Two spots stay as they were — `--on-accent` (the knob shadow sits on a solid
@@ -307,7 +307,7 @@ function distStyle(d: number, i: number): { height: string; opacity: number } {
    hence the lower alpha) -- values chosen to read as a native light-theme toggle, not a
    dark-theme knob pasted onto a light page. Applies to both on/off states (neither modifies
    border/box-shadow), which is what keeps the knob's presentation state-invariant per the
-   owner's requirement. */
+   required behavior. */
 .photos-root.is-light .sv-switch::after {
   border: 1px solid var(--line-strong);
   box-shadow: 0 1px 2px color-mix(in srgb, black 12%, transparent);
@@ -319,7 +319,7 @@ function distStyle(d: number, i: number): { height: string; opacity: number } {
    same colour in both states. The `--on-accent` override this rule used to carry (justified at
    the time as "legal atop a solid --accent fill", same reasoning as `.sv-btn-primary`) was wrong
    for this element specifically: it made the knob track the on/off *state* instead of staying
-   constant like Vue2's -- the owner's screenshot is exactly that dark-navy-on-purple knob.
+   constant like Vue2's -- the reference screenshot is exactly that dark-navy-on-purple knob.
    Deleted; the knob now always uses the base rule's background above (Fix-6: literal white, see
    that rule's own comment), in both states, matching Vue2's own single-value knob. */
 .sv-switch[data-on="true"]::after { left: 16px; }

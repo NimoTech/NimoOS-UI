@@ -4,7 +4,7 @@
   ?search=/?message= auto-send + EmptyState suggestion cards),
   AgentRightPanel (1c), and systemMetrics/disks loading segments (1c).
 
-  SP8-P1c1 Task 12 — AgentComposer mounted (Vue2 Agent.vue:38-42 mount contract, 1:1):
+  AgentComposer mounted (Vue2 Agent.vue:38-42 mount contract, 1:1):
   props busy/ctx-usage, emits send/stop/send-init connect directly to store same-name actions.
   ctxUsage state + refreshContextUsage() ported from Vue2 Agent.vue:99/198-207,
   three refresh trigger points (mounted once, activeSessionId change once, busy true→false
@@ -13,13 +13,13 @@
   toast watcher — both belong to ThinkingBar/ModelPicker, left for 1c-2).
   ModelPicker, ThinkingBar UI still left for subsequent tasks.
 
-  SP8-P1c2 Task 2 — data-rightcollapsed unbind hard-coded value, rebind to store.rightCollapsed
+  Data-rightcollapsed unbind hard-coded value, rebind to store.rightCollapsed
   (Vue2 Agent.vue:4 exactly aligned); AgentTopbar add right-collapsed prop +
   toggle-right emit → store.toggleRight (Vue2 Agent.vue:20/24). Right panel shell itself
   (AgentRightPanel) not yet mounted, left for subsequent tasks — this task only unbinds
   container state + top bar toggle.
 
-  SP8-P1c2 Task 3 — fill in the two lines Task 12 left blank: session watcher (Vue2
+  Fill in the two lines Task 12 left blank: session watcher (Vue2
   Agent.vue:120-123) now triggers loadSessionThinking(newId)/updateThinkingForModel()
   in parallel with refreshContextUsage() (only if newId is non-empty, order per Vue2,
   not awaited); in mounted add one call to store.loadThinkingDefaults() before loadSessions/
@@ -27,7 +27,7 @@
   in scope of this task (ModelPicker's responsibility, left for subsequent task). ThinkingBar/
   ModelPicker UI itself still not mounted — this task only handles store state + page wiring.
 
-  SP8-P1c2 Task 13 — `<AgentRightPanel>` officially mounted (Vue2 Agent.vue:44-64 mount
+  `<AgentRightPanel>` officially mounted (Vue2 Agent.vue:44-64 mount
   contract), 11 props + 7 events aligned line by line (after F1 final review fix, one new
   8th event added `remove-resource-by-path` → `store.removeVisibleResourceByPath`, same
   handler style as adjacent); only one prop missing is `systemMetrics` (user's intentional
@@ -38,7 +38,7 @@
   Theme persistence already sunk into store.toggleTheme (Task 2 directly localStorage.setItem),
   no longer need the extra watch store.theme persistence as in Vue2 Agent.vue:117-119.
 
-  SP8-P1c2 Task 9 — ModelPicker mount + model fallback toast + AI-rename button (remaining
+  ModelPicker mount + model fallback toast + AI-rename button (remaining
   part of AgentTopbar mount contract from Vue2 Agent.vue:15-33):
   - AgentTopbar add `available-models`/`selected-model`/`regenerating-title-for`
     three props directly pass store same-name fields; `select-model` → `store.selectModel(key)`,
@@ -79,7 +79,7 @@ import '../styles/tokens.scss'
 import '../styles/agent-styles.scss'
 
 const store = useAgentStore()
-// SP8-P2b verification round 3: only used to register/unregister "AI area in foreground"
+// Only used to register/unregister "AI area in foreground"
 // (color scope for app-level toast).
 const aiTheme = useAiTheme()
 provideAgentStore(store)
@@ -94,7 +94,7 @@ const toast = useToast()
 interface AgentMsgLike { id?: string | number; role: string; [key: string]: unknown }
 const messagesForList = computed(() => store.messages as unknown as AgentMsgLike[])
 
-// SP8-P1c2 Task 13 — same as above, pure type bridging, zero runtime semantics: the two
+// Same as above, pure type bridging, zero runtime semantics: the two
 // fields in store are loose Record<string, unknown>[] (activitySteps constructed on-the-fly
 // by pushActivityStep, attachments stored as-is from /attachments API), the two tab
 // components on the right panel each declare narrower shapes (ActivityStep / ResourceAttachment).
@@ -123,7 +123,7 @@ const thinkingForTopbar = computed(() => ({
 
 function onOpenSettings() {
   // Vue2 `Agent.vue:209` — three entries (two on sidebar + ModelPicker empty state) share
-  // same no-arg jump, lands on settings page default section "Local Models". Since SP8-P2a
+  // same no-arg jump, lands on settings page default section "Local Models". Since the
   // route exists (T8 registered), placeholder toast is retired.
   router.push('/ai/settings')
 }
@@ -201,10 +201,10 @@ watch(
 // Agent.vue:99 ctxUsage state, populated by refreshContextUsage() below.
 const ctxUsage = ref<{ tokens: number; window: number; pct: number } | null>(null)
 
-// SP8-P1c2 Task 11 — Agent.vue:159-162 storage state, populated once in
+// Agent.vue:159-162 storage state, populated once in
 // onMounted below via toStoragePayload(). Deliberately a plain page-level ref,
-// not agentStore.ts state: the brief is explicit that this task must not add
-// store state it didn't ask for, and nothing else in the app needs this value
+// not agentStore.ts state: this must not add
+// store state that wasn't needed elsewhere, and nothing else in the app needs this value
 // — SystemTab (Task 11) takes it as a prop, AgentRightPanel wiring (Task 13)
 // will pass this ref straight down when it mounts <AgentRightPanel> here.
 // (systemMetrics — Agent.vue:155-158 — is intentionally NOT ported: SystemTab
@@ -227,7 +227,7 @@ let ctxUsageSeq = 0
  * not bare model name; set null on failure.
  */
 async function refreshContextUsage() {
-  // Final-review fix (2026-07-27, project porting discipline: follow logic correctness;
+  // A later fix (project porting discipline: follow logic correctness;
   // Vue2 Agent.vue 198-207 has no guard at all on this early-return branch, not "different
   // from Vue2" but adding a guard Vue2 never did): no-session early-return must equally
   // (a) increment ctxUsageSeq so that when a request for a "just-deleted session" lands in-flight,
@@ -260,7 +260,7 @@ async function refreshContextUsage() {
 // watcher below re-syncs; a different query key added by external navigation while this
 // page stays mounted would be dropped by the next session switch (spec puts that out of
 // scope, and no in-app path triggers it today). This generalises the local-copy discipline
-// SP8-P3a introduced for chaining the skill and search/message strips.
+// introduced for chaining the skill and search/message strips.
 const urlQuery = ref<LocationQueryRaw>({})
 function writeQuery() {
   // `.catch(() => {})`: a redundant navigation rejecting here must not surface as an
@@ -279,7 +279,7 @@ function syncSessionQuery(id: string | number | null) {
   else delete urlQuery.value.session
   writeQuery()
 }
-// Agent.vue:120-126 session watcher — SP8-P1c2 Task 3 fills in loadSessionThinking/
+// Agent.vue:120-126 session watcher — fills in loadSessionThinking/
 // updateThinkingForModel (1c-1 phase left these blank, ThinkingBar not yet wired,
 // pre-stuffing would be dead code; this task fills in the four store-side loader/setter,
 // page-side connects these two lines). Order mirrors Vue2 Agent.vue:120-123 exactly:
@@ -327,7 +327,7 @@ watch(
 )
 
 onMounted(async () => {
-  // SP8-P2b verification round 3 (2026-07-30): register "AI area in foreground" so
+  // Register "AI area in foreground" so
   // app-level `AppToast` switches to AI's toast colors. Without registering it uses
   // global blue-black theme's semi-transparent white background + white text, completely
   // invisible on AI light theme. Root cause and reference counting rationale see aiSurfaces
@@ -393,7 +393,7 @@ onMounted(async () => {
   // Agent.vue:154 — fetch ctxUsage once after models load (mounted trigger, one of three trigger points).
   refreshContextUsage()
 
-  // SP8-P1c2 Task 11 — Agent.vue:159-162 one-shot fetch storage capacity (disks.list() is
+  // Agent.vue:159-162 one-shot fetch storage capacity (disks.list() is
   // new method in Task 1). try/catch swallows error and sets null, same as Vue2
   // (empty state fallback to SystemTab render, don't error here). Storage capacity not
   // real-time, only fetched once on mount.
@@ -407,7 +407,7 @@ onMounted(async () => {
   // Vue2 Agent.vue:145-148 — ?skill= registration: only temporary storage, consumed
   // in send() (X-Skill-Id assembly in agentStore.ts send()), not sent here.
   //
-  // SP8-P3a post-acceptance addition②: Vue2 at the same location never strips ?skill=
+  // A later addition: Vue2 at the same location never strips ?skill=
   // from URL (contrast with adjacent ?search=/?message= — those are read and immediately
   // router.replace stripped, see next section). Real consequence: user clicks × on the toast
   // to cancel mount, or after message is sent pendingSkillId already consumed by send() once,
@@ -458,7 +458,7 @@ onMounted(async () => {
   }
 })
 
-// SP8-P2b verification round 3: unregister when leaving Agent page, let toast return
+// Unregister when leaving Agent page, let toast return
 // to global theme (zero desktop impact).
 onUnmounted(() => {
   aiTheme.leaveAiSurface()
@@ -528,7 +528,7 @@ onUnmounted(() => {
       />
     </main>
     <!--
-      SP8-P1c2 Task 13 — Agent.vue:44-64 mount contract, aligned line by line. Two
+      Agent.vue:44-64 mount contract, aligned line by line. Two
       differences from Vue2 style, both don't change behavior:
       1) `:session-id` here wraps `String(... ?? '')`. Vue2 Agent.vue:51 directly passes
          `store.state.activeSessionId` (can be number or null, but Vue2's prop declaration

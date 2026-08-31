@@ -1,12 +1,12 @@
-// SP7-P7a-T13: SearchDatePopover.vue — search date popover (5 quick-range buttons + true calendar).
+// SearchDatePopover.vue — search date popover (5 quick-range buttons + true calendar).
 // Structure corresponds to Vue2 PhotosSearchView.vue:61-91 (template), :755-777 (setDraftDateQuick/
 // shiftCalMonth/pickCalDay), :790-796 (date branch of togglePop). Styles correspond to
 // photos.scss:2658-2688.
 //
-// Key fix (A3, authorized by task brief; see task-13-report.md "T9 Fix" section): data-on criterion
-// does not use label string comparison (Vue2 `draft.date.label === q` fails after locale switch
-// — label is localized text after t()), instead uses DateRange.key field added in dateRange.ts.
-// The "data-on still true after locale switch" test in this file is the main guard for this fix.
+// Key fix: the data-on criterion does not use label string comparison (Vue2 `draft.date.label
+// === q` fails after locale switch — label is localized text after t()), instead uses the
+// DateRange.key field added in dateRange.ts. The "data-on still true after locale switch" test
+// in this file is the main guard for this fix.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { mount } from '@vue/test-utils'
@@ -38,7 +38,7 @@ function findCellByDate(w: ReturnType<typeof mountPop>, date: string) {
   return w.findAll('.cal-cell').find((el) => el.attributes('data-date') === date)
 }
 
-// ── Structure audit (Vue2 :61-91 item-by-item; brief struct spec 1-5)─────────
+// ── Structure audit (Vue2 :61-91 item-by-item) ─────────
 describe('Structure audit', () => {
   it('5 .fpop-quick shortcut buttons, 2 .cal-nav under .cal-head, 7 .cal-cell.dow, 2 buttons in footer', () => {
     const w = mountPop({ draft: null, committed: null })
@@ -70,7 +70,7 @@ describe('Structure audit', () => {
   })
 })
 
-// ── Calendar initial state (brief struct spec "calendar displayed year/month is component state" + Vue2 :790-796)─────
+// ── Calendar initial state (the displayed year/month is component state; see Vue2 :790-796) ─────
 describe('Calendar initial state', () => {
   it('committed has end → initial title lands on that end\'s year/month (2025-03-20 → March 2025)', () => {
     const w = mountPop({ draft: null, committed: { label: '', start: '2025-03-01', end: '2025-03-20' } })
@@ -92,7 +92,7 @@ describe('Calendar initial state', () => {
   })
 })
 
-// ── Quick ranges (brief struct spec 7:setQuick)─────────────────────────────
+// ── Quick ranges (setQuick) ─────────────────────────────
 describe('Quick ranges', () => {
   it('Click "Last 7 days" → update:draft start is today minus 6, end is today, key is last7', async () => {
     const w = mountPop({ draft: null, committed: null })
@@ -117,7 +117,7 @@ describe('Quick ranges', () => {
     expect(title).toContain('2025')
   })
 
-  // data-on criterion is the core deviation register for this task: comparison target is key, not label string.
+  // data-on criterion: comparison target is key, not the label string.
   it('data-on uses key comparison: draft.key === "last7" → "Last 7 days" button has data-on=true, rest false', () => {
     const draft: DateRange = { label: '最近7天', start: '2026-07-25', end: '2026-07-31', key: 'last7' }
     const w = mountPop({ draft, committed: null })
@@ -127,7 +127,7 @@ describe('Quick ranges', () => {
     })
   })
 
-  // Main guard (brief explicitly names it): switch locale from zh to en and remount, data-on should still be true —
+  // Main guard: switch locale from zh to en and remount, data-on should still be true —
   // if implementation lazily reverts to label string comparison, this fails (because en label is 'Last 7 days',
   // not equal to Chinese '最近7天' stored in draft.label).
   it('Switch locale from zh to en and remount → data-on still true (label comparison would fail here)', () => {
@@ -141,7 +141,7 @@ describe('Quick ranges', () => {
   })
 })
 
-// ── Month navigation (brief struct spec "shiftMonth")──────────────────────
+// ── Month navigation (shiftMonth) ──────────────────────
 describe('Month navigation', () => {
   it('Click right nav → title month +1 (same year)', async () => {
     const w = mountPop({ draft: null, committed: null }, makeI18n('en_us'))
@@ -177,7 +177,7 @@ describe('Month navigation', () => {
   })
 })
 
-// ── Click cells (brief struct spec "pick", copy from Vue2 :765-777)──────────
+// ── Click cells (pick, copied from Vue2 :765-777) ──────────
 describe('Click cells', () => {
   it('First click (draft is null) → update:draft start=that day, end=null, no key field', async () => {
     const w = mountPop({ draft: null, committed: null })
@@ -228,7 +228,7 @@ describe('Click cells', () => {
   })
 })
 
-// ── Range highlight (brief required cases)─────────────────────────────────
+// ── Range highlight (required cases) ─────────────────────────────────
 describe('Range highlight', () => {
   it('draft 2026-07-10..12 → 10th has start+in, 11th only has in, 12th has end+in', () => {
     const draft: DateRange = { label: '', start: '2026-07-10', end: '2026-07-12' }
@@ -276,9 +276,8 @@ describe('Footer buttons', () => {
   })
 })
 
-// 2026-08-13 rollback (the owner overturned the EXIF glass exception; Fix-3 item 7 follow-up —
-// this component was missed in that round, and the brief names it explicitly: "align their
-// chrome to parity like the FilterChip/Popover treatment"): the whole set of colour and
+// Rollback: this component's chrome should align to parity the same way the
+// FilterChip/Popover treatment does. The whole set of colour and
 // non-colour visual rules .fpop/.fpop-title/.fpop-quick(+ the hover hard constraint)/.cal-head/
 // .cal-nav/.cal/.cal-cell(+ every variant)/.btn/.btn-primary has been removed wholesale from
 // this component's scoped style and handed to the bare selectors in vue2-parity/photos.scss

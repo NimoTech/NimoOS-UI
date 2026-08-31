@@ -1,5 +1,5 @@
 <!--
-  SP8-P2a Task 8 — 1:1 port from Vue2 `src/views/AI/Settings/Settings.vue` (243 lines).
+  1:1 port from Vue2 `src/views/AI/Settings/Settings.vue` (243 lines).
   Settings page shell: left SettingsRail + right status-light top bar +
   two content rendering modes (stacked/single-swap) + scroll-spy + `?section=` deep link.
 
@@ -29,19 +29,19 @@
   【New, not from Vue2 blueprint — the next two are historical record + current state,
   not parallel states】
   - 【History】top bar "Details" blueprint was originally `<router-link to="/ai/knowledge">`
-    (Settings.vue:22-24). SP8-P2a/P2b: route did not exist at that time, `router.push`
+    (Settings.vue:22-24). At the time, the route did not exist, `router.push`
     would land on blank dead page — temporarily changed to `<button>` + info toast
     placeholder; style class `.set-detail-link` stayed unchanged (visual 1:1), only
     interaction target changed.
   - 【Current state, governance §15.1 / P5c §8.5】`/ai/knowledge` shell was already
-    built by SP8-P5a, but P5a/P5b/P5c all missed restoring that placeholder entry —
+    built in an earlier phase, but P5a/P5b/P5c all missed restoring that placeholder entry —
     knowledge section had to be accessed by typing address only throughout; discovered
-    during user acceptance on 2026-08-04. **SP8-P5d Task 9 reversed back** to blueprint
+    during an acceptance pass. **A later fix reversed back** to blueprint
     original `<router-link to="/ai/knowledge">` (reverse is not delete: replaced `<button>`
     + `onDetailsClick` original text appears in comment at `onDetailsClick` location below).
   - `onSelect()` at `DEFERRED_SECTIONS.includes(id)` pops an info toast — Vue2 has no such
     concept (its 13 sections are all real components). **Update from fix round M2**:
-    starting SP8-P4 `DEFERRED_SECTIONS` is empty (all 13 sections wired to real components);
+    as of this point `DEFERRED_SECTIONS` is empty (all 13 sections wired to real components);
     this branch **never triggers** now, but mechanism is preserved (user explicit "reverse
     not delete") for future reuse when adding incomplete sections — see `SECTION_COMPONENTS`
     comment below and explanation at `onSelect()`.
@@ -90,12 +90,12 @@ import '../styles/settings-styles.scss'
 import '../styles/skills-styles.scss'
 import '../styles/mcp-styles.scss'
 
-// SP8-P2a — section id → component. Must stay in sync with sections.ts id
+// Section id → component. Must stay in sync with sections.ts id
 // and `?section=` deep link contract across all three (same convention as
 // Vue2 Settings.vue:75-90).
 //
-// SP8-P2b final wiring only had skills / mcp left rendering SectionPlaceholder;
-// SP8-P3a wired skills to real SkillsSection, leaving mcp alone; SP8-P4 Task 9
+// An earlier wiring pass only had skills / mcp left rendering SectionPlaceholder;
+// a later pass wired skills to real SkillsSection, leaving mcp alone; another pass
 // wired mcp to real McpSection — all 13 sections now point to their real components.
 // No mapping in `SECTION_COMPONENTS` points to `SectionPlaceholder` anymore
 // (models/providers/privacy/thinking wired P2a; blacklist/execution/search/
@@ -105,7 +105,7 @@ import '../styles/mcp-styles.scss'
 // when adding incomplete sections in future, change mapping back to `SectionPlaceholder`
 // and re-add id to `DEFERRED_SECTIONS` to restore placeholder behavior.
 //
-// SP8-P2b Task 14 fix round 1 — do not export this constant: `<script setup>`
+// Do not export this constant: `<script setup>`
 // forbids ES module named exports (tried it, compiler errors directly), and
 // coordinator ruled "testability" not worth splitting out extra `<script>` block
 // (narrowing public surface). Guard test changed to assert render output (whether
@@ -117,17 +117,17 @@ const SECTION_COMPONENTS: Record<SectionId, Component> = {
   thinking: ThinkingDefaultsSection, // Task 11 — wired
   background: BackgroundTasksSection, // settings parity 2026-08-24 — wired
   permissions: PermissionsSection, // agent permission policy — implemented
-  blacklist: BlacklistSection, // SP8-P2b Task 4 — implemented, final wiring
-  execution: ExecutionSection, // SP8-P2b Task 5 — implemented, final wiring
-  search: SearchSection, // SP8-P2b Task 7 — implemented, final wiring
-  memory: MemorySection, // SP8-P2b Task 6 — implemented, final wiring
-  observability: ObservabilitySection, // SP8-P2b Task 8 — implemented, final wiring
+  blacklist: BlacklistSection, // implemented, final wiring
+  execution: ExecutionSection, // implemented, final wiring
+  search: SearchSection, // implemented, final wiring
+  memory: MemorySection, // implemented, final wiring
+  observability: ObservabilitySection, // implemented, final wiring
   web: WebSection, // agent web tools Task 9 — implemented, final wiring
-  skills: SkillsSection, // SP8-P3a Task 7 — implemented, final wiring
-  mcp: McpSection, // SP8-P4 Task 9 — implemented, final wiring (DEFERRED_SECTIONS hereby empty)
+  skills: SkillsSection, // implemented, final wiring
+  mcp: McpSection, // implemented, final wiring (DEFERRED_SECTIONS hereby empty)
   mcpapprovals: McpApprovalsSection, // Task 21 (mcp-progressive-disclosure) — implemented
-  mcptokens: McpTokensSection, // SP8-P2b Task 10 — implemented, final wiring
-  channels: ChannelsSection, // SP8-P2b Task 12 — implemented, final wiring
+  mcptokens: McpTokensSection, // implemented, final wiring
+  channels: ChannelsSection, // implemented, final wiring
   toolbox: ToolboxSection, // tasks-toolbox-lark port — implemented
   lark: LarkSection, // tasks-toolbox-lark port — implemented
 }
@@ -137,7 +137,7 @@ const SECTION_COMPONENTS: Record<SectionId, Component> = {
 // no props (Settings.vue:40/45). Passing these two extra props to non-placeholder
 // components is harmless (all 13 sections are currently real components; these props
 // become undeclared fallthrough attrs, no impact on function).
-// 【Fix round M2 update】Starting SP8-P4, no mapping in `SECTION_COMPONENTS` points
+// 【Fix round M2 update】No mapping in `SECTION_COMPONENTS` points
 // to `SectionPlaceholder` anymore; this function's valid return branch (`titleKey`/
 // `bodyKey` non-empty) **never triggers** now — mechanism preserved as-is (user
 // explicit "reverse not delete"): when some id's `SECTION_COMPONENTS` mapping changes
@@ -205,7 +205,7 @@ function goBack() {
   router.push('/ai/agent')
 }
 
-// SP8-P5d Task 9 (reverse not delete, governance §15.1 ruling 3 / P5c §8.5) — top bar
+// (reverse not delete, governance §15.1 ruling 3 / P5c §8.5) — top bar
 // "Details" changed back to router-link (see template `.set-detail-link` above), this handler
 // has zero call sites, deleted; original text kept as comment (same precedent as
 // `knowledgeRoutes.ts` "reverse not delete"):
@@ -332,7 +332,7 @@ watch(
 )
 
 onMounted(async () => {
-  // SP8-P2b acceptance round 3 (2026-07-30): register "AI section in foreground".
+  // Register "AI section in foreground".
   // App-level `AppToast` uses this to switch to AI's toast colors — otherwise it uses
   // global blue-black theme's semi-transparent white background + white text, invisible on
   // this page's light background (all toast feedback on this page unreachable). Root cause:
@@ -380,7 +380,7 @@ onMounted(async () => {
     /* ignore */
   }
 
-  // SP8-P2a D3 — verbatim port from Vue2 `Settings.vue:159-163`, includes `!job._timer` guard.
+  // D3 — verbatim port from Vue2 `Settings.vue:159-163`, includes `!job._timer` guard.
   //
   // 【Report: same code executes for the first time in this repo】Vue2's
   // `createSettingsStore()` creates new state on each mount, `hfImportJobs` always {},
@@ -410,7 +410,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
-  // SP8-P2b acceptance round 3: unregister "AI section in foreground", let app-level toast
+  // Unregister "AI section in foreground", let app-level toast
   // return to global theme (zero desktop impact).
   aiTheme.leaveAiSurface()
   if (statusPollTimer) clearInterval(statusPollTimer)
@@ -455,8 +455,8 @@ onUnmounted(() => {
             <span v-if="store.parserStatus.paused" class="badge-pause">⏸</span>
           </span>
         </div>
-        <!-- SP8-P5d Task 9 reverse (not delete, governance §15.1 / P5c §8.5): `/ai/knowledge`
-             shell was already built by SP8-P5a, P5a/P5b/P5c all missed restoring this
+        <!-- Reverse (not delete, governance §15.1 / P5c §8.5): `/ai/knowledge`
+             shell was already built in an earlier phase, P5a/P5b/P5c all missed restoring this
              entry; this commit reverts to blueprint original router-link — `.set-detail-link`
              class name and visuals unchanged (settings-styles.scss already has
              text-decoration: none). Before: `<button class="set-detail-link" @click="onDetailsClick">`,

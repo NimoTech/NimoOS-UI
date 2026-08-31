@@ -1,5 +1,5 @@
 <!--
-  1:1 port from Vue2 src/views/AI/Agent/tabs/ContextTab.vue (16 lines). SP8-P1c2 Task 10.
+  1:1 port from Vue2 src/views/AI/Agent/tabs/ContextTab.vue (16 lines).
 
   This is a pure placeholder panel (title + description) that was already "not yet supported"
   in Vue2, not functionality cut from this task — port as-is per brief, do not implement

@@ -1,18 +1,20 @@
 <script setup lang="ts">
-// SP7-P7a-T5 fix round 1 · I1(Important): PhotosThreshSlider.vue — quality threshold
-// slider primitive (range + three-level scale: loose/balanced/strict), extracted from SmartViewCreateDialog.vue.
+// PhotosThreshSlider.vue — quality threshold slider primitive (range + three-level scale:
+// loose/balanced/strict), extracted from SmartViewCreateDialog.vue.
 //
-// Root cause (determined in review; plan's error is not the task's error): T5 brief's scss read range `:659-1013`
-// didn't cover the actual slider rules in `photos-smartview.scss:543-563` (specificity (0,2,0), overrides
-// single class `.sv-slider` in `photos.scss:2817`), so the first version only wrote `.sv-slider { width: 100% }`,
-// the entire repo had zero `slider-thumb`/`accent-color` — on real devices it degraded to browser default gray controls. Already verified against source
-// line-by-line for Vue2 active rules and ported verbatim (see style block comments below).
+// Root cause: an earlier scss read range of `:659-1013` didn't cover the actual slider rules in
+// `photos-smartview.scss:543-563` (specificity (0,2,0), overrides single class `.sv-slider` in
+// `photos.scss:2817`), so the first version only wrote `.sv-slider { width: 100% }`, the entire
+// repo had zero `slider-thumb`/`accent-color` — on real devices it degraded to browser default gray
+// controls. Already verified against source line-by-line for Vue2 active rules and ported verbatim
+// (see style block comments below).
 //
-// Reason for extracting as a standalone component (controller-decided): the same 'range + three-level scale' markup is needed three times this sprint —
-// this task, T8 (detail page right column threshold section), T14 (save as smart view modal), markup identical in all three, so under scoped SFC each writes
-// its own instance is 14 lines of styles repeated three times.
+// Reason for extracting as a standalone component: the same 'range + three-level scale' markup is
+// needed in three places — this dialog, the detail page's right-column threshold section, and the
+// save-as-smart-view modal — markup identical in all three, so writing it as its own scoped SFC
+// avoids repeating 14 lines of styles three times.
 //
-// ⚠ Contract frozen; T8/T14 consume by this signature; don't change it casually:
+// ⚠ Contract frozen; other consumers rely on this exact signature — don't change it casually:
 //   props: { value: number; min?: number; max?: number }   // default min 50 / max 99
 //   emits: (e: 'input', v: number): void                    // immediate, no debounce (throttling is consumer's responsibility)
 // Following Vue2 `:113-114` convention: range uses :value + @input, not v-model.

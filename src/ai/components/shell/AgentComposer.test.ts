@@ -1,9 +1,9 @@
-// SP8-P1c1 Task 9 — AgentComposer skeleton: chips + textarea + toolbar + send/stop.
+// AgentComposer skeleton: chips + textarea + toolbar + send/stop.
 // 1:1 ported from Vue2 src/views/AI/Agent/shell/AgentComposer.vue segment (see component
-// top comment). Attachment upload pipeline (Task 10) and @mention/slash wiring (Task 11)
-// not in this task scope, test cases copied verbatim.
+// top comment). Attachment upload pipeline and @mention/slash wiring were
+// not in this scope, test cases copied verbatim.
 //
-// SP8-P1c1 Task 10 — attachment pipeline describe block added
+// Attachment pipeline describe block added
 // (copied verbatim, assertions unchanged).
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
@@ -47,7 +47,7 @@ describe('AgentComposer skeleton', () => {
     expect((ta.element as HTMLTextAreaElement).value).toBe('')
   })
 
-  it('final-review fix: Enter while busy neither emits send nor clears text (AgentComposer.vue submit() busy guard)', async () => {
+  it('Enter while busy neither emits send nor clears text (AgentComposer.vue submit() busy guard)', async () => {
     const w = mountComposer({ busy: true })
     const ta = w.find('textarea')
     await ta.setValue('hi there')
@@ -109,7 +109,7 @@ describe('AgentComposer skeleton', () => {
     await flushPromises()
     const { useToast } = await import('../../../stores/toast')
     expect(useToast().toasts.length).toBe(1)
-    // SP8-P1c2 Task 6: auth failure (toastError) → danger tier.
+    // Auth failure (toastError) → danger tier.
     expect(useToast().toasts[0].tier).toBe('danger')
   })
 
@@ -149,7 +149,7 @@ describe('AgentComposer attachment pipeline', () => {
     expect(w.find('.ctx-chip-att').text()).toContain('p.png')
   })
 
-  // SP8-P1c2 Task 6: create session failure → danger tier ("AgentComposer 7 places").
+  // Create session failure → danger tier ("AgentComposer 7 places").
   // onFilesPicked() 507-514 lazy-create branch, fail returns, no upload sent.
   it('no session: lazy create fails: danger toast, no upload sent', async () => {
     const store = useAgentStore()
@@ -174,7 +174,7 @@ describe('AgentComposer attachment pipeline', () => {
     expect(svc.uploadAttachment).not.toHaveBeenCalled()
     const { useToast } = await import('../../../stores/toast')
     expect(useToast().toasts.length).toBe(1)
-    // SP8-P1c2 Task 6: over limit → danger tier.
+    // Over limit → danger tier.
     expect(useToast().toasts[0].tier).toBe('danger')
   })
 
@@ -197,7 +197,7 @@ describe('AgentComposer attachment pipeline', () => {
     await pickFiles(w, [new File(['x'], 'a.txt')])
     await flushPromises()
     expect(w.find('.ctx-chip-att.is-failed').exists()).toBe(true)
-    // SP8-P1c2 Task 6: upload failure → danger tier.
+    // Upload failure → danger tier.
     const { useToast } = await import('../../../stores/toast')
     expect(useToast().toasts[0].tier).toBe('danger')
   })
@@ -214,7 +214,7 @@ describe('AgentComposer attachment pipeline', () => {
     // must be able to fail if docErrorShortKey('timeout') → 'aiDocErrShortTimedOut'
     // regresses (e.g. mapped to the wrong key or the zh_cn string changes).
     expect(chip.find('.ctx-chip-doc-warn').text()).toContain(zh.aiDocErrShortTimedOut)
-    // SP8-P1c2 Task 6: document extraction warning (7000ms) → warning tier, not danger.
+    // Document extraction warning (7000ms) → warning tier, not danger.
     const { useToast } = await import('../../../stores/toast')
     expect(useToast().toasts[0].tier).toBe('warning')
   })
@@ -229,7 +229,7 @@ describe('AgentComposer attachment pipeline', () => {
     const toasts = useToast().toasts
     expect(toasts.length).toBe(1)
     expect(toasts[0].text).toContain(zh.aiDocErrNotInstalled)
-    // SP8-P1c2 Task 6: same, not_installed warning also warning tier.
+    // Same, not_installed warning also warning tier.
     expect(toasts[0].tier).toBe('warning')
   })
 
@@ -306,7 +306,7 @@ describe('AgentComposer attachment pipeline', () => {
   })
 })
 
-// SP8-P1c1 Task 11 — @mention/slash wiring + gitignore 409 confirmation describe block,
+// @mention/slash wiring + gitignore 409 confirmation describe block,
 // copied verbatim (assertions unchanged).
 describe('AgentComposer @mention / slash', () => {
   beforeEach(() => { setActivePinia(createPinia()); Object.values(svc).forEach((f: any) => f.mockClear?.()) })
@@ -601,7 +601,7 @@ describe('AgentComposer @mention word state tracking (P1c1 patch task 4, mount p
   })
 })
 
-// SP8-P1c1 patch task 3 — retire rejected fullscreen SlashMenu, wire up SlashPopover
+// Retire rejected fullscreen SlashMenu, wire up SlashPopover
 // instead. Ten cases copied verbatim from the "test requirements" 1-10. Old single
 // test exercising SlashMenu + "whole string is
 // exactly '/'" trigger rule deleted (not superseded) because rule and component are
@@ -843,10 +843,10 @@ describe('AgentComposer drillIn caret math (P1c1 acceptance patch round 2 Item B
   })
 })
 
-// SP8-P3a post-acceptance addition — "mounted skill" banner. Copied verbatim.
+// "Mounted skill" banner. Copied verbatim.
 // Uses real Pinia store (consistent
 // with rest of file, no agentStore mock), directly reads/writes store.pendingSkillId.
-describe('AgentComposer mounted skill banner (SP8-P3a post-acceptance)', () => {
+describe('AgentComposer mounted skill banner', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     Object.values(svc).forEach((f: any) => f.mockClear?.())

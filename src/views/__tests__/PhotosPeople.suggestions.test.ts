@@ -1,6 +1,5 @@
-// Plan C Task 2 (2026-08-20 people-suggestions-ui) → people-confirm-polish (2026-08-21, Apple-
-// style review wizard, user-picked pattern ① primary + pattern ② integrated after a three-pattern
-// demo): the "待确认/To confirm" section on the People page.
+// Covers the Apple-style review wizard (pattern ① primary + pattern ② integrated after a
+// three-pattern demo) for the "待确认/To confirm" section on the People page.
 //
 // Rework note: this file used to cover the per-group card grid with inline ✓/✕ buttons, group-
 // level Confirm-all/Reject-all, and a standalone click-to-enlarge peek overlay — all of that UI

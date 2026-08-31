@@ -1,46 +1,46 @@
 <script setup lang="ts">
-// P2 lightbox shell -- structurally ported from the Vue 2 panel's
-// src/views/Photos/PhotosLightbox.vue; all state reads from the useLightbox() singleton (T2/T3),
-// the static-image stage is delegated to PhotoImageViewer (T5, carries its own bottom zoom bar).
-// delta (see task-6-brief.md): 1) add-to-album was added back in P4 (Task 9), Ask Nimo still
-// belongs to SP8; 2) the info panel became toggleable (stubbed until T7);
+// Lightbox shell -- structurally ported from the Vue 2 panel's
+// src/views/Photos/PhotosLightbox.vue; all state reads from the useLightbox() singleton,
+// the static-image stage is delegated to PhotoImageViewer (carries its own bottom zoom bar).
+// Delta from Vue2: 1) add-to-album was added back later, Ask Nimo still
+// belongs to a later phase; 2) the info panel became toggleable (stubbed until it was wired up);
 // 3) no zoom buttons on the top bar (PhotoImageViewer owns its own bottom zoom bar, fewer
 // cross-component refs); 4) the current item is always compared by id.
-// Task 9 closeout: mounts T7's PhotoInfoPanel (reads lb.detail, hydrated detail rather than the
-// list-item placeholder current) and T8's PhotoFilmstrip (absolute-index select → lb.goTo).
+// This closeout mounts PhotoInfoPanel (reads lb.detail, hydrated detail rather than the
+// list-item placeholder current) and PhotoFilmstrip (absolute-index select → lb.goTo).
 //
-// Plan F Task 3 (2026-08-15, structural re-cast flex→parity grid + full class-name alignment):
+// Structural re-cast flex→parity grid + full class-name alignment:
 // the `.lightbox` container switched from a flex column to a CSS Grid, rows/columns/areas copied
 // verbatim from Vue2/parity (parity photos.scss:564-578): `grid-template-rows: 56px 1fr 88px`;
 // when `data-info="true"`, `grid-template-columns: 1fr 360px` + areas "top top"/"main info"/"strip
 // info", single-column areas "top"/"main"/"strip" when "false". This means the `.lb-body` wrapper
-// T9 left behind (a flex row pairing `.lb-stage` with PhotoInfoPanel side by side) is deleted
-// entirely -- `.lb-main` (renamed from `.lb-stage`), PhotoInfoPanel's root (renamed to `.lb-info`),
-// and PhotoFilmstrip's root (`.lb-strip`, whose class name was already aligned) all become direct
-// children of `.lightbox` instead, each claiming its own grid area rather than being positioned
-// via DOM nesting.
+// an earlier version left behind (a flex row pairing `.lb-stage` with PhotoInfoPanel side by side)
+// is deleted entirely -- `.lb-main` (renamed from `.lb-stage`), PhotoInfoPanel's root (renamed to
+// `.lb-info`), and PhotoFilmstrip's root (`.lb-strip`, whose class name was already aligned) all
+// become direct children of `.lightbox` instead, each claiming its own grid area rather than
+// being positioned via DOM nesting.
 //
-// [Interim renderability decision, closed out in Task 5] Task 3 originally chose a "minimal
+// [Interim renderability decision, since closed out] This originally chose a "minimal
 // interim skeleton" strategy -- this file (along with PhotoInfoPanel.vue/PhotoFilmstrip.vue) each
 // maintained its own grid/positioning rules mirroring parity's structure, reusing existing New-UI
 // tokens and visuals as much as possible in values, until the lightbox was re-nested inside
-// `.photos-root` and parity's global rules actually took over. Plan F Task 5 (2026-08-15) has now
-// migrated the lightbox back inside `.photos-root` across all 9 host pages (see the mount-point
-// comment on each page and task-5-report.md); this skeleton has been closed out accordingly: any
+// `.photos-root` and parity's global rules actually took over. The lightbox has now
+// migrated back inside `.photos-root` across all 9 host pages (see the mount-point
+// comment on each page); this skeleton has been closed out accordingly: any
 // local rule that fully covers the same set of properties as a same-named parity rule is deleted
-// outright (avoiding the exact same-specificity tie F8-r4 warned about -- this component's scoped
-// styles are empirically injected after the parity stylesheet on every host page's current import
-// order, so a local rule would always win a tie, silently defeating parity and undermining the
-// whole point of re-nesting); only properties/rules parity doesn't cover are kept (see the
+// outright (avoiding the exact same-specificity tie already flagged elsewhere -- this component's
+// scoped styles are empirically injected after the parity stylesheet on every host page's current
+// import order, so a local rule would always win a tie, silently defeating parity and undermining
+// the whole point of re-nesting); only properties/rules parity doesn't cover are kept (see the
 // comments scattered through the style block below).
 //
-// Plan F Task 4 (2026-08-15, frame-exact lightbox animation): `.lb-media` is now wrapped in
+// Frame-exact lightbox animation: `.lb-media` is now wrapped in
 // `<transition :name="'lb-swap-' + navDir">` (navDir is defined in the script below), a
 // byte-exact recreation of Vue2's swap/scale animation; the container gained an `lb-in` entrance
 // animation reference; `.lb-media`'s positioning changed to absolute+inset:0 (the crossfade
 // load-bearing value, see that rule's own style comment). See this file's and
-// PhotoImageViewer.vue's/PhotoFilmstrip.vue's own style/script comments, plus task-4-report.md's
-// parameter verification table, for details.
+// PhotoImageViewer.vue's/PhotoFilmstrip.vue's own style/script comments for details, along with an
+// earlier parameter verification pass.
 import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
@@ -58,7 +58,7 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const lb = useLightbox()
 
-const showInfo = ref(false) // info panel (filled in by T7); off by default, toggleable
+const showInfo = ref(false) // info panel (wired up later); off by default, toggleable
 const confirmDelete = ref(false)
 
 // URL generators (bare, token-bearing) -- thin wrapper for the template to call
@@ -73,7 +73,7 @@ const downloadName = (): string => {
   return title != null && title !== '' ? String(title) : `photo-${cur?.id ?? ''}`
 }
 
-// —— Favorite ——(toggleFav already persists optimistically inside useLightbox; the emit is only for P3's broadcast)
+// —— Favorite ——(toggleFav already persists optimistically inside useLightbox; the emit is only for broadcasting the change to other components)
 function onToggleFav(): void {
   const cur = lb.current.value
   if (!cur) return
@@ -82,7 +82,7 @@ function onToggleFav(): void {
 }
 
 // —— Add to album ——(per Vue2 PhotosLightbox.vue:13-14: emit only, no logic here; the host
-// wires up T5's AlbumPickerDialog to open the panel, the lightbox itself doesn't close).
+// wires up AlbumPickerDialog to open the panel, the lightbox itself doesn't close).
 function onAddToAlbum(): void {
   const cur = lb.current.value
   if (!cur) return
@@ -98,7 +98,7 @@ function doDelete(): void {
   lb.close()
 }
 
-// —— Chrome auto-hides after 5s idle ——(reuses the same isMoving + timer pattern as T5;
+// —— Chrome auto-hides after 5s idle ——(reuses the same isMoving + timer pattern used elsewhere;
 // declared before the video-anchor watch below, so the open-watch's immediate:true branch can't
 // reference an as-yet-uninitialized hideTimer in an edge case)
 const isMoving = ref(false)
@@ -133,7 +133,7 @@ const videoEl = ref<HTMLVideoElement | null>(null)
 let startApplied = false
 let startPhotoId: string | number | null = null
 
-// —— Nav direction (Plan F Task 4, faithful to Vue2 PhotosLightbox.vue :233-238's data()/watch) ——
+// —— Nav direction (faithful to Vue2 PhotosLightbox.vue :233-238's data()/watch) ——
 // Vue2: `data() { return { navDir: 'next', _lastIdx: 0, ... } }` + `watch: { 'photo.id'(newId) {
 // this.navDir = this.idx >= this._lastIdx ? 'next' : 'prev'; this._lastIdx = this.idx; ... } }`
 // (idx is the index computed via `photos.findIndex(p => p.id === photo.id)`). New-UI's index is
@@ -227,9 +227,9 @@ onBeforeUnmount(() => {
 
 <template>
   <div v-if="lb.open.value" class="lightbox" :data-info="showInfo" @mousemove="onMouseMove">
-    <!-- Top toolbar. Per the user's 2026-07-31 acceptance requirement: the top bar is not
+    <!-- Top toolbar. Per requirements: the top bar is not
          transparent, and the photo is shown between it and the bottom bar -- so it is a grid row
-         of its own (grid-area: top since Plan F Task 3, previously an in-flow flex item; no
+         of its own (grid-area: top, previously an in-flow flex item; no
          longer position:absolute overlaid on the stage) and does **not** participate in the 5s
          auto-hide (once opaque chrome collapses, the stage would grow taller and the photo would
          jump; the nav arrows still auto-hide with isMoving, since they're an overlay layered on
@@ -238,14 +238,13 @@ onBeforeUnmount(() => {
       <button class="lb-icon-btn lb-close" type="button" :title="t('photosClose')" @click="lb.close()">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
       </button>
-      <!-- Deviation (registered, structural change deferred to owner at acceptance): Vue2's
+      <!-- Deviation (registered, structural change flagged for review): Vue2's
            titlebox is a bare `.lb-title`/`.lb-counter` pair (PhotosLightbox.vue:5-8, two
            siblings, no wrapping semantics beyond a plain flex column). This component merges the
            counter/date/time line into a single `.lb-sub` element instead of keeping a standalone
            `.lb-counter` -- a structural rename/merge, not a value/behavior change (same three
            pieces of information render, same place). Flagged here rather than silently carried;
-           the owner can decide at acceptance whether the merge should be unwound to restore the
-           exact Vue2 element split. -->
+           this could be unwound later to restore the exact Vue2 element split if needed. -->
       <div class="lb-titlebox">
         <div class="lb-title">{{ lb.detail.value?.title }}</div>
         <div class="lb-sub">
@@ -295,18 +294,18 @@ onBeforeUnmount(() => {
       </button>
     </div>
 
-    <!-- Plan F Task 3: `.lb-main` (renamed from `.lb-stage`) is a direct grid child of
+    <!-- `.lb-main` (renamed from `.lb-stage`) is a direct grid child of
          `.lightbox` (grid-area: main) -- the `.lb-body` flex-row wrapper that used to pair it
          with PhotoInfoPanel is gone; both now claim their own named grid area independently
          (see this file's scoped-style header comment). -->
     <div class="lb-main">
-      <!-- Plan F Task 4: swap transition, byte-exact per Vue2 (PhotosLightbox.vue:25
+      <!-- Swap transition, byte-exact per Vue2 (PhotosLightbox.vue:25
            `<transition :name="'lb-swap-' + navDir">`, wrapping the same id-keyed `.lb-media`
            it already wrapped in Vue2). Params (opacity 0.32s / transform 0.42s,
            cubic-bezier(0.22, 0.61, 0.36, 1), translateX ±36px, scale 0.97) live in parity's own
            bare `.lb-swap-*` rules (photos.scss:627-637) -- "bare" as in NOT `.photos-root`-scoped,
            unlike most of that file's rules, so they were already live on every page that mounts
-           this component even before Task 5 nested it inside `.photos-root` (see this file's
+           this component even before it was nested inside `.photos-root` (see this file's
            scoped-style header comment for the one naming gap that still needed a local shim:
            Vue3 renamed the bare `-enter` class to `-enter-from`). navDir is computed in
            the script above (watch on lb.index, mirroring Vue2's idx-vs-_lastIdx comparison). -->
@@ -343,7 +342,7 @@ onBeforeUnmount(() => {
               muted
               playsinline
             ></video>
-            <!-- Plan F Task 5: renamed from `.lb-live-badge` -- see this file's scoped-style
+            <!-- Renamed from `.lb-live-badge` -- see this file's scoped-style
                  `.lb-live-btn` comment for why the name had to change once nested. -->
             <button
               class="lb-live-btn"
@@ -368,7 +367,7 @@ onBeforeUnmount(() => {
         </div>
       </transition>
 
-      <!-- Nav arrows. Plan F Task 3: side modifier moved from a `.lb-nav-prev`/`.lb-nav-next`
+      <!-- Nav arrows. Side modifier moved from a `.lb-nav-prev`/`.lb-nav-next`
            class to parity's real anchor attribute `data-side="prev"|"next"`
            (Vue2 PhotosLightbox.vue:57-71, parity photos.scss:630-639). -->
       <button
@@ -395,15 +394,15 @@ onBeforeUnmount(() => {
       </button>
     </div>
 
-    <!-- Info panel (T7): reads hydrated lb.detail, not the list-item placeholder lb.current. Plan F Task 3:
-         no longer wrapped in `.lb-body` -- PhotoInfoPanel's own root now carries `.lb-info`
+    <!-- Info panel: reads hydrated lb.detail, not the list-item placeholder lb.current.
+         No longer wrapped in `.lb-body` -- PhotoInfoPanel's own root now carries `.lb-info`
          and claims `grid-area: info` itself (see that component's scoped style). -->
     <PhotoInfoPanel :photo="lb.detail.value" :visible="showInfo" />
 
-    <!-- Filmstrip (T8): absolute-index select → lb.goTo -->
+    <!-- Filmstrip: absolute-index select → lb.goTo -->
     <PhotoFilmstrip :list="lb.list.value" :index="lb.index.value" @select="lb.goTo" />
 
-    <!-- Delete-confirm modal. Plan F Task 3: buttons renamed from the invented `.lb-confirm-cancel`/
+    <!-- Delete-confirm modal. Buttons renamed from the invented `.lb-confirm-cancel`/
          `.lb-confirm-ok.danger` to the `.trash-btn-ghost`/`.trash-btn-cta.trash-btn-cta-danger`
          family Vue2 actually uses (PhotosLightbox.vue:158-161) and that sibling Photos pages
          (PhotosMomentDetail.vue/PhotosAlbumDetail.vue/PhotosSmartViewDetail.vue) already
@@ -412,7 +411,7 @@ onBeforeUnmount(() => {
          first built) -- same trash glyph as the `.lb-delete` button above, at parity's icon
          size (22px vs. the top bar's 17px).
 
-         I1 (owner red line: no animation dropped, 2026-08-15 final review): the scrim had
+         No animation should be dropped: the scrim had
          regressed to a bare `v-if` with no transition at all. Vue2 wraps the exact same scrim in
          `<transition name="lb-confirm">` (PhotosLightbox.vue:151-165) -- 0.2s opacity+scale(0.95),
          restored here byte-for-byte; parity already carries the timing/end-state rules
@@ -423,7 +422,7 @@ onBeforeUnmount(() => {
     <transition name="lb-confirm">
       <div v-if="confirmDelete" class="lb-confirm-scrim" @click.self="confirmDelete = false">
         <div class="lb-confirm">
-          <!-- theme-exception (M2, matches Vue2 PhotosLightbox.vue:154's literal color=FF6B5C hex
+          <!-- theme-exception (matches Vue2 PhotosLightbox.vue:154's literal color=FF6B5C hex
                value): the delete-confirm glyph's red is Vue2's own hardcoded value, not a token
                lookup -- kept as the same literal here rather than the `--remove-fg` token (which
                resolves to a visually-different red, hex ff5d5d) so this one dialog's icon matches
@@ -444,38 +443,38 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-/* Plan F Task 5 (2026-08-15, lightbox re-nested inside `.photos-root`): the interim grid/chrome/
-   confirm-dialog skeleton Task 3/4 kept here -- byte-mirroring parity so this component stayed
+/* Lightbox re-nested inside `.photos-root`: the interim grid/chrome/
+   confirm-dialog skeleton kept here -- byte-mirroring parity so this component stayed
    renderable standalone before it actually lived inside `.photos-root` -- is retired below. Every
    rule removed had a parity counterpart (`.photos-root .lightbox`/`.lb-*`/`.lb-confirm` family,
    vue2-parity/photos.scss:564-793) that already covers every property it declared; keeping a
-   local duplicate would only recreate the exact same-specificity cascade tie F8-r4 warned
-   against -- and this component's own scoped `<style>` is registered via its SFC import, which in
+   local duplicate would only recreate the exact same-specificity cascade tie already flagged
+   elsewhere -- and this component's own scoped `<style>` is registered via its SFC import, which in
    every host page's current import order lands AFTER the `vue2-parity` stylesheet import, so a
    surviving local duplicate would silently keep outvoting parity on every tie, defeating the
    whole point of nesting. z-index/animation: parity's own `.photos-root .lightbox` already
    carries `z-index: 200` (bumped to match this component's pre-existing value, see that rule's
    own deviation comment) and `animation: lb-in 0.22s ease-out` -- neither needs a local copy any
    more. photosOverlayZIndex.test.ts's "`.lightbox` (component-scoped)" entry is retargeted to
-   drop the now-removed rule (see that test file's own Plan F Task 5 comment).
+   drop the now-removed rule (see that test file's own comment about it).
    Only rules with NO parity counterpart, or properties parity doesn't touch, remain below. */
 .lb-titlebox { display: flex; flex-direction: column; min-width: 0; }
 /* font-size/font-weight/color now come solely from parity's `.photos-root .lb-title`
    (13px/500/var(--text-1)); only the truncation behaviour survives locally -- parity's own title
    isn't wrapped in a fixed-width flex box like `.lb-titlebox` and has no overflow to guard. */
 .lb-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-/* Fix-2 item 4 (owner acceptance, 2026-08-16): every color below was New-UI's *global* theme.css
+/* Every color below was New-UI's *global* theme.css
    token (`--fg`/`--fg-muted`/`--tool-bg-hi`/`--star-fg`/`--remove-fg`) -- those only follow the
    app-wide `[data-theme]` attribute on `<html>`, not Photos' own PRIVATE light/dark toggle
    (`usePhotosTheme()`/`.photos-root.is-light`, independent of the global one -- see
    src/photos/composables/usePhotosTheme.ts). In the very common "Photos-light + app-global-dark"
    combination every rule below stayed stuck in its dark appearance regardless of Photos' own
-   switch: white icon glyphs on the now-near-white `.lb-top`/`.lb-chrome`, i.e. exactly the owner's
-   acceptance screenshot ("top-bar icon buttons + title/counter text ... washed out"). Same root
-   cause and same fix shape as the Places-area sweep done this same day
-   (photosGlassSurfaces.test.ts's "Places 区不再消费全局玻璃/文本 token" describe block) -- swapped
-   for this area's own `.photos-root`/`.photos-root.is-light`-scoped tokens
-   (vue2-parity/photos.scss), matching parity's own `.icon-btn`/`.icon-btn:hover`/
+   switch: white icon glyphs on the now-near-white `.lb-top`/`.lb-chrome`, i.e. exactly the reported
+   symptom ("top-bar icon buttons + title/counter text ... washed out"). Same root
+   cause and same fix shape as the Places-area sweep done the same day
+   (photosGlassSurfaces.test.ts's "Places area no longer consumes global glass/text tokens"
+   describe block) -- swapped for this area's own `.photos-root`/`.photos-root.is-light`-scoped
+   tokens (vue2-parity/photos.scss), matching parity's own `.icon-btn`/`.icon-btn:hover`/
    `.icon-btn[data-active="true"]` pattern (photos.scss:262-268) property-for-property. */
 .lb-sub { font-size: 12px; color: var(--text-2); }
 .lb-spacer { flex: 1; }
@@ -503,8 +502,8 @@ onBeforeUnmount(() => {
    overflow:hidden, and position:absolute+inset:0+display:flex+align-items+justify-content for
    the crossfade layer respectively -- parity additionally sets `will-change` on both) -- both
    local copies are retired, parity's alone now governs. */
-/* Plan F Task 4: Vue3 renamed Vue2's bare `-enter` transition class to `-enter-from` (`-leave-to`
-   kept its name in both) -- same C7 precedent as SearchSaveSmartView.vue's
+/* Vue3 renamed Vue2's bare `-enter` transition class to `-enter-from` (`-leave-to`
+   kept its name in both) -- same precedent as SearchSaveSmartView.vue's
    `.save-pop-enter-from,.save-pop-leave-to` local shim. Parity's own `.lb-swap-next-enter`/
    `.lb-swap-prev-enter` (photos.scss:634,636) verbatim-transcribe Vue2's own dead names
    (Vue2 photos.scss:518,520) as documented dead-source lines -- they never match any real Vue3
@@ -516,7 +515,7 @@ onBeforeUnmount(() => {
    dead-named `-enter` half needs a local replacement. */
 .lb-swap-next-enter-from { opacity: 0; transform: translateX(36px) scale(0.97); }
 .lb-swap-prev-enter-from { opacity: 0; transform: translateX(-36px) scale(0.97); }
-/* I1 (owner red line: no animation dropped) -- same dead-name situation as `.lb-swap-*` above:
+/* No animation should be dropped -- same dead-name situation as `.lb-swap-*` above:
    parity's own `.lb-confirm-enter-active/-leave-active` (timing) and `.lb-confirm-leave-to`
    (end-state, name unchanged Vue2→Vue3) are bare, unscoped rules (photos.scss:795-801), already
    live on every host page regardless of nesting -- only Vue2's dead `-enter` name (verbatim-
@@ -524,14 +523,14 @@ onBeforeUnmount(() => {
    `-enter-from` replacement, the actual Vue3 selector for `<transition name="lb-confirm">`'s
    entering state. Values copied byte-exact from the parity source's own `-enter` declaration. */
 .lb-confirm-enter-from { opacity: 0; transform: scale(0.95); }
-/* I2 (final review, 2026-08-15): this rule used to declare `max-width: 100%; max-height: 100%;`,
+/* This rule used to declare `max-width: 100%; max-height: 100%;`,
    which -- at equal specificity with parity's own `.photos-root .lb-photo` (also targeting this
    exact element, since the video carries both classes) and with this component's scoped styles
    injected after the parity stylesheet on every host page -- always won the tie and silently
    overrode parity's `calc(100% - 80px)`/`calc(100% - 24px)` arrow clearance with a flush 100%.
    Deleted outright so parity's `.lb-photo` rule is the only max-width/max-height declaration
    reaching this video element, no tie left to win. Unlike PhotoImageViewer.vue's `.img-el` (the
-   img there sits one level deeper, inside a shrink-wrap `.img-wrap` -- see that file's own I2
+   img there sits one level deeper, inside a shrink-wrap `.img-wrap` -- see that file's own
    comment for the containing-block analysis), this `<video>` is a DIRECT child of `.lb-media`
    (this file's template, no intermediate wrapper), so parity's percentage resolves straight
    against `.lb-media`'s own definite box -- no wrapper layer to reason about here at all. */
@@ -545,12 +544,12 @@ onBeforeUnmount(() => {
   pointer-events: none;
   z-index: 2;
 }
-/* Plan F Task 5: renamed from `.lb-live-badge` to `.lb-live-btn` to break a genuine class-name
+/* Renamed from `.lb-live-badge` to `.lb-live-btn` to break a genuine class-name
    collision with parity's OWN, unrelated `.photos-root .lb-live-badge` rule (photos.scss:995-
    1009) -- that rule styles a different, non-interactive "LIVE" indicator (Vue2's real lightbox
    never renders this badge at all, confirmed empty template search; this component's Live Photo
    press-and-hold feature is a net addition). Sharing the name was harmless while this component
-   rendered outside `.photos-root` (parity's rule couldn't reach it, see the pre-Task-5 deviation
+   rendered outside `.photos-root` (parity's rule couldn't reach it, see the earlier deviation
    note this comment replaces -- position `top: 12px; left: 12px` already matched both ground-
    truth sources even then). Nesting would make both rules match the exact same class, and
    parity's copy sets `pointer-events: none` -- which would silently kill this button's press-and-
@@ -568,7 +567,7 @@ onBeforeUnmount(() => {
   border: none;
   border-radius: 999px;
   font-size: 12px;
-  /* Fix-2 item 4: `--fg`/`--popup-bg` (global, app-theme-only) → `--text-1`/`--pop-bg` (this
+  /* `--fg`/`--popup-bg` (global, app-theme-only) → `--text-1`/`--pop-bg` (this
      area's own is-light-aware tokens, same root cause as `.lb-icon-btn` above). `--blur` is left
      as the shared global structural token -- it's a blur radius, not a color, and this codebase's
      convention is that non-color structural values stay shared (see CLAUDE.md's theming section). */
@@ -586,7 +585,7 @@ onBeforeUnmount(() => {
    cursor (some UA button resets default to `cursor: default`). `[data-side="prev"|"next"]`'s
    `left`/`right: 16px` is also a byte-exact parity duplicate, retired the same way. */
 .lb-nav { z-index: 3; cursor: pointer; }
-/* New-UI addition, no Vue2 source (M3): Vue2's own disabled-nav opacity rule (parity's verbatim
+/* New-UI addition, no Vue2 source: Vue2's own disabled-nav opacity rule (parity's verbatim
    transcription targets a data-* attribute this file's own dead-code test above asserts stays
    unwired) is dead code in Vue2 too -- its template never sets that attribute on
    `.lb-nav`. This component instead wires the real, native `:disabled` attribute
@@ -596,7 +595,7 @@ onBeforeUnmount(() => {
 
 /* The `:deep(.lb-info)` margin override (previously `margin: 16px 16px 16px 0`) is retired -- it
    was a New-UI-only inset around an otherwise self-contained "card" look (see PhotoInfoPanel.vue's
-   own Plan F Task 5 note for that card look being retired too), diverging from parity's flush
+   own note for that card look being retired too), diverging from parity's flush
    panel (`.photos-root .lb-info` sits flush in its grid cell, no margin at all -- Vue2's real
    lightbox never floats this panel). Now that both sides agree on a flush panel, no local margin
    override is needed. */
@@ -605,7 +604,7 @@ onBeforeUnmount(() => {
    the whole `.trash-btn-ghost`/`.trash-btn-cta`/`.trash-btn-cta-danger` family are retired --
    parity's own nested `.photos-root .lb-confirm { … }` (photos.scss:730-793) already implements
    every one of these under the exact same selectors, including the `.trash-btn-*` button family
-   this dialog adopted in Task 3. The deeply-nested ones (`.lb-confirm-icon`/`-title`/`-foot`/
+   this dialog adopted earlier. The deeply-nested ones (`.lb-confirm-icon`/`-title`/`-foot`/
    `.trash-btn-*`, each an extra SCSS nesting level under `.lb-confirm`) compile to MORE classes
    than this component's scoped copies and were always going to win outright, no tie involved;
    `.lb-confirm-scrim`/`.lb-confirm` themselves tie at equal specificity with the local scoped
@@ -613,7 +612,7 @@ onBeforeUnmount(() => {
    file, resolved the same way: delete the local duplicate so there's nothing left to tie with.
    `.lb-confirm-body` keeps the two properties parity doesn't declare (`margin-top`/`line-height`;
    parity uses `margin-bottom` on the same element instead, a different property, so no conflict
-   and no double-spacing). New-UI addition, no Vue2 source (M4): Vue2's own `.lb-confirm-body`
+   and no double-spacing). New-UI addition, no Vue2 source: Vue2's own `.lb-confirm-body`
    (PhotosLightbox.vue:156) has no `margin-top`/`line-height` of its own either -- both properties
    are New-UI-only spacing choices with nothing to cite on the Vue2 side, kept because they don't
    collide with anything parity declares. */

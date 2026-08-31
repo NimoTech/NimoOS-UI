@@ -1,15 +1,15 @@
-// SP7-P8b: deep link key coverage gate.
+// Deep link key coverage gate.
 //
 // Why it's needed: Vue2 has been retired, so its `/photos` query keys will never be caught by
 // their own components again — missing even one
-// silently breaks old bookmarks. These missing items **cannot be caught by the three-door review**:
-// no behavior test will "fail because a key is missing". SP9-T9 hit the same pattern of pit
-// (whitelist only did one-way check, missed CSS blocks got through all three doors), so we're
-// setting up a **two-way** gate here:
+// silently breaks old bookmarks. These missing items **cannot be caught by ordinary behavior tests**:
+// no behavior test will "fail because a key is missing". A similar pitfall hit before with a
+// whitelist-based check that only did a one-way comparison and let CSS blocks slip through
+// undetected, so we're setting up a **two-way** gate here:
 //   Forward — every key in Vue2 key set checklist must be read in the dispatcher;
 //   Backward — except active/spot two attached keys, every key must enter watch array
 //             (otherwise only recognized on full-page mount, address bar edits no-op —
-//             P8a real machine acceptance caught the query-only defect this way);
+//             this exact defect was caught during hands-on device testing);
 //   Self-check — checklist itself non-empty and no duplicates (prevent gate forever green after accidental clearance).
 //
 // This gate reads source code text instead of importing modules: what we assert is "which getters

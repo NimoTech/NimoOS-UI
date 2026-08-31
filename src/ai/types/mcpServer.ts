@@ -1,4 +1,4 @@
-// SP8-P4 Task 2 — align JSON tags byte-for-byte with backend DTO/contract. Field order and
+// Align JSON tags byte-for-byte with backend DTO/contract. Field order and
 // naming correspond one-to-one with the backend; no new fields, no omissions. Endpoint prefix
 // is `/v1/ai` ("v2" is just the handler code generation/package name, not a URL version — P3b
 // final review M4 hit this pitfall; see the top of types/skill.ts for details).
@@ -8,7 +8,7 @@
 //
 // ⚠️ Review note: the actual line numbers for the http/stdio branches in `mcpparse.go` are `:39` /
 // `:86` (this file cites actual line numbers throughout, not `:38,80` copied from design doc §2.1
-// — verified against source and found a 1/6 line difference, reported in T2 report).
+// — verified against source and found a 1/6 line difference).
 
 /** Align with the three transport types accepted by backend `mcp.go` `validateAndClean` (`:274-287`).
  *  Note: `McpServer.transport` / `McpParsed.transport` are bare `string` on the backend (no enum

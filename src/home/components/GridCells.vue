@@ -26,6 +26,6 @@ const cells = computed(() => {
 </script>
 
 <style scoped>
-/* .cell base styles (pointer-events, border-radius, border, background) come from global theme.css (P4c).
+/* .cell base styles (pointer-events, border-radius, border, background) come from global theme.css.
    Scoped block kept for any future per-component overrides. */
 </style>

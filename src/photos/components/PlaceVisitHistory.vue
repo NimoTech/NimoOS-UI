@@ -1,36 +1,45 @@
 <script setup lang="ts">
-// P6b-T6: PlaceVisitHistory.vue —— 地点详情面板的"到访记录"时间线段。逐段照 Vue2
-// src/views/Photos/PhotosPlacesView.vue:1204-1245(模板)移植;样式照
-// photos-places.scss:599-618(时间线本体)+ :869-885(`.visit-save-btn`,在文件另一处,
-// 已回源核对行号——brief 给的 scss 行号只覆盖到 :618,`.visit-save-btn` 需要单独定位)。
+// PlaceVisitHistory.vue — the place detail panel's "visit history" timeline section. Ported
+// section-by-section from Vue2 src/views/Photos/PhotosPlacesView.vue:1204-1245 (template);
+// styles follow photos-places.scss:599-618 (the timeline body) + :869-885 (`.visit-save-btn`,
+// located elsewhere in the file — cross-checked line numbers, since the originally-given scss
+// range only covered up to :618, so `.visit-save-btn` had to be located separately).
 //
-// 分工:纯展示 + emit,不碰 store、不发请求——PlaceDetailPanel 原样透传 save-trip /
-// open-photo 给容器(未来任务接住后调用 store 方法)。
+// Division of responsibility: pure presentation + emit, doesn't touch the store or make
+// requests — PlaceDetailPanel forwards save-trip / open-photo as-is to the container (which
+// calls store methods once it receives them, added later).
 //
-// props/emits 形状由 brief 钉死:
+// The props/emits shape is fixed:
 //   props: { visits: PlaceVisit[], trips: number }
 //   emits: (e:'save-trip', visit:PlaceVisit) / (e:'open-photo', assetId:string, list:string[])
-// D9(本期三条范围决策之一):open-photo 第二参永远是"那一条 visit 自己的 thumbs 数组"，
-// 不是别条的、不是单张、不是整库。
+// A deliberate scope decision: open-photo's second argument is always "that specific visit's
+// own thumbs array", never another visit's, never a single photo, never the whole library.
 //
-// token 映射(Vue2 → New-UI,同 PlaceDetailPanel.vue/PlaceInsights.vue 文件头既定表):
-// --text-1/2/3 → --fg/--fg-muted/--fg-subtle;--surface-2 → --chip-bg;--line → --card-border。
-// 三处"本次旅行"绿色(.visit-dot[data-current]/.visit-pill/.visit-card.is-current .visit-body)
-// 一律用 P6a 已建的 --place-current-trip,半透明层走 color-mix(in srgb, var(--place-current-trip)
-// N%, transparent)(本仓既定技法,先例 PhotosPlaces.vue:480),不新增 alpha token、不写字面
-// rgba。.visit-save-btn 是 accent 色(不是绿色),Vue2 用 rgba(var(--accent-rgb), α) 精确复刻，
-// 本仓无 --accent-rgb/--accent-hi token(已 grep 确认,同 PlaceSpotDialog.vue/PersonHero.vue
-// 等先例)——改用语义最接近的既有三档 token:--accent-soft(0.14 ≈ Vue2 0.15)/
-// --accent-soft-bd(0.36 ≈ Vue2 0.35)/--accent-soft-2(0.24 ≈ Vue2 0.25 的 hover 深一档)/
-// --accent-text(替代不存在的 --accent-hi)。
+// Token mapping (Vue2 -> New-UI, same table already established in
+// PlaceDetailPanel.vue/PlaceInsights.vue's file headers): --text-1/2/3 -> --fg/--fg-muted/
+// --fg-subtle; --surface-2 -> --chip-bg; --line -> --card-border. All three "current trip"
+// greens (.visit-dot[data-current]/.visit-pill/.visit-card.is-current .visit-body) uniformly
+// use the already-established --place-current-trip, with translucent layers done via
+// color-mix(in srgb, var(--place-current-trip) N%, transparent) (this repo's established
+// technique, precedent: PhotosPlaces.vue:480) — no new alpha token, no literal rgba.
+// .visit-save-btn is an accent color (not green); Vue2 replicates it precisely with
+// rgba(var(--accent-rgb), alpha), but this repo has no --accent-rgb/--accent-hi token
+// (grep-confirmed, same precedent as PlaceSpotDialog.vue/PersonHero.vue etc.) — so it uses the
+// closest semantically-matching existing three-tier tokens instead: --accent-soft (0.14 ≈
+// Vue2's 0.15) / --accent-soft-bd (0.36 ≈ Vue2's 0.35) / --accent-soft-2 (0.24 ≈ Vue2's 0.25,
+// one shade deeper for hover) / --accent-text (substituting for the nonexistent --accent-hi).
 //
-// Vue scoped CSS 不跨组件边界(T5 PlaceInsights.vue 文件头已有说明并给出先例):本组件是
-// 独立 SFC,`.detail-section h4` 这类壳样式在 PlaceDetailPanel.vue 里已有一份，但够不着
-// 这里的 <h4>,故自带一份等价声明。
+// Vue scoped CSS doesn't cross component boundaries (already explained with a precedent in
+// PlaceInsights.vue's file header): this component is a separate SFC, and shell styles like
+// `.detail-section h4` already exist in PlaceDetailPanel.vue but can't reach this file's
+// `<h4>`, so an equivalent declaration is carried here too.
 //
-// 偏离登记 15(brief §4 原文要求"照搬并登记"):`.visit-thumbs img:hover { transform:
-// scale(1.05) }` 照搬 Vue2,父格 `.visit-thumbs` 未设 overflow:hidden，hover 放大会溢出
-// 压邻格——Vue2 原状如此，本任务不修，同类偏离已在别处登记过（brief 明确点名"同类偏离 15"）。
+// Deviation 15 (ported as-is and noted, per the same requirement as other ported-and-noted
+// deviations): `.visit-thumbs img:hover { transform: scale(1.05) }` is copied from Vue2
+// verbatim; the parent cell `.visit-thumbs` has no overflow:hidden, so the hover zoom can
+// spill over into the neighboring cell — that's how Vue2 already behaves, this pass doesn't
+// fix it, and the same category of deviation has already been noted elsewhere (referred to
+// there as "Deviation 15" too).
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
@@ -56,12 +65,13 @@ function thumbUrl(assetId: string): string {
 </script>
 
 <template>
-  <!-- brief 结构规格 1:恒渲染,无 v-if。 -->
+  <!-- Always renders, no v-if. -->
   <div class="detail-section">
     <h4>
       {{ t('photosPlacesVisitHistory') }}
-      <!-- Vue2 :1207 的裸内联 style(font-variant-numeric,非颜色属性)照搬；静态文本，
-           不可点，不叠 .is-clickable(T4 留下的约定：这个 .more 是次数展示，不是入口)。 -->
+      <!-- Copied verbatim from Vue2 :1207's raw inline style (font-variant-numeric, not a
+           color property); static text, non-clickable, no .is-clickable modifier (per the
+           established convention: this .more is a count display, not an entry point). -->
       <span class="more" style="font-variant-numeric: tabular-nums">
         {{ trips }} {{ t(tripsUnitKey) }}
       </span>
@@ -107,7 +117,7 @@ function thumbUrl(assetId: string): string {
 </template>
 
 <style scoped>
-/* Shadowing cleanup (Plan E Task 4, 2026-08-15): most of this file's former scoped rules have
+/* Shadowing cleanup: most of this file's former scoped rules have
    been deleted. Two bug classes fixed:
    (1) The header comment this block used to carry claimed "Vue scoped CSS doesn't cross
        component boundaries, so this file needs its own `.detail-section h4` copy" — true of
@@ -122,14 +132,14 @@ function thumbUrl(assetId: string): string {
        correctly for these exact selectors, plus `.visit-save-btn`/`:hover` used global blue-family
        `--accent-soft-bd`/`--accent-text`/`--accent-soft-2` in place of Photos-local
        `--accent-rgb`/`--accent-hi` (wrong hue) — same shadowing pattern as PlacesZoomBar.vue's
-       2026-08-15 fix (Task 3). Deleted; parity now governs all of it.
+       own earlier fix. Deleted; parity now governs all of it.
    What survives: the three test-pinned "current trip" green rules (token-based, since this
    app forbids bare color literals — parity's own current-trip-green literal isn't directly
    reusable here), the last-child rail-hiding rule and the `pulseDot` keyframes
    (PlaceVisitHistory.test.ts reads this file's own raw `<style>` text for all of these), and
    an explicit cursor override on the non-clickable `.more` (see below). */
 
-/* spec §7c-9 (same convention as PlaceDetailPanel.vue's spots-section `.more`): this section's
+/* (Same convention as PlaceDetailPanel.vue's spots-section `.more`): this section's
    `.more` is a static "N trips" count, not an entry point — parity's global `.detail-section h4
    .more` rule sets `cursor: pointer` (ported from Vue2, which coincidentally never made this
    particular span clickable either, just inherited the shared class's cursor), and because

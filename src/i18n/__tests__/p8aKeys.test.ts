@@ -3,8 +3,9 @@ import zh from '../zh_cn'
 import en from '../en_us'
 
 const KEYS = [
-  // 终审 Minor 4:photosSettingsSubtitle 已删(zh_cn.ts/en_us.ts 对应处有删除登记注释)——
-  // 全仓零引用死键,AreaShell.vue 只吃 title,没有承载副标题的位置。
+  // Note: photosSettingsSubtitle was removed (zh_cn.ts/en_us.ts carry a removal note at that
+  // spot) — it's a dead key with zero references anywhere in the repo; AreaShell.vue only
+  // consumes `title`, there's no slot for a subtitle.
   'photosSettingsTitle', 'photosSettingsHeroDesc',
   'photosSettingsNavStorage', 'photosSettingsNavAi',
   'photosSettingsStorage', 'photosSettingsVolume', 'photosSettingsFree',
@@ -41,8 +42,8 @@ const KEYS = [
   'photosAlbumLoadFailed', 'photosRetry',
 ] as const
 
-describe('P8a i18n 键', () => {
-  it('两个 locale 都定义了本期全部键,且值非空', () => {
+describe('P8a i18n keys', () => {
+  it('both locales define every key for this milestone, with non-empty values', () => {
     for (const k of KEYS) {
       expect(zh, `zh 缺 ${k}`).toHaveProperty(k)
       expect(en, `en 缺 ${k}`).toHaveProperty(k)
@@ -51,7 +52,7 @@ describe('P8a i18n 键', () => {
     }
   })
 
-  it('zh 侧不残留英文占位(本期键的 zh 值不得与 en 值相同,除术语本身)', () => {
+  it("zh side has no leftover English placeholders (this milestone's zh values must not equal en, except for terms that are genuinely identical)", () => {
     const SAME_OK = new Set<string>() // 本期无中英同形键;若出现真同形术语,加入白名单并在此注释说明理由
     for (const k of KEYS) {
       if (SAME_OK.has(k)) continue
@@ -61,7 +62,7 @@ describe('P8a i18n 键', () => {
     }
   })
 
-  it('带占位符的键两侧占位符集合一致', () => {
+  it('keys with placeholders have matching placeholder sets on both sides', () => {
     const ph = (s: string) => (s.match(/\{[a-zA-Z]+\}/g) ?? []).sort().join(',')
     for (const k of KEYS) {
       const z = String((zh as Record<string, string>)[k])

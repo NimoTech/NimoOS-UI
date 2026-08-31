@@ -76,10 +76,10 @@ const routes: RouteRecordRaw[] = [
   { path: '/photos/places/:key', name: 'photos-place-assets', component: PhotosPlaceAssets },
   { path: '/photos/smart-views', name: 'photos-smart-views', component: PhotosSmartViews },
   { path: '/photos/smart-views/:id', name: 'photos-smart-view-detail', component: PhotosSmartViewDetail },
-  // SP15-P1-T7: append only, never reorder — router/index.test.ts asserts the source line order.
+  // Append only, never reorder — router/index.test.ts asserts the source line order.
   { path: '/photos/moments/:id', name: 'photos-moment-detail', component: PhotosMomentDetail },
   { path: '/photos/search', name: 'photos-search', component: PhotosSearch },
-  // SP7-P8a-T5: append only, never reorder — must come after the last existing /photos/*
+  // Append only, never reorder — must come after the last existing /photos/*
   // (router/index.test.ts asserts source-text line order via node:fs, not router.getRoutes(); see that test file's comments).
   { path: '/photos/settings', name: 'photos-settings', component: PhotosSettings },
   { path: '/ai', redirect: '/ai/agent' },

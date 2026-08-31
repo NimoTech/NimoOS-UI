@@ -4,7 +4,7 @@ import { createI18n } from 'vue-i18n'
 import zh from '../../../../i18n/zh_cn'
 import type { Skill } from '../../../types/skill'
 
-// SP8-P3b Task 4 — mirrors Vue2 src/views/AI/Skills/TestPanel.vue (182 lines).
+// Mirrors Vue2 src/views/AI/Skills/TestPanel.vue (182 lines).
 // The mock skeleton uses vi.hoisted() (precedent: src/ai/stores/agentStore.test.ts:4-19) —
 // a bare const placed before vi.mock would throw a TDZ ReferenceError due to ESM hoisting.
 const h = vi.hoisted(() => ({ runSkillTest: vi.fn() }))

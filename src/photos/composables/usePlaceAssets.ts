@@ -1,4 +1,4 @@
-// P6b-T2: Place detail panel "photos" tab one-time asset loading.
+// Place detail panel "photos" tab one-time asset loading.
 // Ported from the Vue 2 panel's src/views/Photos/PhotosTimeline.vue:819-841 (_loadPlaceAssets).
 import type { ComputedRef, Ref } from 'vue'
 import { computed, ref } from 'vue'
@@ -68,8 +68,8 @@ export function usePlaceAssets(): UsePlaceAssetsReturn {
     }
   }
 
-  // P8a-T10 logged (recording only, no changes): this `months` is now a dead export — the
-  // only consumer views/PhotosPlaceAssets.vue switched in P7b when adding EXIF filtering to
+  // Logged (recording only, no changes): this `months` is now a dead export — the
+  // only consumer views/PhotosPlaceAssets.vue switched when adding EXIF filtering to
   // compute its own gridMonths from assets.photos.value (that file :130-139 has full
   // reasoning), and no longer reads months from here. Kept this field per "no unrelated
   // refactoring" (interface changes/field deletion are out of scope), but next time you modify

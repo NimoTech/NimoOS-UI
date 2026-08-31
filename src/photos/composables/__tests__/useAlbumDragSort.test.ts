@@ -40,7 +40,7 @@ describe('useAlbumDragSort', () => {
     const el = document.createElement('div')
     // Deliberately out of alphabetical order, plus one tile missing
     // data-id and one non-.tile child — both must be excluded from the
-    // read-out order (brief: ".tile[data-id]", filter null).
+    // read-out order (selector is ".tile[data-id]", filtering out null ids).
     el.innerHTML = `
       <div class="tile" data-id="b"></div>
       <div class="tile"></div>
@@ -164,12 +164,12 @@ describe('useAlbumDragSort', () => {
     expect(s.isDragging()).toBe(false)
   })
 
-  // SP15-P1-T6: the Moments band reuses this composable instead of a second Sortable
+  // The Moments band reuses this composable instead of a second Sortable
   // wrapper. The item selector and the two class names become optional, defaulting to
   // today's hardcoded album-page values, so the album page needs no edit. Nested inside
   // this describe (rather than a sibling) so it gets makeContainer and the beforeEach's
   // mockCreate reset/implementation for free.
-  describe('SP15-P1-T6: optional selector/class overrides', () => {
+  describe('optional selector/class overrides', () => {
     it('defaults are unchanged when the new options are omitted (.tile[data-id] + tile-drag-ghost)', () => {
       // The existing cases above already cover the default path end to end; this one only
       // pins down that the defaults themselves were not touched.

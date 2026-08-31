@@ -1,5 +1,5 @@
 <!--
-  SP8-P5a Task 12 — Knowledge dashboard, 1:1 port from the Vue 2 panel's blueprint
+  Knowledge dashboard, 1:1 port from the Vue 2 panel's blueprint
   `src/views/AI/Knowledge/DashboardView.vue` (main@7a6ee6b7, 371 lines,
   read via `git show main:`, governance file §1: worktree is old branch, not
   trustworthy).

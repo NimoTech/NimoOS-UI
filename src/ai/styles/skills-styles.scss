@@ -1,4 +1,4 @@
-// SP8-P3a Task 1 — Read-only section, 1:1 extracted from Vue2 `src/views/AI/Skills/skills-styles.scss`
+// Read-only section, 1:1 extracted from Vue2 `src/views/AI/Skills/skills-styles.scss`
 // (782 lines). This file only contains classes used in the "read-only half"; dialogs/toggles/menus/test panel/
 // confirm boxes/toasts and other interactive elements are assigned elsewhere or left for P3b (see task spec
 // §1.1 row-by-row selection table; brief has verified which classes belong to `sk-shared.scss`/
@@ -280,7 +280,7 @@
 }
 
 // `.sw` (Vue2:235-259) first work step grep verification: confirmed already exists in sk-shared.scss:66-88
-// (SP8-P2a Task 6 already ported, including color handling for --switch-thumb/--switch-thumb-shadow tokens);
+// (already ported, including color handling for --switch-thumb/--switch-thumb-shadow tokens);
 // not redefining.
 
 // Vue2 skills-styles.scss:260-288
@@ -518,7 +518,7 @@
       background: var(--accent);
       animation: skill-pulse 1.4s ease-in-out infinite;
     }
-    // SP8-P3b Task 4 — failed state. Vue2 TestPanel.vue:92-98 implemented via inline template styles:
+    // Failed state. Vue2 TestPanel.vue:92-98 implemented via inline template styles:
     // inline `color: var(--danger)` on `.label`, inline background + ~ 18% opacity iOS red glow ring on
     // `.bullet` (literal rgba hardcoded; color is --danger token's current value) — the latter is literal
     // rgba() and inline color itself violates this repo's color-constraint hard rule (public constraint §6);
@@ -635,7 +635,7 @@
   }
 }
 
-// [SP8-P3a Full Review I1 — New-UI-specific regression, not Vue2 copy-paste drift; three-part explanation]
+// [Full review I1 — New-UI-specific regression, not Vue2 copy-paste drift; three-part explanation]
 // ① Vue2 original: `skills-styles.scss:570-571` (i.e., `.empty-title`/`.empty-sub` inside the
 //    `.sk-detail-empty-inner` block above; this file copied those two lines as-is from Vue2; selector
 //    `.sk-detail-empty-inner .empty-title` has specificity (0,2,0)). Vue2 template `Settings/Settings.vue:2`

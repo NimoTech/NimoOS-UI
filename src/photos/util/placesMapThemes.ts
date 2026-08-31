@@ -1,23 +1,25 @@
-// Task 10(SP7-P6a 地点·地图主视图):地图主题预设表 + `resolveMapTheme` / `mapThemeStyleVars` /
-// `swatchColors`。逐条照 the Vue 2 panel's src/views/Photos/PhotosPlacesView.vue:
+// Map theme preset table + `resolveMapTheme` / `mapThemeStyleVars` /
+// `swatchColors`. Ported line-by-line from the Vue 2 panel's src/views/Photos/PhotosPlacesView.vue:
 //   :85-113   (mapTheme/customDotColor/customCityColor/mapThemes initial values in data())
-//   :134-151  (currentTheme computed —— resolveMapTheme 的语义来源)
-//   :952/:974 (主题色怎么注入到 zoombar 的 --accent 与 <svg> 的 background/--map-*)
-// 消费方:src/photos/components/PlacesThemeMenu.vue(本任务同建,弹层展示)、
-// src/photos/components/PlacesMap.vue(T6,吃 mapThemeStyleVars() 的产物当 :style)。
+//   :134-151  (currentTheme computed — the semantic source for resolveMapTheme)
+//   :952/:974 (how the theme color gets injected into the zoombar's --accent and the <svg>'s background/--map-*)
+// Consumers: src/photos/components/PlacesThemeMenu.vue (built alongside this module, renders the
+// popover), src/photos/components/PlacesMap.vue (consumes mapThemeStyleVars()'s output as :style).
 //
-// ── 这是 spec SP7 D5 批准的第三类例外(数据可视化调色板,不是应用皮肤)──────────────
-// 下面 28 个色值(4 预设 × 7 字段:bg/land/dot + light.{bg,grid,dotBg,dot})+ 两个自定义
-// 默认色是用户可在"地图主题"弹层里挑选的地图可视化配色,
-// 与 New-UI 的蓝/白两套应用主题(src/styles/theme.css)正交:同一个应用主题下,用户仍可
-// 在 4 个地图预设之间自由切换;这组色值必须原样保留(4 预设各自的深浅两态色调是产品
-// 设计决策,不是"忘了 token 化"的遗留硬编码)。先例见 src/photos/util/peopleView.ts 的
-// `PLACE_PALETTE`(P5-T12,人物详情页地点 tab 的 7 色分类色板,同一条 docs/THEMING.md
-// §6 例外登记)。值放在这个 .ts 文件而不是 theme.css:color-guard(src/styles/
-// color-guard.test.ts)只扫 .vue 的 <style> 块与 .css 文件,不扫 .ts —— 这组色值本就不该
-// 造 26 个一次性 theme token,放这里是刻意选择,已在 docs/THEMING.md §6 登记一行。
+// ── This is a third exception category approved by the spec's D5 decision (a data-visualization palette, not an app skin) ──────────────
+// The 28 color values below (4 presets × 7 fields: bg/land/dot + light.{bg,grid,dotBg,dot}) plus
+// the two custom default colors are map-visualization colors the user can pick in the "Map theme"
+// popover, orthogonal to New-UI's blue/white app themes (src/styles/theme.css): under the same
+// app theme, the user can still freely switch between the 4 map presets; this set of values must
+// be preserved as-is (each preset's light/dark tone pair is a product design decision, not legacy
+// hardcoding that "forgot to be tokenized"). Precedent: src/photos/util/peopleView.ts's
+// `PLACE_PALETTE` (the 7-color classification palette for the person-detail page's Places tab,
+// registered under the same docs/THEMING.md §6 exception list). The values live in this .ts file
+// rather than theme.css: color-guard (src/styles/color-guard.test.ts) only scans .vue <style>
+// blocks and .css files, not .ts — this set of values was never meant to become 26 one-off theme
+// tokens; placing them here is a deliberate choice, registered as one line in docs/THEMING.md §6.
 //
-// Plan E Task 6 (2026-08-15): landed Vue2 PR #106 sub-commits 1-3 (git show 78cf3335) that this
+// Landed Vue2 PR #106 sub-commits 1-3 (git show 78cf3335) that this
 // module had not yet ported:
 //  1. Contrast finals — every `light.dotBg` value below was bumped from its pre-#106 literal
 //     (0.10/0.10/0.10/0.12) to the shipped final (0.30/0.32/0.32/0.34) so the unvisited land-dot
@@ -49,8 +51,8 @@
 
 export interface MapThemePreset {
   id: 'default' | 'ocean' | 'sand' | 'mono'
-  nameKey: string // i18n 键,如 photosPlacesThemeDefault
-  descKey: string // i18n 键,如 photosPlacesThemeDescDefault
+  nameKey: string // i18n key, e.g. photosPlacesThemeDefault
+  descKey: string // i18n key, e.g. photosPlacesThemeDescDefault
   bg: string
   land: string
   dot: string
@@ -103,7 +105,7 @@ export const MAP_THEME_PRESETS: readonly MapThemePreset[] = [
 export const CUSTOM_DOT_DEFAULT = '#6E5BFF'
 export const CUSTOM_CITY_DEFAULT = '#9C8EFF'
 
-// Vue2 :67-79 的逐字移植:#RGB / #RRGGBB → rgba() at the given alpha. Used by the custom map
+// Ported character-for-character from Vue2 :67-79: #RGB / #RRGGBB → rgba() at the given alpha. Used by the custom map
 // theme so a picked land-dot colour renders as a wash (unlit) instead of a solid fill, keeping
 // the lit-vs-unlit hierarchy the presets have. Non-hex input passes through unchanged (Vue2's
 // own degrade path when the browser's `<input type="color">` somehow yields a non-hex string).
@@ -172,15 +174,17 @@ export function resolveMapTheme(
 }
 
 /**
- * Vue2 :974 的注入点:`Object.assign({ background, --map-dot, --map-grid }, dotBg ? { --map-dot-bg } : {})`。
- * `--map-dot-bg` 只在 dotBg 非 null 时才加入结果——PlacesMap.vue(T6)的 `.world-dot` 靠
- * `var(--map-dot-bg, var(--map-dot-bg-fallback))` 吃这个条件展开的回落语义,若这里改成
- * 无条件注入,深色主题下地面点阵会失去它自己的回落色。
+ * Vue2 :974's injection point: `Object.assign({ background, --map-dot, --map-grid }, dotBg ? { --map-dot-bg } : {})`.
+ * `--map-dot-bg` is only added to the result when dotBg is non-null — PlacesMap.vue's `.world-dot`
+ * relies on `var(--map-dot-bg, var(--map-dot-bg-fallback))` to pick up this conditional fallback
+ * semantics; if this were changed to inject unconditionally, the ground dot matrix would lose its
+ * own fallback color under the dark theme.
  */
-// 评审 M5:--map-grid 在 P6a 无消费方——它在 Vue2 的唯一消费者是 .world-graticule /
-// .world-equator(经纬线网格),而那组规则已被本期判定为死码、明确不迁(PlacesMap.vue 没有
-// 渲染任何经纬线元素)。这里仍照搬 Vue2 无条件注入 --map-grid,不是遗漏,只是登记
-// (体例照 PlacesMap.vue:122-124 已为 --map-dot 回落做过的登记)。
+// --map-grid has no consumer here — its only consumer in Vue2 is .world-graticule /
+// .world-equator (the lat/long grid), and that rule set has been judged dead code and explicitly
+// not ported (PlacesMap.vue doesn't render any lat/long grid elements). This still copies Vue2's
+// unconditional injection of --map-grid — not an oversight, just noted (following the same
+// pattern as the note already made for --map-dot's fallback at PlacesMap.vue:122-124).
 export function mapThemeStyleVars(t: ResolvedMapTheme): Record<string, string> {
   const vars: Record<string, string> = {
     background: t.bg,
@@ -192,9 +196,11 @@ export function mapThemeStyleVars(t: ResolvedMapTheme): Record<string, string> {
 }
 
 /**
- * 弹层里色板小方块用:深浅两态各取预设对应的 bg/dot(Vue2 :921-922 的两处三元)。
- * 与 resolveMapTheme 不同——这里永远只服务预设本身的预览色,不涉及 'custom' 分支
- * (custom 没有实体预设对象,弹层里那两个色块是两个 <input type="color">,不经过这个函数)。
+ * Used by the small swatch squares in the popover: each light/dark state takes the preset's
+ * corresponding bg/dot (Vue2 :921-922's two ternaries).
+ * Unlike resolveMapTheme — this always serves only the preset's own preview color, and doesn't
+ * touch the 'custom' branch (custom has no concrete preset object; the two color blocks in the
+ * popover are two <input type="color">s that don't go through this function).
  */
 export function swatchColors(p: MapThemePreset, isLight: boolean): { bg: string, dot: string } {
   if (isLight) return { bg: p.light.bg, dot: p.light.dot }

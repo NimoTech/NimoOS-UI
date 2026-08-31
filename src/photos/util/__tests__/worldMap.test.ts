@@ -32,7 +32,7 @@ describe('WORLD_DOTS', () => {
   })
 })
 
-/* P6a-T2: fills in the viewBox minimum-span clamp branch parked from P5-T4.
+/* Fills in the viewBox minimum-span clamp branch parked earlier.
    PhotosMiniMap.vue's internal constants: LON_PAD=20 / LAT_PAD=15 / MIN_LON_SPAN=40 / MIN_LAT_SPAN=30.
    The clamp kicks in when the span after padding is still < MIN_*_SPAN; in the single-point
    case the span after padding lands exactly on the threshold (LON_PAD*2 === MIN_LON_SPAN),

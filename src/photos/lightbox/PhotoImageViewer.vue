@@ -10,16 +10,17 @@ const props = defineProps<{
   ocrLines?: Array<{ box: number[] }>
 }>()
 
-// HEIC/TIFF/RAW 等浏览器无法原生解码的格式回退到已转码的大图缩略图(照 Vue2 PhotosLightbox imageSrc)
+// Formats the browser can't natively decode (HEIC/TIFF/RAW etc.) fall back to the already-transcoded
+// large thumbnail (following Vue2 PhotosLightbox's imageSrc)
 const src = computed(() =>
   browserCanDisplayImage(props.mimeType)
     ? service.photos.originalUrl(props.assetId)
     : service.photos.thumbnailUrl(props.assetId, 'large'),
 )
 
-// —— 变换状态(照抄 files/viewers/ImageViewer.vue 的 缩放/旋转/平移骨架)——
-const scale = ref(1) // 交互增量倍数(落盘后归 1)
-const committedZoom = ref(1) // 已落盘总倍数;有效倍数 = committedZoom × scale
+// —— Transform state (copied from files/viewers/ImageViewer.vue's zoom/rotate/pan skeleton) ——
+const scale = ref(1) // interactive incremental factor (resets to 1 once committed)
+const committedZoom = ref(1) // total committed factor; effective factor = committedZoom × scale
 const committedW = ref<number | null>(null)
 const committedH = ref<number | null>(null)
 const suppressTransition = ref(false)
@@ -36,9 +37,10 @@ const imgStyle = computed(() => ({
   ...(suppressTransition.value ? { transition: 'none' } : {}),
 }))
 
-// —— 停手落盘:缩放停止 150ms 后把倍数烙进布局尺寸,强制按最终倍数重画 ——
-// 合成器快路径拉伸缓存瓷砖会在砖缝处露 1px 细线(瓦线);重画路径逐砖从原图采样,
-// 无缝且比拉伸态更锐。交互中仍走 transform 快路径保流畅,缝只可能一闪而过。
+// —— Commit on settle: 150ms after zooming stops, bake the factor into the layout size and force a redraw at the final factor ——
+// The compositor's fast-path stretches cached tiles, which shows a 1px hairline at tile seams;
+// the redraw path samples each tile fresh from the source image, so it's seamless and sharper than
+// the stretched state. Interaction still takes the fast transform path to stay smooth; the seam can only flash briefly.
 const COMMIT_DELAY = 150
 let commitTimer: ReturnType<typeof setTimeout> | null = null
 let suppressTimer: ReturnType<typeof setTimeout> | null = null
@@ -52,12 +54,12 @@ function commitZoom() {
   if (!el || scale.value === 1) return
   const w = el.offsetWidth
   const h = el.offsetHeight
-  if (!w || !h) return // 图未加载完(布局尺寸为 0),跳过本次落盘
+  if (!w || !h) return // image hasn't finished loading (layout size is 0) -- skip this commit
   committedW.value = Math.round(w * scale.value)
   committedH.value = Math.round(h * scale.value)
   committedZoom.value *= scale.value
   scale.value = 1
-  // 落盘帧 scale N→1 会被 transition 动画化而宽高瞬变 —— 暂禁过渡,过渡时长后恢复
+  // The commit frame's scale N→1 would otherwise get animated by the transition while width/height jump instantly -- suppress the transition, then restore it after the transition duration
   suppressTransition.value = true
   if (suppressTimer) clearTimeout(suppressTimer)
   suppressTimer = setTimeout(() => { suppressTransition.value = false; suppressTimer = null }, 50)
@@ -91,18 +93,18 @@ function onDblClick() {
   else setZoom(2)
 }
 
-// 换图时复位变换 + 重算 OCR 覆盖层(单图无内部 index,按 assetId 换图)
+// Reset transform + recompute OCR overlay when the image changes (single image, no internal index, switches by assetId)
 watch(() => props.assetId, () => { resetTransform(); recomputeOcrRects() })
 
-// —— 拖拽平移 ——
+// —— Drag to pan ——
 let dragging = false
 let startX = 0
 let startY = 0
 let baseX = 0
 let baseY = 0
 
-// 平移夹边界:图片任何时候至少留 PAN_KEEP px 在可视区内,拖不丢。
-// 无布局信息(图未加载/测试环境)时不夹。
+// Pan clamping: at all times keep at least PAN_KEEP px of the image inside the viewport, so it can't be dragged away entirely.
+// Skip clamping when layout info is unavailable (image not loaded / test environment).
 const PAN_KEEP = 48
 function clampPan() {
   const stage = stageEl.value
@@ -113,7 +115,7 @@ function clampPan() {
   let w = el.offsetWidth * scale.value
   let h = el.offsetHeight * scale.value
   if (!W || !H || !w || !h) return
-  if (rotation.value % 180 !== 0) [w, h] = [h, w] // 旋转 90/270°:可视宽高互换
+  if (rotation.value % 180 !== 0) [w, h] = [h, w] // rotated 90/270°: visual width/height swap
   const mx = (W + w) / 2 - Math.min(PAN_KEEP, w / 2)
   const my = (H + h) / 2 - Math.min(PAN_KEEP, h / 2)
   tx.value = Math.min(Math.max(tx.value, -mx), mx)
@@ -127,7 +129,7 @@ function onPointerDown(e: PointerEvent) {
 }
 function onPointerMove(e: PointerEvent) {
   if (!dragging) return
-  // 窗口外松手时 pointerup 可能丢失,dragging 卡 true,图片会"粘"在指针上 —— 按键已松即自愈
+  // Releasing outside the window can lose the pointerup event, leaving dragging stuck true and the image "stuck" to the pointer -- self-heals as soon as the button is detected released
   if (e.pointerType === 'mouse' && e.buttons === 0) { dragging = false; return }
   tx.value = baseX + (e.clientX - startX)
   ty.value = baseY + (e.clientY - startY)
@@ -135,9 +137,10 @@ function onPointerMove(e: PointerEvent) {
 }
 function onPointerUp() { dragging = false }
 
-// —— OCR 覆盖层:rects 与 <img> 共享同一变换(见 .ocr-overlay 的 :style="imgStyle"),
-// 缩放/平移/旋转时随图片同步移动;.img-wrap 只是让 overlay 与 img 共享定位原点的
-// 壳(img 是其唯一内容,原点对齐),因此不必再叠加 offsetLeft/offsetTop。——
+// —— OCR overlay: the rects share the same transform as the <img> (see .ocr-overlay's :style="imgStyle"),
+// so they move in sync with the image on zoom/pan/rotate; .img-wrap is just a shell that lets the
+// overlay and the img share the same positioning origin (img is its only content, origins align),
+// so there's no need to add offsetLeft/offsetTop on top. ——
 const ocrRects = ref<Array<{ left: number; top: number; width: number; height: number }>>([])
 function recomputeOcrRects() {
   const el = imgEl.value
@@ -177,11 +180,11 @@ defineExpose({ zoomIn, zoomOut, rotate, resetTransform })
     @dragstart.prevent
   >
     <div class="img-wrap">
-      <!-- Plan F Task 3: `class="img-el"` keeps its name (the zoom family's own hook -- net
+      <!-- `class="img-el"` keeps its name (the zoom family's own hook -- net
            addition over Vue2, intentionally kept) and gains parity's anchor
            `.lb-photo` alongside it (Vue2 PhotosLightbox.vue:38-45 `<img class="lb-photo">`,
            parity photos.scss:593-598). Both classes coexist: `.img-el` still drives the zoom/
-           pan transform + cursor rules above, `.lb-photo` is the anchor Task 4/5 will target
+           pan transform + cursor rules above, `.lb-photo` is the anchor later work will target
            once this renders under `.photos-root`'s real parity CSS. -->
       <img
         ref="imgEl"
@@ -192,10 +195,10 @@ defineExpose({ zoomIn, zoomOut, rotate, resetTransform })
         draggable="false"
         @load="recomputeOcrRects"
       />
-      <!-- Plan F Task 3: renamed from the invented `.ocr-overlay`/`.ocr-hit` to parity's real
+      <!-- Renamed from the invented `.ocr-overlay`/`.ocr-hit` to parity's real
            anchors `.lb-ocr-overlay`/`.lb-ocr-hit` (Vue2 PhotosLightbox.vue:46-53, parity
-           photos.scss:604-618). Task 4 adds the `lb-ocr-pulse` entrance animation to
-           `.lb-ocr-hit`; this task only re-shapes the class names. -->
+           photos.scss:604-618). A later change adds the `lb-ocr-pulse` entrance animation to
+           `.lb-ocr-hit`; this change only re-shapes the class names. -->
       <div v-if="ocrRects.length" class="lb-ocr-overlay" :style="imgStyle">
         <div
           v-for="(r, i) in ocrRects"
@@ -218,18 +221,19 @@ defineExpose({ zoomIn, zoomOut, rotate, resetTransform })
   justify-content: center;
   overflow: hidden;
   cursor: grab;
-  /* 舞台内禁止选区:选区可绕过 draggable=false 触发原生拖放(幽灵图+禁止光标) */
+  /* Disallow text selection inside the stage: a selection can bypass draggable=false and trigger the native drag-and-drop (ghost image + no-drop cursor) */
   user-select: none;
-  /* 棋盘格透明底(忠于 files ImageViewer) */
+  /* Checkerboard transparent background (faithful to files' ImageViewer) */
   background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='50' height='50' viewBox='0 0 16 16'%3E%3Cpath fill='%23ccc' d='M8 6.5A1.5 1.5 0 1 0 8 9.5A1.5 1.5 0 1 0 8 6.5z' fill-opacity='0.1'/%3E%3C/svg%3E");
   background-repeat: repeat;
 }
 .img-stage:active { cursor: grabbing; }
-/* .img-wrap 只按 img 的渲染尺寸收缩包裹(shrink-to-fit),使 .ocr-overlay(绝对定位、
-   inset:0)的原点与 img 完全重合 —— img 是其唯一参与布局的内容,故 OCR 矩形无需
-   再叠加 offsetLeft/offsetTop 换算。
+/* .img-wrap only shrink-wraps to the img's rendered size (shrink-to-fit), so that
+   .ocr-overlay's (absolutely positioned, inset: 0) origin exactly coincides with img's --
+   img is the only content participating in layout, so OCR rects never need an extra
+   offsetLeft/offsetTop conversion.
 
-   I2 (final review, 2026-08-15) containing-block analysis -- why `max-width: 100%;
+   Containing-block analysis -- why `max-width: 100%;
    max-height: 100%;` MUST stay here even though the identically-named pair was just deleted from
    `.img-el` below: this wrap is a shrink-to-fit box (`display: inline-flex`, no explicit
    width/height of its own) sitting between `.img-stage` (a definite, 100%-sized box -- this
@@ -252,9 +256,9 @@ defineExpose({ zoomIn, zoomOut, rotate, resetTransform })
   max-width: 100%;
   max-height: 100%;
 }
-/* I2 (final review, 2026-08-15): `max-width: 100%; max-height: 100%;` used to live here too --
+/* `max-width: 100%; max-height: 100%;` used to live here too --
    at equal specificity with parity's own `.photos-root .lb-photo` (also targeting this exact
-   <img>, since it carries both classes, see the Task 3 comment above) and, being injected after
+   <img>, since it carries both classes, see the comment above) and, being injected after
    the parity stylesheet on every host page, this local copy always won the tie, silently
    overriding parity's `calc(100% - 80px)`/`calc(100% - 24px)` arrow clearance with a flush 100%.
    Deleted outright -- parity's `.lb-photo` rule is now the only max-width/max-height declaration
@@ -265,10 +269,12 @@ defineExpose({ zoomIn, zoomOut, rotate, resetTransform })
   user-select: none;
   -webkit-user-drag: none;
   transition: transform 0.05s linear;
-  /* 勿加 will-change: transform —— 大图被固定成合成层后,缩放只拉伸旧瓦片不重绘,
-     瓦片接缝会在照片上显出白色网格细线(真机截图实证过);去掉后缩放会触发重绘,无缝。 */
+  /* Don't add will-change: transform -- once a large image is pinned as its own compositor layer,
+     zooming only stretches the old tiles instead of repainting, and the tile seams show up as thin
+     white grid lines on the photo (confirmed with real-device screenshots); removing it makes
+     zooming trigger a repaint instead, which is seamless. */
 }
-/* Plan F Task 5: `.lb-ocr-overlay`/`.lb-ocr-hit` are retired -- both were byte-exact duplicates
+/* `.lb-ocr-overlay`/`.lb-ocr-hit` are retired -- both were byte-exact duplicates
    of parity's own `.photos-root .lb-ocr-overlay`/`.photos-root .lb-ocr-hit` (photos.scss:612-
    626), property-for-property (including the `lb-ocr-pulse` keyframe reference, a bare top-level
    construct that was already reachable from this component regardless of nesting -- see
@@ -277,8 +283,8 @@ defineExpose({ zoomIn, zoomOut, rotate, resetTransform })
    local duplicates would only be the identical same-specificity tie flagged across this whole
    file family. */
 /* Note: `.img-toolbar`/`.tb-item` (the Zoom in/Zoom out/
-   Rotate/Reset button row) are removed outright, both themes -- review
-   flagged this floating box as visual clutter that also read as unreadably dark-on-light in the
+   Rotate/Reset button row) are removed outright, both themes -- this floating box was
+   flagged as visual clutter that also read as unreadably dark-on-light in the
    light theme (it never had a light-mode variant of its own, only global dark-glass tokens). Zoom
    remains reachable via wheel (onWheel, pre-existing) and the new double-click toggle (onDblClick,
    this same file's script) -- see that function's own comment for what replaces the buttons. */

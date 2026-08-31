@@ -1,12 +1,16 @@
-// SP7-P8b:相册区文案分片。
+// Photos album-section copy, split into its own file.
 //
-// 为什么独立成文件:分片约定(新键只落分片,免得几条并行线在同一文件上相撞,
-// 见 src/i18n/index.ts 的注释)。相册区 700 多行文案自成一块,主表不必跟着变厚。
+// Why a separate file: new keys land only in their own slice file, so several parallel
+// workstreams don't collide on one shared file (see the comment in src/i18n/index.ts). The
+// album section's 700+ lines of copy form a self-contained block, so the main table doesn't
+// have to keep growing alongside it.
 //
-// 内容是从 zh_cn.base.ts(即原 zh_cn.ts)原样搬来的 photos* 前缀键(顺序、注释、行尾标记全部保留),
-// 一个字没改 —— 等价性由 __tests__/photosSlice.test.ts 与抽取当时的 JSON 快照逐键比对证明。
+// The content was carried over as-is from zh_cn.base.ts (formerly zh_cn.ts) — every
+// photos*-prefixed key, in its original order, with its original comments and end-of-line
+// markers. Not a single character was changed — equivalence is proven key-for-key by
+// __tests__/photosSlice.test.ts against a JSON snapshot taken at extraction time.
 export default {
-  // ── 相册 ──
+  // ── Albums ──
   photosTitle: '相册',
   photosLibrary: '照片库',
   photosFavorites: '收藏',
@@ -26,13 +30,13 @@ export default {
   photosNoPhotosHint: '照片入库后会出现在这里',
   photosUnknownDate: '未知日期',
   photosDeletedToast: '{count} 项已移入最近删除',
-  // Owner-acceptance Fix-3: honest partial-failure toast for the "move to Recently Deleted"
-  // flow (PhotosFavorites.vue's onBatchDelete/onLightboxDelete) -- store.deleteAssets already
-  // returns the ACTUAL success count (per-id try/catch), this key surfaces it instead of
-  // silently reporting the click-time selection size as if every item succeeded. Zero-success
-  // reuses the existing photosTrashDeleteFailed "Delete failed" family rather than adding a
-  // near-duplicate key (see trash.ts's purge()/PhotosTrash.vue for the sibling permanent-delete
-  // flow, which follows the exact same three-way branch).
+  // Honest partial-failure toast for the "move to Recently Deleted" flow (PhotosFavorites.vue's
+  // onBatchDelete/onLightboxDelete) -- store.deleteAssets already returns the ACTUAL success
+  // count (per-id try/catch), this key surfaces it instead of silently reporting the click-time
+  // selection size as if every item succeeded. Zero-success reuses the existing
+  // photosTrashDeleteFailed "Delete failed" family rather than adding a near-duplicate key (see
+  // trash.ts's purge()/PhotosTrash.vue for the sibling permanent-delete flow, which follows the
+  // exact same three-way branch).
   photosDeletedPartialToast: '{ok} 项已移入最近删除，{fail} 项失败',
   photosIndexedToast: '已索引 {n} 张照片',
   photosTaskCompletedToast: '{label} 已完成',
@@ -80,44 +84,44 @@ export default {
   photosFilterCamera: '相机',
   photosFilterLocation: '位置',
   photosFilterYear: '年份',
-  // ── 相册:收藏视图 ──
+  // ── Albums: Favorites view ──
   photosFavTitle: '收藏',
   photosFavEmptyTitle: '暂无收藏',
   photosFavEmptyHint: '在任意照片上点 ★ 即可收藏，收藏会永久保留。',
   photosFavExport: '下载为 ZIP',
   photosFavExporting: '开始打包下载…',
   photosFavCount: '{count} 张收藏',
-  // Task 3 (Plan H) review fix: hero stats sub-line -- Vue2 bolds ONLY the raw
-  // number (`<b>{{ photoCount }}</b> {{ $t('photos_count') }}`), the noun sits
+  // Hero stats sub-line -- Vue2 bolds ONLY the raw number
+  // (`<b>{{ photoCount }}</b> {{ $t('photos_count') }}`), the noun sits
   // outside <b>, so these are noun-only keys (not "{n} photos" one-piece
   // strings) matching Vue2 PhotosFavoritesView.vue:11-12's photos_count/videos
   // copy exactly ('张照片'/'视频', no quantifier word).
   photosFavHeroPhotosNoun: '张照片',
   photosFavHeroVideosNoun: '视频',
   photosFavHeroKeptForever: '永久保留',
-  // Task 4 (Plan H): pinned-highlights strip (server-ranked top 5, GET /favorites/top) --
+  // Pinned-highlights strip (server-ranked top 5, GET /favorites/top) --
   // matches Vue2 PhotosFavoritesView.vue:89-90.
   photosFavPinnedTitle: '精选亮点',
   photosFavPinnedSub: '你最常收藏的瞬间 · Nimo 精选',
-  // Task 5 (Plan H): slideshow playback -- matches Vue2 PhotosFavoritesView.vue:18-19 (entry
+  // Slideshow playback -- matches Vue2 PhotosFavoritesView.vue:18-19 (entry
   // button) / :237-273 (playback layer: close, prev/next, play/pause, three speed tiers).
   photosFavSlideshow: '幻灯片播放',
   photosFavSlideClose: '关闭 (Esc)',
   photosFavSlidePrev: '上一张 (←)',
   photosFavSlideNext: '下一张 (→)',
-  // Review Minor 4: adds Vue2 :256's play/pause button title (value taken from
-  // Vue2 面板的 src/assets/lang/zh_CN.json:2244).
+  // Adds Vue2 :256's play/pause button title (value taken from
+  // the Vue 2 panel's src/assets/lang/zh_CN.json:2244).
   photosFavSlidePlayPause: '播放/暂停 (空格)',
   photosFavSlideSpeed: '速度',
   photosFavSlideFast: '快',
   photosFavSlideNormal: '正常',
   photosFavSlideSlow: '慢',
-  // ── 相册:最近删除视图 ──
+  // ── Albums: Trash view ──
   photosTrashTitle: '最近删除',
   // topbar `sub` was previously left unbound, defaulting to the
   // library-wide photo/video count string (wrong content for this view). Matches Vue2
   // PhotosTimeline.vue:231 navMap.trash ('{count} items · auto-deletes in 30 days'), except
-  // {days} is dynamic here (ruled: reads the live retention setting instead of Vue2's
+  // {days} is dynamic here (this reads the live retention setting instead of Vue2's
   // hardcoded 30). zh wording reused verbatim from the Vue 2 panel's src/assets/lang/zh_CN.json's
   // existing translation of that exact Vue2 string ('{count} 项 · 30 天后自动删除'), just with
   // {days} substituted in for the literal 30.
@@ -137,7 +141,7 @@ export default {
   photosTrashSortDaysLeft: '剩余天数',
   photosTrashSortRecent: '最近删除',
   photosTrashUndo: '撤销',
-  // ── 相册:分桶标题 ──
+  // ── Albums: Bucket titles ──
   photosTrashBucketUrgent: '1–7 天内删除',
   photosTrashBucketSoon: '8–14 天内删除',
   photosTrashBucketLater: '15–21 天内删除',
@@ -146,24 +150,24 @@ export default {
   photosTrashBucketSoonDesc: '提醒 — 即将自动删除',
   photosTrashBucketLaterDesc: '还有充足时间可以恢复',
   photosTrashBucketFreshDesc: '超过保留期后将自动删除',
-  // ── 相册:确认弹窗 ──
+  // ── Albums: Confirmation dialogs ──
   photosTrashRestoreAllTitle: '恢复全部 {count} 项？',
   photosTrashRestoreAllBody: '它们会回到原来的位置，重新出现在资料库、相册和时间线中。',
   photosTrashDeleteSelTitle: '永久删除 {count} 项？',
   photosTrashDeleteSelBody: '这将立即从 NAS 中清除,此操作无法撤销。',
   photosTrashEmptyTitle2: '永久删除全部 {count} 项？',
   photosTrashEmptyBody: '这将在 NAS 上释放 {size} MB,原始文件将无法恢复。',
-  // ── 相册:Toast ──
+  // ── Albums: Toast messages ──
   photosTrashRestoredToast: '{count} 项已恢复到资料库',
   photosTrashPurgedToast: '{count} 项已永久删除 · 释放 {size} MB',
-  // Owner-acceptance Fix-3: trash.ts's purge() now reports the ACTUAL per-item success count
+  // trash.ts's purge() now reports the ACTUAL per-item success count
   // (Promise.allSettled, not the old swallow-and-lie Promise.all) -- this key covers the
   // 0 < success < total case. Freed-size is intentionally omitted here (same reasoning as
   // photosTrashEmptiedToastPartial below: it was only ever a sum over the full requested
   // selection, which overstates it once some of those items never actually got purged).
   photosTrashPurgedPartialToast: '已永久删除 {ok} 项，{fail} 项失败',
   photosTrashEmptiedToast: '最近删除已清空 · 释放 {size} MB',
-  // Task 12 (SP15-P3): while pages remain, the freed-size figure is only computed from the
+  // While pages remain, the freed-size figure is only computed from the
   // loaded subset — these size-less variants are used instead until trashExhausted.
   photosTrashEmptiedToastPartial: '最近删除已清空',
   photosTrashEmptyBodyPartial: '这将释放 NAS 上的空间，原始文件将无法恢复。',
@@ -171,7 +175,7 @@ export default {
   photosTrashDeleteFailed: '删除失败',
   photosTrashEmptyFailed: '清空失败',
   photosFavExportFailed: '导出失败',
-  // ── 相册:侧栏 / 列表页 ──
+  // ── Albums: Sidebar / list view ──
   photosAlbums: '相册',
   photosAlbumsTitle: '相册',
   photosAlbumsCount: '{count} 个相册',
@@ -180,15 +184,14 @@ export default {
   photosAlbumNew: '新建相册',
   photosAlbumNewHint: '点击创建或询问 Nimo',
   photosAlbumUntitled: '未命名',
-  // SP15-P2b Task 3: the mixed grid's section subtitle when both manual and smart albums
-  // are empty (939a7d3a:PhotosAlbumsView.vue). Inserted here, next to the rest of the
-  // "no albums" copy cluster, rather than by the photosAlbums* family's scattered global
-  // order.
-  // fix round 1 (Important 3): photosAlbumsEmptyTitle/photosAlbumsEmptyHint, which used to
-  // sit right above this key, are deleted (grep-confirmed zero other consumers) -- they
-  // backed a standalone empty-state panel that duplicated this subtitle's own "还没有相册"
-  // copy once smart albums joined the grid. Vue2 has no such panel either (see the matching
-  // PhotosAlbums.vue comment), so removing it is a 1:1 correction, not a feature cut.
+  // The mixed grid's section subtitle when both manual and smart albums are empty
+  // (939a7d3a:PhotosAlbumsView.vue). Inserted here, next to the rest of the "no albums" copy
+  // cluster, rather than by the photosAlbums* family's scattered global order.
+  // photosAlbumsEmptyTitle/photosAlbumsEmptyHint, which used to sit right above this key, are
+  // deleted (grep-confirmed zero other consumers) -- they backed a standalone empty-state
+  // panel that duplicated this subtitle's own "还没有相册" copy once smart albums joined the
+  // grid. Vue2 has no such panel either (see the matching PhotosAlbums.vue comment), so
+  // removing it is a 1:1 correction, not a feature cut.
   photosAlbumsNoneYetHint: '还没有相册——手动创建一个，或者让 Nimo 建一个会自动保持更新的智能相册。',
   photosAlbumSort: '排序：',
   photosAlbumSortCreated: '最近添加',
@@ -201,7 +204,7 @@ export default {
   photosAlbumSortCountHint: '最多的在前',
   photosAlbumSortDate: '拍摄日期',
   photosAlbumSortDateHint: '最新的瞬间在前',
-  // ── 相册:新建相册模态 ──
+  // ── Albums: New album modal ──
   photosAlbumCreateTitle: '新建相册',
   photosAlbumCreateSub: '起个名字,再决定怎么填充',
   photosAlbumNameLabel: '相册名称',
@@ -218,7 +221,7 @@ export default {
   photosAlbumCreatedToast: '相册已创建:{name}',
   photosAlbumCreateFailed: '创建失败',
   photosAlbumNameExists: '已存在同名相册',
-  // ── 相册:详情页 ──
+  // ── Albums: Detail view ──
   photosAlbumBack: '相册',
   photosAlbumLabel: '相册',
   photosAlbumClickToRename: '点击重命名',
@@ -227,23 +230,24 @@ export default {
   photosAlbumRenameHint: '修改相册名称',
   photosAlbumConvertToSmart: '转为智能相册',
   photosAlbumConvertToSmartHint: 'Nimo 会自动持续加入匹配的新照片',
-  // Task 5 (#117 短标题): "..." 菜单主标题改短——Rename/Duplicate/Download as ZIP 三项复用既有
-  // 短键(photosSvRename/photosSvDuplicate/photosFavExport,与靶子译文逐字一致),Delete 复用
-  // photosDelete;只有 Convert 没有现成的通用短键,新增这一个。
-  // Task 11 孤儿清理:photosAlbumRename 失去了唯一引用,已删;photosAlbumConvertToSmart
-  // 留下——AlbumConvertToSmartDialog 的标题/确认按钮仍在用它。
+  // Short menu titles (#117): the "..." menu's main labels were shortened -- Rename/Duplicate/
+  // Download as ZIP reuse existing short keys (photosSvRename/photosSvDuplicate/photosFavExport,
+  // verbatim matches for the target translation), Delete reuses photosDelete; only Convert had
+  // no existing generic short key, so this one is new.
+  // Orphan cleanup: photosAlbumRename lost its only reference and was deleted; photosAlbumConvertToSmart
+  // stays -- AlbumConvertToSmartDialog's title/confirm button still uses it.
   photosAlbumMenuConvert: '转换',
-  // Whole-branch review, Important 2: the "..." menu's Convert entry has its own desc in the
-  // target (33b05636 PhotosAlbumDetail.vue:266 "Turn into a Smart Album that keeps updating",
-  // zh_CN.json:2836). It is NOT the same string as photosAlbumConvertToSmartHint above, which
-  // the target uses only as the convert modal's subtitle (:375) -- the menu entry pointed at
-  // that one for the whole phase because this key was specified in the plan's i18n table but
-  // never created. AlbumConvertToSmartDialog.vue stays on the modal key.
+  // The "..." menu's Convert entry has its own desc in the target (33b05636
+  // PhotosAlbumDetail.vue:266 "Turn into a Smart Album that keeps updating", zh_CN.json:2836).
+  // It is NOT the same string as photosAlbumConvertToSmartHint above, which the target uses
+  // only as the convert modal's subtitle (:375) -- the menu entry pointed at that one for a
+  // while because this key had not been created yet. AlbumConvertToSmartDialog.vue stays on
+  // the modal key.
   photosAlbumMenuConvertHint: '转为持续自动更新的智能相册',
-  // Task 5:Duplicate 项的 desc——靶子字面 "Copy the photos as a new album"(33b05636
-  // zh_CN.json:"把照片复制为一个新相册")。
+  // Duplicate menu item's desc -- target literal "Copy the photos as a new album" (33b05636
+  // zh_CN.json: "把照片复制为一个新相册").
   photosAlbumDuplicateHint: '把照片复制为一个新相册',
-  // ── Task 7: 相册 → 智能相册转换弹窗 ──
+  // ── Albums → Smart Album conversion dialog ──
   photosAlbumConvertSuggestHint: 'Nimo 建议以下条件——最终匹配结果以智能相册创建时为准',
   photosAlbumConvertLockHint: '现有 {n} 张照片将保持锁定，Nimo 会按这个主题持续加入新照片。',
   photosAlbumConverting: '转换中…',
@@ -255,7 +259,7 @@ export default {
   photosAlbumDeleteHint: '照片会保留在图库中',
   photosAlbumDeleteTitle: '删除「{name}」?',
   photosAlbumDeleteBody: '只删除相册本身,其中 {count} 张照片仍保留在图库中。',
-  // Whole-branch review, Important 3: the target keeps the select bar's copy and the tile
+  // The target keeps the select bar's copy and the tile
   // tooltip's copy deliberately distinct -- only the tooltip mentions "★ to set cover"
   // (33b05636 PhotosAlbumDetail.vue:330 vs :799-800). photosAlbumHintSelectDrag is the bar's
   // manual-sort branch; the plain-sort branch reuses photosSvClickToSelect, which already
@@ -270,21 +274,22 @@ export default {
   photosAlbumSortManual: '手动排序',
   photosAlbumSortTaken: '拍摄日期',
   photosAlbumSortAdded: '添加日期',
-  // SP15-P2c Task 3: the detail-page skeleton shared with the smart-view detail page.
+  // The detail-page skeleton shared with the smart-view detail page.
   // photosDetailItems/photosDetailVideos are the lowercase header-stats words that follow a
   // bold number ("12 items"), not the sidebar stat-cell captions (photosMoPhotos /
   // photosAlbumStatVideos) -- the English differs in case, so they are separate keys.
   photosDetailCreatedAt: '创建于 {date}',
   photosDetailItems: '项',
   photosDetailVideos: '视频',
-  // Task 4: About section's "Time span" row label. Distinct from photosMoTime (moment detail's
+  // About section's "Time span" row label. Distinct from photosMoTime (moment detail's
   // own About row calls its third field "Time", a different label for a different thing).
   photosDetailTimeSpan: '时间跨度',
   photosAlbumCurrentCover: '当前封面',
   photosAlbumSetCover: '设为相册封面',
   photosAlbumEmptyTitle: '相册是空的',
   photosAlbumEmptyHint: '点「添加照片」从图库中挑选。',
-  // New-UI 补齐项(Vue2 无独立详情路由,不会出现此情形):直链/刷新进入一个不存在的相册 id。
+  // New-UI addition (Vue2 has no standalone detail route, so this situation can't occur there):
+  // deep-linking / refreshing into an album id that doesn't exist.
   photosAlbumNotFoundTitle: '相册不存在',
   photosAlbumNotFoundHint: '它可能已被删除,或链接有误。',
   photosAlbumRenamedToast: '相册已重命名',
@@ -296,7 +301,7 @@ export default {
   photosAlbumOrderFailed: '排序保存失败',
   photosAlbumRemovedToast: '已从相册移除 {count} 项',
   photosAlbumRemoveFailed: '移除失败',
-  // ── 相册:库选择器(添加照片) ──
+  // ── Albums: Library picker (add photos) ──
   photosAlbumPickerTitle: '添加照片到「{name}」',
   photosAlbumPickerEmpty: '没有可添加的照片。',
   photosAlbumPickerAlready: '已在相册中',
@@ -306,39 +311,44 @@ export default {
   photosAlbumPickerDiscardConfirm: '确定',
   photosAlbumAddedToast: '已添加 {count} 项到「{name}」',
   photosAlbumAddFailed: '添加失败',
-  // ── 相册:相册选择器(加入相册) ──
+  // ── Albums: Album picker (add to album) ──
   photosAddToAlbum: '加入相册',
   photosAddToAlbumTitle: '加入相册',
   photosAddToAlbumEmpty: '还没有相册,先新建一个。',
   photosAddToAlbumNew: '+ 新建相册',
-  // ── 相册:收藏视图 Save as Album ──
-  // Acceptance Fix-2(owner finding):Vue2 PhotosFavoritesView.vue 的 hero 按钮(:22)与弹窗标题
-  // (:282)用的是同一句 $t('Save as Album'),值对齐 Vue2(zh_CN.json:2269)后两处复用
-  // 同一个 key(旧的、值不一致的 photosFavSaveAlbumTitle 废弃,不与已对齐的 key 并存)。
+  // ── Albums: Favorites view - Save as Album ──
+  // Vue2 PhotosFavoritesView.vue reuses the exact same $t('Save as Album') string for both the
+  // hero button (:22) and the modal header title (:282) -- aligned to Vue2's value
+  // (zh_CN.json:2269) and reused for both here too (the previous separate
+  // photosFavSaveAlbumTitle key, whose value didn't match, is retired rather than kept
+  // alongside a now-matching key).
   photosFavSaveAlbum: '保存为相册',
   photosFavSaveAlbumDefault: '收藏 · {year}',
-  // Vue2 :291 的输入框 placeholder —— 字面硬编码字符串(不像上面的默认值那样按当前年份模板化),逐字转录。
+  // Vue2 :291's input placeholder -- a literal hardcoded string (not templated with the
+  // current year, unlike the pre-filled default value above), transcribed verbatim.
   photosFavSaveAlbumPlaceholder: '如 收藏 · 2026',
-  // 评审 Important 2:补 Vue2 PhotosFavoritesView.vue:267-268/279-281 的副标题+脚注(T3
-  // 键清单漏列)。中文值取自 Vue2 面板的 src/assets/lang/zh_CN.json:2187/2231。
+  // Adds Vue2 PhotosFavoritesView.vue:267-268/279-281's subtitle + footnote (missing from the
+  // original key list). Chinese values taken from the Vue 2 panel's
+  // src/assets/lang/zh_CN.json:2187/2231.
   photosFavSaveAlbumSub: '将 {count} 张收藏的照片快照保存为新相册',
   photosFavSavedToast: '「{name}」已保存 · {count} 张照片',
   photosFavSaveFailed: '保存失败',
   photosFavSaveAlbumNote: '相册会成为静态快照 —— 收藏新照片时不会自动更新。你可以随时再新建一个。',
-  // ── 相册:人物。中文值逐字取自 Vue2 面板的 src/assets/lang/zh_CN.json,
-  // 用同句英文原文当 key 查出。术语统一:Unnamed clusters→"未命名人物",不用"簇/聚类"
-  // (下方标注 [聚类→人物] 的几条为按此规则改写,原查得译文含"聚类" 二字)。
+  // ── Albums: People. Chinese values are taken verbatim from the Vue 2 panel's
+  // src/assets/lang/zh_CN.json, looked up by the matching English source string used as the
+  // key. Terminology: Unnamed clusters -> "未命名人物", avoiding "簇/聚类" (the few lines marked
+  // [聚类→人物] below were rewritten under this rule; the originally looked-up translation
+  // contained "聚类").
   photosPeople: '人物',
-  // Plan D Task 2 (re-shell): PhotosTopbar's `sub` line, for this page's index route. Vue2
+  // PhotosTopbar's `sub` line, for this page's index route. Vue2
   // PhotosPeopleTopbar.vue:37's index-state subtitle is "Face clusters · {named} named ·
-  // {unnamed} unnamed"; this key's task brief gave the count portion verbatim but deliberately
-  // dropped the "Face clusters ·" prefix (per the brief itself), so only the count clause is
-  // kept here — not a missed transcription.
+  // {unnamed} unnamed"; only the count clause is kept here, deliberately dropping the
+  // "Face clusters ·" prefix — not a missed transcription.
   photosPeopleTopbarSub: '{named} 个已命名 · {unnamed} 个未命名',
   photosPeopleNamed: '{n} 个已命名',
-  photosPeopleUnnamedClusters: '{n} 个未命名人物', // [聚类→人物],原文 "{n} 个未命名聚类"
+  photosPeopleUnnamedClusters: '{n} 个未命名人物', // [clusters→people] rewritten; the originally looked-up translation was "{n} 个未命名聚类"
   photosPeopleIndexedUpTo: '人脸索引更新至 {date}',
-  // Task 4 (2026-08-19 timeline/people-visibility fix): photosPeopleConfidence /
+  // 2026-08-19 timeline/people-visibility fix: photosPeopleConfidence /
   // photosPeopleConfidenceOption / photosPeopleClusters deleted here — the confidence dropdown
   // they belonged to is gone (see peopleView.ts's file header; a fixed 80% confidence default
   // silently hid a real 221-photo cluster). Verified zero remaining references before removal.
@@ -347,7 +357,7 @@ export default {
   photosPeopleFilterFriends: '朋友',
   photosPeopleFilterWork: '工作',
   photosPeopleFilterRecent: '最近',
-  // Vue2 是两个分开的 $t('Sort:') + $t(label),New-UI 合成单键,zh 取 "排序：" 原译文拼接
+  // Vue2 splits this into $t('Sort:') + $t(label); New-UI composes a single key, zh reuses the "排序：" translation concatenated with the label.
   photosPeopleSort: '排序： {label}',
   photosPeopleSortFreq: '频率',
   photosPeopleSortFreqHint: '按拍摄次数排序（最多在前）',
@@ -362,20 +372,22 @@ export default {
   photosPeopleFacesOffLink: '设置 · AI 行为',
   photosPeopleMlOfflineTitle: 'Photos AI 后端离线',
   photosPeopleMlOfflineBody: '人脸识别与智能搜索暂时暂停，直到 Photos AI 服务启动完成或恢复可用。现有人物仍会显示。',
-  // 术语红线:"集群"同"簇/聚类"一类工程词,面向用户文案不用,改"两组人脸/已合并到"(fix-1)
-  // 2026-08-20(people-confirm-polish item 1):旧的整簇合并建议横幅(photosPeopleMergeFound/
-  // photosPeopleMergeReview/photosPeopleMergeDismissAll)与 MergeReviewDialog 一起已删除;
-  // 这两条 reason 键仍留着——mergeReasonKey(peopleView.ts)本身没删(纯函数、有自己的单测,
-  // 未来的合并卡片功能大概率还要用它),但当前视图层已无调用点。
+  // Terminology rule: "集群"/"簇/聚类" (cluster) are engineering jargon and are avoided in
+  // user-facing copy, rewritten as "两组人脸/已合并到" ("two groups of faces" / "merged into").
+  // 2026-08-20 people-confirm-polish: the old whole-cluster merge-suggestion banner
+  // (photosPeopleMergeFound/photosPeopleMergeReview/photosPeopleMergeDismissAll) was removed
+  // along with MergeReviewDialog. The two reason keys below stay — mergeReasonKey (peopleView.ts)
+  // itself wasn't deleted (a pure, already-tested helper a future merge-cards feature would
+  // likely reuse), just its only current caller.
   photosPeopleMergeReasonNamed: '两组人脸高度相似（{pct}%），可能都是 {name}。',
   photosPeopleMergeReasonUnnamed: '两组人脸高度相似（{pct}%），可能是同一个人。',
   photosPeoplePinned: '置顶',
   photosPeoplePinnedHint: '你收藏的人物',
   photosPeopleNamedSection: '已命名',
   photosPeopleNamedHint: '{n} 个，按频率排序',
-  photosPeopleUnnamedSection: '未命名人物', // 术语规则直给,不查表(表里是"未命名聚类")
-  photosPeopleUnnamedHint: '{n} 个人物 · 点击命名、合并或删除', // [聚类→人物]
-  // Fix round 2 (2026-08-19 timeline/people-visibility fix, product decision): the singleton
+  photosPeopleUnnamedSection: '未命名人物', // term rule applied directly, not looked up (the table has "未命名聚类")
+  photosPeopleUnnamedHint: '{n} 个人物 · 点击命名、合并或删除', // [clusters→people]
+  // 2026-08-19 timeline/people-visibility fix, product decision: the singleton
   // toggle (photosPeopleHideSingle/photosPeopleShowSingle) and the fold expander
   // (photosPeopleShowMoreClusters/photosPeopleCollapseClusters) are both deleted — the unnamed
   // grid now shows ONLY the distribution split's `visible` head, with no way to reach singleton
@@ -383,13 +395,14 @@ export default {
   photosPeopleHide: '隐藏',
   photosPeopleShow: '显示',
   photosPeoplePhotosCount: '{n} 张照片',
-  // 用户验收新增键(Vue2 无对应原文):未命名人物菜单的详情页入口 + 详情页 hero 在人物
-  // 无名字时的兜底标题。Vue2 里未命名人物根本进不去详情页,所以这两处它都不需要文案。
+  // New-UI addition (no Vue2 source): the unnamed-person menu's detail-page entry, plus the
+  // detail page hero's fallback title when the person has no name yet. Vue2's unnamed people
+  // can't reach the detail page at all, so neither needed copy there.
   photosPersonViewPhotos: '查看这些照片',
   photosPersonUnnamedTitle: '未命名人物',
   photosPersonNameThis: '为这个人命名…',
   photosPersonMergeExisting: '合并到已有人物…',
-  photosPersonDeleteCluster: '删除这个人物', // 术语红线:原查得"删除集群",改掉"集群"(fix-1)
+  photosPersonDeleteCluster: '删除这个人物', // terminology rule: originally looked up as "删除集群"; "集群" (cluster) rewritten out
   photosPersonNameTitle: '为这个人命名',
   photosPersonNamePlaceholder: '如 Sara / Lily / 老松',
   photosPersonNameHint: '命名后 Nimo 会把 {n} 张照片中包含这张脸的都归到这个人名下，以后新导入也会自动识别。',
@@ -398,27 +411,28 @@ export default {
   photosPersonMergeTitle: '合并到已有人物',
   photosPersonMergeSearch: '搜索现有人物…',
   photosPersonNoMatch: '没有匹配的人物',
-  photosPersonMergedToast: '已合并到「{name}」', // 术语红线:原查得"集群已合并到…",去掉"集群"(fix-1)
-  photosPersonMergeFailed: '合并失败', // ★ New-UI 补齐,brief 已直给中文
+  photosPersonMergedToast: '已合并到「{name}」', // terminology rule: originally looked up as "集群已合并到…"; "集群" (cluster) removed
+  photosPersonMergeFailed: '合并失败', // ★ New-UI addition, Chinese value given directly
   photosPersonDeleteTitle: '删除这个人物分组？',
   photosPersonDeleteBody: '照片会保留。人物分组与识别记录将被永久删除。你可以在 5 秒内撤销。',
   photosPersonConfirmDelete: '确认删除',
   photosPersonDeletedToast: '{label} 已删除',
   photosPersonUndo: '撤销',
-  // 2026-08-20(people-confirm-polish item 1):MergeReviewDialog.vue 已删除,专供它使用的
-  // photosPersonMergeSuggestTitle/photosPersonNotAMatch/photosPersonMergeAs/
-  // photosPersonMergeGroupA/B/photosPersonMergeNimoLead/photosPersonMergeDismissedToast
-  // 一并移除(逐一核实过在其余代码里已无引用)。photosPersonMergeSuggestConfidence 仍被
-  // ClusterActionDialog.vue 使用,photosPersonMergeAsSame 仍被 PhotosPeople.vue/
-  // PhotosPersonDetail.vue 的合并成功提示复用,两者都保留。
+  // 2026-08-20 people-confirm-polish: MergeReviewDialog.vue is deleted; the keys that existed
+  // solely for it (photosPersonMergeSuggestTitle/photosPersonNotAMatch/photosPersonMergeAs/
+  // photosPersonMergeGroupA/B/photosPersonMergeNimoLead/photosPersonMergeDismissedToast) are
+  // removed with it (checked one by one: no remaining references elsewhere).
+  // photosPersonMergeSuggestConfidence stays — still used by ClusterActionDialog.vue.
+  // photosPersonMergeAsSame stays — still reused by PhotosPeople.vue/PhotosPersonDetail.vue's
+  // merge-success toasts.
   photosPersonMergeSuggestConfidence: '置信度 {n}%',
   photosPersonMergeAsSame: '同一个人',
-  // Plan D Task 3: photosPersonSubtitle ("Person detail · faces & relations") is revived. Final
-  // review Minor 8 (back in the earlier P5 phase) deleted it, on the grounds that the detail
-  // page's topbar was AreaShell at the time (title only, hidden entirely on desktop), so Vue2
-  // PhotosPeopleTopbar.vue:36's detail-state subtitle had nowhere to live. Task 3 re-shelled
-  // PhotosPersonDetail.vue onto PhotosTopbar (title/sub/back props), which is exactly that
-  // detail-state slot — this key is genuinely needed again now. Don't confuse it with
+  // photosPersonSubtitle ("Person detail · faces & relations") is revived. It was previously
+  // deleted on the grounds that the detail page's topbar was AreaShell at the time (title only,
+  // hidden entirely on desktop), so Vue2 PhotosPeopleTopbar.vue:36's detail-state subtitle had
+  // nowhere to live. The detail page was later re-shelled onto PhotosTopbar (title/sub/back
+  // props), which is exactly that detail-state slot — this key is genuinely needed again now.
+  // Don't confuse it with
   // photosPeopleNamed / photosPeopleUnnamedClusters — those two come from Vue2's own **banner**
   // (PhotosPeopleView.vue:7-9), landing in the People index page's .people-sub, unrelated to
   // this topbar subtitle.
@@ -432,13 +446,15 @@ export default {
   photosPersonStatFirstSeen: '最早出现',
   photosPersonMakeAlbum: '制作相册',
   photosPersonBackground: '背景',
-  // Task 8 (Plan D): the hero's three buttons filled in (Vue2 PhotosPersonDetail.vue:89-91). The
-  // click here is a no-op (wiring belongs to Plan G); this only adds copy and visuals first.
+  // The hero's three buttons filled in (Vue2 PhotosPersonDetail.vue:89-91). The
+  // click here is a no-op for now (wiring comes later); this only adds copy and visuals first.
   photosPersonAskAbout: '问 Nimo 关于 {name}',
-  // ★ New-UI 补齐(Task 10):Vue2 :33 该按钮字面是通用的 $t('Edit')(胶囊触发按钮本身的
-  // 文案,不是下面三个菜单项),本仓 photosAlbumEdit/topbarEdit 等既有"编辑"键都各自绑定
-  // 别的具体场景(相册网格编辑态/桌面编辑态),语义不是"打开这个人物的重命名/合并/删除菜单"——
-  // 不复用会在那些键改动时被无关连累,故单独开一个人物专属键。
+  // ★ New-UI addition: Vue2 :33's button is literally the generic $t('Edit') (the copy on the
+  // pill trigger button itself, not the three menu items below it). This repo's existing "Edit"
+  // keys (photosAlbumEdit/topbarEdit, etc.) are each bound to a different specific context
+  // (album-grid edit mode / desktop edit mode), not "open this person's rename/merge/delete
+  // menu" — reusing one would tie this to unrelated changes to those keys, so a dedicated
+  // person-scoped key is used instead.
   photosPersonEdit: '编辑',
   photosPersonRename: '重命名人物',
   photosPersonMergeInto: '合并到另一个人物',
@@ -456,7 +472,7 @@ export default {
   photosPersonKeyPhotoToast: '关键照片已更新',
   photosPersonKeyPhotoNoFace: '那张照片中没有这个人的脸',
   photosPersonKeyPhotoFailed: '设置关键照片失败',
-  // Vue2 :884-897 单/复数各一套文案,fix-2 起改为 4 条全加(此前只留复数通用形式已删)
+  // Vue2 :884-897 has separate singular/plural copy; all 4 strings are added (the earlier plural-only generic pair is removed).
   photosPersonDetachTitleOne: '不是 {name}？',
   photosPersonDetachTitleMany: '从 {name} 中移除这 {n} 张照片？',
   photosPersonDetachHintOne: '这张照片里的脸将从 {name} 中移除，不会再出现在这个人下。',
@@ -468,35 +484,37 @@ export default {
   photosPersonSaveHero: '保存',
   photosPersonHeroSavedToast: '背景已更新',
   photosPersonHeroFailed: '更新背景失败',
-  // 终审 Minor 10:这句英文原文 `Rename failed` 在旧仓 zh_CN.json 里**有**对应译文
-  // "重命名失败",★(= 本仓自拟)标错了;按分支纪律「译文一律从旧仓查同句英文原文」
-  // 改回原译,不再用自拟的"改名失败"。
+  // The English source string `Rename failed` **does** have a corresponding translation in
+  // the old repo's zh_CN.json ("重命名失败"); the ★ (= authored here) marker was wrong. Reverted
+  // to the source translation instead of the previously authored "改名失败".
   photosPersonRenamedFailed: '重命名失败',
   photosPersonAlbumCreatedToast: '已创建相册 · {name}', // ★
-  // 终审 Minor 10:同上 —— `Could not create album` 在 zh_CN.json 里有原译"相册创建失败",
-  // ★ 标错了,改回原译(原为自拟的"无法创建相册")。
+  // Same as above -- `Could not create album` has an existing translation in zh_CN.json
+  // ("相册创建失败"); the ★ marker was wrong, reverted to the source translation (previously
+  // authored as "无法创建相册").
   photosPersonAlbumFailed: '相册创建失败',
-  // ── 终审 Minor 9/10 复核结论 ─────────────────────────────────────────────
-  // 以下这批带 ★ 的键:★ 的含义是「Vue2 没有这句文案,本仓自拟」(约定见 :788 / :813)。
-  // 终审要求逐条回旧仓 zh_CN.json 复核,已核完:这批的英文原句在 zh_CN.json 里**确实不存在**
-  // (`Could not update group` / `Could not update favorite` / `No photos for this person yet` /
-  //  `Person not found` / `Back to people` / `No people yet` / `Nimo groups faces…` /
-  //  `Show all {n}` / `Show less` 均查无此条),所以 ★ 对它们是准确的,译文按术语惯例自拟成立。
-  // 唯独上面 photosPersonRenamedFailed / photosPersonAlbumFailed 两条查得到原译,已改回(Minor 10)。
-  // Final-review follow-up (fix round, Plan D): the ★ that used to sit on `photosPersonNotFound`/
-  // `photosPersonBack` below has gone stale — Vue2 commit 03245590 later added matching copy for
-  // both (`Person not found` / `Back to People`, PhotosPersonDetail.vue:471/473, part of the same
-  // fallback-branch source this task's I1 re-anchor draws from), so they are no longer "no Vue2
-  // copy, authored here." ★ removed from both.
+  // ── ★-marker re-check ─────────────────────────────────────────────────────
+  // The keys below marked ★ mean "no such copy in Vue2, authored here" (convention noted at
+  // :788 / :813). Re-checked every one of them against the old repo's zh_CN.json: the English
+  // source sentences genuinely do not exist there (`Could not update group` / `Could not
+  // update favorite` / `No photos for this person yet` / `Person not found` / `Back to
+  // people` / `No people yet` / `Nimo groups faces…` / `Show all {n}` / `Show less` -- none of
+  // these turned up a match), so ★ is accurate for them and the values follow the established
+  // terminology convention. Only photosPersonRenamedFailed / photosPersonAlbumFailed above did
+  // turn up an existing translation and have been reverted to it (see above).
+  // The ★ that used to sit on `photosPersonNotFound`/`photosPersonBack` below has gone stale —
+  // Vue2 commit 03245590 later added matching copy for both (`Person not found` / `Back to
+  // People`, PhotosPersonDetail.vue:471/473), so they are no longer "no Vue2 copy, authored
+  // here." ★ removed from both.
   photosPersonRelationFailed: '无法更新分组', // ★
   photosPersonFavFailed: '无法更新收藏', // ★
   photosPersonNoPhotos: '这个人还没有照片', // ★
   photosPersonNotFound: '找不到这个人物',
   photosPersonBack: '返回人物',
   photosPeopleEmptyTitle: '还没有识别出人物', // ★
-  // Task 6 (Plan D, PR#137 gap-close): replaces the old single `photosPeopleEmptyHint` —
-  // Vue2 #137 splits into two copy branches (face recognition on/off); translation taken from
-  // Vue2 commit 03245590's own zh_CN.json translation.
+  // Replaces the old single `photosPeopleEmptyHint` — Vue2's later patch (commit 03245590,
+  // PR #137) splits into two copy branches (face recognition on/off); translation taken from
+  // that commit's own zh_CN.json translation.
   photosPeopleEmptyHintFaces: '照片索引过程中会自动识别人脸，人物很快会出现在这里。',
   photosPeopleEmptyHintNoFaces: '开启人脸识别后，即可在照片中发现人物。',
   photosPersonShowAll: '查看全部 {n} 张', // ★
@@ -504,53 +522,56 @@ export default {
   photosPersonPlacesLegend: '常去地点',
   photosPersonNoPlaces: '暂无 {name} 的位置数据',
   photosPersonNimoRead: 'Nimo 的解读',
-  // Task 8 (Plan D): the rel-insight-card's bottom "Dig deeper" button (Vue2
-  // PhotosPersonDetail.vue:228-230 `.nimo-btn`). The click is a no-op (wiring belongs to Plan G).
+  // The rel-insight-card's bottom "Dig deeper" button (Vue2
+  // PhotosPersonDetail.vue:228-230 `.nimo-btn`). The click is a no-op for now (wiring comes later).
   photosPersonDigDeeper: '深挖',
   photosPersonInsightWith: '{name} 最常与 <b>{other}</b> 一起出现。',
   photosPersonInsightWithUnnamed: '{name} 与一位未命名的人一起出现。',
   photosPersonInsightPlaces2: '他们的照片集中在 <b>{place1}</b> 和 <b>{place2}</b>。',
   photosPersonInsightPlace1: '他们的照片集中在 <b>{place}</b>。',
   photosPersonInsightNone: '{name} 的照片还不够多，暂无法生成洞察。',
-  photosPersonUnknownPlace: '未知', // zh_CN.json 无裸 "Unknown" 条目,按同文件 "Unknown date"→"未知日期" 的既有惯例取"未知",见报告疑虑项
-  // SP7-P5 task-6 补:T3 漏掉的一条界面文案,协调者已从 zh_CN.json 查得原译文给定 (:2079)。
-  // 追加在段末,不重排既有键。photosPeopleMinScore(置信度下拉小标题)已随 Task 4 的
-  // 置信度下拉一并删除,见 peopleView.ts 文件头注释。
-  photosPeopleClusterHint: '+ 命名 / 合并 / 删除', // 未命名卡片悬停提示,Vue2 :204
-  // T7 协调者补:ClusterActionDialog 命名模式的 <label>,原文 zh_CN.json:49 "Name": "名称"。
-  // 追加在段末,不重排既有键。
+  photosPersonUnknownPlace: '未知', // no bare "Unknown" entry in zh_CN.json; following this file's existing "Unknown date"→"未知日期" convention, uses "未知"
+  // One UI string missed earlier; wording taken from zh_CN.json (:2079). Appended at the end
+  // of the block, existing keys not reordered. photosPeopleMinScore (the confidence dropdown
+  // header) was removed alongside the confidence dropdown, see peopleView.ts's file header.
+  photosPeopleClusterHint: '+ 命名 / 合并 / 删除', // unnamed cluster hover hint, Vue2 :204
+  // <label> for ClusterActionDialog's name mode, source zh_CN.json:49 "Name": "名称". Appended
+  // at the end of the block, existing keys not reordered.
   photosPersonNameLabel: '名称',
-  // T7 评审必修 1 补:delete 模式头部标题槶位,对应 Vue2 PhotosPeopleView.vue:262
-  // $t('Delete face cluster')(区别于警示条内部自己的标题行 photosPersonDeleteTitle,
-  // 二者是两句不同文案,不能共用一个键)。zh_CN.json:2006 原译文是"删除面部集群",但
-  // "集群"触犯本期术语红线(T3 已清掉四处"集群"),这里改用"删除这组人脸"。
+  // Delete mode's header-title slot, corresponding to Vue2 PhotosPeopleView.vue:262
+  // $t('Delete face cluster') (distinct from the warning box's own title line,
+  // photosPersonDeleteTitle -- two different sentences, cannot share one key). zh_CN.json:2006's
+  // original translation is "删除面部集群", but "集群" (cluster) violates the terminology rule
+  // (already cleared out in several other places), so this uses "删除这组人脸" instead.
   photosPersonDeleteClusterTitle: '删除这组人脸',
-  // 协调者裁定补(Task 12 fix):地点 tab 的段落标题归 tab 组件自己渲染
-  // (Vue2 PhotosPersonDetail.vue :156-162 在 v-if="tab==='map'" 块内,是该 tab
-  // 自己的一部分;T13 的关系 tab 同理各有自己的段落标题)。译文取自 zh_CN.json
-  // :2138(Places with {name})与 :2233(Where you've photographed them, all-time)。
-  // 追加在段末,不重排既有键。
+  // The places tab's section title belongs to the tab component itself (Vue2
+  // PhotosPersonDetail.vue :156-162 sits inside v-if="tab==='map'", it's part of that tab; the
+  // relationships tab is the same, each tab owns its own section title). Translation taken from
+  // zh_CN.json :2138 (Places with {name}) and :2233 (Where you've photographed them, all-time).
+  // Appended at the end of the block, existing keys not reordered.
   photosPersonPlacesTitle: '{name} 去过的地方',
   photosPersonPlacesSub: '你在此人所有照片中拍摄过的地点',
-  // Task 13 补:关系 tab 的段落标题/图例/共现计数短语(译文取自 zh_CN.json
-  // :2148 Relationship graph / :2019 Edge thickness.../ :2039 Frequent (200+) /
-  // :2120 Occasional / :1996 Co-appearance / :2114 {n} photos together)。
-  // photosPersonInsightWith 等洞察拼句键已在段中(:895-900),这里只补图区自己的文案。
-  // 追加在段末,不重排既有键。
+  // The relationships tab's own section title / legend / co-appearance count phrase
+  // (translation taken from zh_CN.json :2148 Relationship graph / :2019 Edge thickness.../
+  // :2039 Frequent (200+) / :2120 Occasional / :1996 Co-appearance / :2114 {n} photos
+  // together). The insight-sentence keys (photosPersonInsightWith etc.) already exist above
+  // (:895-900); these are just the graph area's own copy. Appended at the end of the block,
+  // existing keys not reordered.
   photosPersonGraphTitle: '关系图谱',
   photosPersonGraphSub: '连线粗细 = 共同出现次数',
   photosPersonGraphLegendFrequent: '频繁 (200+)',
   photosPersonGraphLegendOccasional: '偶尔',
   photosPersonCoappearTitle: '共同出现',
   photosPersonPhotosTogether: '共同出现 {n} 张照片',
-  // Task 6 (Plan D, PR#137 gap-close): the relation-graph empty state; translation taken from
-  // Vue2 commit 03245590's own zh_CN.json translation.
+  // Vue2's later patch (commit 03245590) added the relation-graph empty state; translation
+  // taken from that commit's own zh_CN.json translation.
   photosPersonRelGraphEmptyTitle: '暂无同框记录',
   photosPersonRelGraphEmptySub: '当这个人与其他人同框出现在照片里时，关系图会显示在这里。',
-  // Task 14 补(容器 + 六个弹窗;brief 的键清单里没有,逐段核对 Vue2
-  // PhotosPersonDetail.vue 后确认本仓确实缺失才补的,行号见各条注释)。
-  // 译文一律从旧仓 zh_CN.json 查同句英文原文;查不到的按已确立的术语惯例直给。
-  // 追加在段末,不重排既有键。
+  // Container + six dialogs: copy that the original key list did not cover and that a
+  // line-by-line pass over Vue2 PhotosPersonDetail.vue showed was genuinely missing here (line
+  // numbers noted per key). Translations are all looked up from the old repo's zh_CN.json by
+  // the matching English source string; where none exists, values follow the established
+  // terminology convention. Appended at the end of the block, existing keys not reordered.
   photosPersonSameFrameSub: '与 {name} 同框出现的人', // Vue2 :112
   photosPersonRenameHint: '这个名字会在这张脸出现的所有地方生效。', // Vue2 :776
   photosPersonAlbumHint: '{n} 张照片将被加入这个相册。', // Vue2 :861
@@ -559,94 +580,105 @@ export default {
   photosPersonNoPhotosAlbumHint: '这个人还没有可加入相册的照片。', // Vue2 :848
   photosPersonHeroSub: '选择一张照片作为背景大图', // Vue2 :339
   photosPersonMergeIntoSub: '所有照片都会转移到目标人物', // Vue2 :388
-  // 终审 Minor 9:原译是 `Merge into {name}`→"合并到 {name}"(zh_CN.json),自拟时多加了
-  // 「」书名号 —— 按纪律改回原译。
+  // The source translation is `Merge into {name}` → "合并到 {name}" (zh_CN.json); the authored
+  // version had extra 「」 brackets — reverted to the source translation.
   photosPersonMergeConfirm: '合并到 {name}', // Vue2 :428(选中态)
-  // 终审 Minor 9:原译是 `Select a person`→"选择一个人物"(zh_CN.json),自拟时加了"请"。
+  // The source translation is `Select a person` → "选择一个人物" (zh_CN.json); the authored
+  // version added an extra "请" ("please").
   photosPersonMergeSelectPrompt: '选择一个人物', // Vue2 :428(未选中态)
-  // Vue2 :962 $t('Unnamed person') —— 删除 toast 里未命名人物的占位标签。术语与
-  // photosPeopleUnnamedSection 同为"未命名人物",但那是分区标题、语义不同,不共用键。
+  // Vue2 :962 $t('Unnamed person') -- the placeholder label for an unnamed person in the delete
+  // toast. Shares the same words "未命名人物" as photosPeopleUnnamedSection, but that one is a
+  // section title with different semantics, so they don't share a key.
   photosPersonUnnamedLabel: '未命名人物',
-  // 偏离登记 1:Vue2 :943 detach 失败只 console.error(用户看不到任何反馈),这里补 toast。
+  // Deviation from Vue2: :943's detach failure only console.error's (no user-visible feedback); a toast is added here.
   photosPersonDetachFailed: '移除失败',
-  // Task 14 fix(协调者裁定 3):brief 说「Vue2 有四条 toast,合成两条」,回源核对
-  // 发现两个入口各有自己的一对文案且语义确实不同 —— onUseKeyPhoto(:681,683)是"重置回
-  // 关键照片",onSaveHero(:694,696)是"改成选中的这张"。两对分别用键,不合并。
+  // The initial assumption was that Vue2's four toasts collapse into two; checking the source
+  // shows the two entry points each own a distinct pair with genuinely different meaning --
+  // onUseKeyPhoto (:681,683) is "reset back to the key photo", onSaveHero (:694,696) is "switch
+  // to the picked photo". Kept as two separate pairs, not merged.
   photosPersonHeroResetToast: '背景已重置为关键照片', // Vue2 :681
   photosPersonHeroResetFailed: '重置背景失败', // Vue2 :683
-  // Task 14 fix(协调者裁定 4):加载失败与「没有这个人」必须可区分(T9 的 failed 标志
-  // 正是为此而加;Vue2 只 console.error,视图分不清)。同时补重试入口 —— P4 遗留过一条
-  // 同类账(详情页加载失败 → 永久骨架、无错误态无重试),本期不再留。
+  // A load failure must be distinguishable from "no such person" — that is exactly what the
+  // `failed` flag is for (Vue2 only console.error's, so its view can't tell them apart). A
+  // retry affordance is added too — an earlier phase left a similarly-shaped gap (detail page
+  // load failure → permanent skeleton, no error state, no retry) that isn't repeated here.
   photosPersonLoadFailed: '无法加载这个人物',
-  // Task 6 (Plan D, PR#137 gap-close): the load-failed/person-not-found fallback states were each
-  // missing a description line — translation taken from Vue2 commit 03245590's own zh_CN.json
-  // translation.
+  // The load-failed/person-not-found fallback states were each missing a description line —
+  // Vue2's later patch (commit 03245590) added them; translation taken from that commit's own
+  // zh_CN.json translation.
   photosPersonLoadFailedHint: '请检查网络连接后重试。',
   photosPersonNotFoundHint: '该人物可能已被删除或合并。',
   photosPersonRetry: '重试',
-  // T14 评审 Minor 4:详情页删除确认弹窗的头部标题。Vue2 :304 是 `Delete person?`,
-  // 与 T7 警示条内部那句 photosPersonDeleteTitle(`Delete this person group?` /
-  // "删除这个人物分组?")是两句不同文案 —— ClusterActionDialog.vue:66 的注释早已声明
-  // 二者不可共用键,原实现错用了后者。译文取自旧仓 zh_CN.json:2009。
+  // The detail page's delete-confirm dialog heading. Vue2 :304 is `Delete person?`, a different
+  // sentence from the in-warning-box photosPersonDeleteTitle (`Delete this person group?` /
+  // "删除这个人物分组?") -- ClusterActionDialog.vue:66's comment already documented these as
+  // non-shareable; the original implementation wrongly reused the latter. Translation taken
+  // from the old repo's zh_CN.json:2009.
   photosPersonDeletePersonTitle: '删除人物？',
-  // T14 评审 Minor 6:Vue2 :310-312 的正文是两档灰的两句话。既有 photosPersonDeleteBody
-  // 把三句合成了一条(且已被 T7 ClusterActionDialog.vue:230 消费,不能改动),这里为详情页
-  // 的两档渲染另开两键;文字与既有那条逐字一致,只是拆开。
+  // Vue2 :310-312 renders the body as two sentences in two greys. The existing
+  // photosPersonDeleteBody merges them into one string and is already consumed by
+  // ClusterActionDialog.vue:230, so it must not change — these two keys are the same text
+  // split in two for the detail page's two-tone rendering.
   photosPersonDeleteKeptBody: '照片会保留。人物分组与识别记录将被永久删除。',
   photosPersonDeleteUndoHint: '你可以在 5 秒内撤销。',
-  // ── Photos: Favorites hero-stats three cards (Task 15A, SP7-P5) —— 值取自
-  // 旧仓 zh_CN.json:1986/2045/2099/2119/2210/2211。
+  // ── Photos: Favorites hero-stats three cards -- values taken from the old repo's
+  // zh_CN.json:1986/2045/2099/2119/2210/2211.
   photosFavStatTopPerson: '出镜最多的人',
   photosFavStatTopPlace: '去得最多的地方',
   photosFavStatByYear: '按年份',
   photosFavStatInYear: '于 {year} 年',
   photosFavStatYearsTotal: '共 {n} 年',
   photosFavNoFaces: '暂无人脸',
-  // ── Task 6 (Plan H): place-filter dropdown -- Vue2 PhotosFavoritesView.vue:412-416/353-360. ──
+  // ── Place-filter dropdown -- Vue2 PhotosFavoritesView.vue:412-416/353-360. ──
   photosFavFilterPlaces: '地点',
   photosFavFilterClear: '清除筛选',
-  // ── Acceptance Fix-1(拍板发现，Plans G+H):"全部"筹码 + 人物/年份下拉 —— 值取自旧仓
-  // zh_CN.json:761/2226/2337。
+  // ── The "All" chip + People/Years dropdowns -- values taken from the old repo's
+  // zh_CN.json:761/2226/2337.
   photosFavFilterAll: '全部',
   photosFavFilterPeople: '人物',
   photosFavFilterYears: '年份',
-  // Vue2 :198-202 的 排序/最近/最早 分段切换 —— 旧仓 zh_CN.json:2294/2250/2219。
+  // Vue2 :198-202's Sort/Recent/Oldest segmented toggle -- old repo's zh_CN.json:2294/2250/2219.
   photosFavSort: '排序',
   photosFavSortRecent: '最近',
   photosFavSortOldest: '最早',
-  // ── 终审 Minor 6 / 7:hero 上的短文案 ────────────────────────────────────────
-  // M6:Vue2 :38/:41 的 Edit 下拉两项是**短动词**(`Rename` / `Merge into…`),原实现塞的是
-  // photosPersonRename / photosPersonMergeInto —— 那两个键同时是弹窗 <h*> 标题(「重命名人物」/
-  // 「合并到另一个人物」),读起来像整句,英文 24 字符在 12.5px 下还会撑宽 min-width:170px 的菜单。
-  // 译文取自旧仓 zh_CN.json:`Rename`→"重命名"、`Merge into…`→"合并到…"。
+  // ── Short copy on the hero ──────────────────────────────────────────────────
+  // Vue2 :38/:41's Edit dropdown uses **short verbs** (`Rename` / `Merge into…`); the original
+  // implementation reused photosPersonRename / photosPersonMergeInto -- those two keys double
+  // as the dialogs' <h*> titles ("重命名人物" / "合并到另一个人物"), read like full sentences, and
+  // the 24-char English at 12.5px overflows the 170px-min-width menu.
+  // Translation taken from the old repo's zh_CN.json: `Rename`→"重命名", `Merge into…`→"合并到…".
   photosPersonMenuRename: '重命名',
   photosPersonMenuMergeInto: '合并到…',
-  // M7:Vue2 :26 未收藏态的 title 是 `Mark as favorite`(不是通用的 `Favorite`)。
-  // 译文取自旧仓 zh_CN.json:`Mark as favorite`→"标记为收藏"。取消收藏那支复用既有
-  // photosUnfavorite("取消收藏"),与 zh_CN.json 的 `Remove favorite`→"取消收藏" 一致。
+  // Vue2 :26's un-favorited title is `Mark as favorite`, not the generic `Favorite`.
+  // Translation taken from the old repo's zh_CN.json: `Mark as favorite`→"标记为收藏". The
+  // favorited branch reuses the existing photosUnfavorite ("取消收藏"), matching zh_CN.json's
+  // `Remove favorite`→"取消收藏".
   photosPersonMarkFavorite: '标记为收藏',
-  // ── SP7-P6a T4:地点域(地图主视图)i18n 键 ──────────────────────────────────
-  // 译文一律回源核对 Vue2 面板的 src/assets/lang/zh_CN.json,以其实际值为准更正。
+  // ── Places domain (map view) i18n keys ──────────────────────────────────────
+  // Translations are all checked against the Vue 2 panel's src/assets/lang/zh_CN.json and
+  // corrected to match its actual values.
   photosPlaces: '地点',
-  photosPlacesCities: '城市', // json 实际值(zh_CN.json:1990),非 brief 快照的"座城市"
-  photosPlacesCountries: '国家', // json 实际值(:2002),非 brief 快照的"个国家"
-  // Task 1(Plan E 换壳):地点主视图 PhotosTopbar 的 sub 行——译文取自 zh_CN.json:2518
-  // (与 en_US.json:2442 同一英文 key 对应的中文值),回源 Vue2 PhotosPlacesTopbar.vue:34。
+  photosPlacesCities: '城市', // actual json value (zh_CN.json:1990), not the earlier draft's "座城市"
+  photosPlacesCountries: '国家', // actual json value (:2002), not the earlier draft's "个国家"
+  // Places index page's PhotosTopbar `sub` line -- translation taken from zh_CN.json:2518
+  // (the Chinese value for the same English key as en_US.json:2442), sourced from Vue2
+  // PhotosPlacesTopbar.vue:34.
   photosPlacesTopbarSub: '{cities} 个城市 · {countries} 个国家 · 由 Nimo 建立索引',
   photosPlacesPhotos: '张照片',
   photosPlacesSearchPlaceholder: '搜索城市或国家',
-  photosPlacesCityCount: '{n} 个城市', // json 实际值(:2084),非 brief 快照的"{n} 座城市"
-  photosPlacesPhotoCount: '{n} 张照片', // 与既有 photosPeoplePhotosCount 文案相同但语义域不同,各自留键
+  photosPlacesCityCount: '{n} 个城市', // actual json value (:2084), not the earlier draft's "{n} 座城市"
+  photosPlacesPhotoCount: '{n} 张照片', // same wording as the existing photosPeoplePhotosCount but a different semantic domain -- kept as separate keys
   photosPlacesFilters: '筛选',
   photosPlacesTimeRange: '时间范围',
   photosPlacesStartDate: '起始日期',
   photosPlacesEndDate: '结束日期',
   photosPlacesMinPhotos: '最少照片数',
   photosPlacesRegion: '区域',
-  // 注:Vue2 对"当前行程"这个概念有两种不同中文说法(此处 mapFilter.currentTripOnly
-  // 的勾选项是"只看当前行程",下面 :photosPlacesCurrentTrip 的裸标签是"本次旅行")——
-  // 界面 1:1 铁律高于术语统一,两处照 Vue2 原样各自保留,不擅自统一。若产品决定统一
-  // 措辞,请两处一起改。
+  // Note: Vue2 has two different Chinese phrasings for the "current trip" concept (this
+  // checkbox, mapFilter.currentTripOnly, is "只看当前行程"; the bare label at
+  // photosPlacesCurrentTrip below is "本次旅行") -- the UI-parity rule outranks terminology
+  // unification, so both are kept as Vue2 has them rather than unified. If product decides to
+  // unify the wording, change both together.
   photosPlacesCurrentTripOnly: '只看当前行程',
   photosPlacesFilterReset: '重置',
   photosPlacesFilterDone: '完成',
@@ -659,45 +691,49 @@ export default {
   photosPlacesLandDotColor: '地面点颜色',
   photosPlacesCityLightColor: '城市灯颜色',
   photosPlacesThemeDefault: '默认',
-  photosPlacesThemeOcean: '海洋', // json 确有此译文,brief 标"自拟"有误
-  photosPlacesThemeSand: '沙滩', // json 实际值,非 brief 快照自拟的"沙色"
-  photosPlacesThemeMono: '单色', // json 实际值,非 brief 快照自拟的"黑白"
+  photosPlacesThemeOcean: '海洋', // json does have this translation; marking it "authored" earlier was a mistake
+  photosPlacesThemeSand: '沙滩', // actual json value, not the earlier draft's authored "沙色"
+  photosPlacesThemeMono: '单色', // actual json value, not the earlier draft's authored "黑白"
   photosPlacesThemeDescDefault: '紫色点 + 黑色背景',
   photosPlacesThemeDescOcean: '青绿调 + 深色背景',
   photosPlacesThemeDescSand: '暖黄 + 浅调背景',
   photosPlacesThemeDescMono: '黑白灰',
   photosPlacesZoomIn: '放大',
   photosPlacesZoomOut: '缩小',
-  photosPlacesResetView: '重置视图', // json 实际值,非 brief 快照的"复位视图"
-  // 协调者裁定(fix-1):json 原译是"本次旅行"(图例第四组/hero 当前行程标记/访问历史
-  // pill 都用它)。此前按 brief 的术语表误写成"当前行程"——那份术语表本身是协调者凭印象
-  // 写的,没回源核对,是同类第四处错误(T1/T2/T3 各纠正过一处)。界面 1:1 铁律高于术语表,
-  // 改回 json 原文。上面 currentTripOnly 的"只看当前行程"是 Vue2 自身对同一概念的另一种
-  // 说法,两处不统一是 Vue2 的现状,照原样保留,不要因为看着像漏改就"顺手"统一。
+  photosPlacesResetView: '重置视图', // actual json value, not the earlier draft's "复位视图"
+  // The json's original translation is "本次旅行" (used by the legend's fourth group / the
+  // hero's current-trip marker / the visit-history pill). This had been mistakenly written as
+  // "当前行程" per an earlier terminology draft that wasn't checked against source. The
+  // UI-parity rule outranks that terminology draft, so this reverts to the json original.
+  // currentTripOnly's "只看当前行程" above is Vue2's own different phrasing for the same
+  // concept; the inconsistency is how Vue2 actually is, kept as-is rather than "helpfully"
+  // unified.
   photosPlacesCurrentTrip: '本次旅行',
-  // 大洲标签:zh_CN.json 无 Asia/Americas/Europe/Africa/Oceania/Antarctica 任何译文,确认缺失后自拟。
+  // Continent labels: zh_CN.json has no Asia/Americas/Europe/Africa/Oceania/Antarctica entry
+  // either -- confirmed missing, values authored.
   photosPlacesRegionAsia: '亚洲',
   photosPlacesRegionAmericas: '美洲',
   photosPlacesRegionEurope: '欧洲',
   photosPlacesRegionAfrica: '非洲',
   photosPlacesRegionOceania: '大洋洲',
   photosPlacesRegionAntarctica: '南极洲',
-  // 以下五条 Vue2 无对应(New-UI 补齐),自拟:
+  // The following five have no Vue2 counterpart (New-UI addition), authored:
   photosPlacesEmpty: '还没有带位置信息的照片',
   photosPlacesEmptyHint: '相册会在索引照片时读取 GPS 信息',
   photosPlacesSearchEmpty: '没有匹配「{q}」的城市',
-  photosPlacesLoadFailed: '地点加载失败', // 照 P5-T14 的 photosPersonLoadFailed 先例
-  photosPlacesRetry: '重试', // 本仓惯例每域独立 Retry 键(见 photosPersonRetry/appWidgetRetry 等),不复用
-  // 评审 I3(New-UI 新增,无 Vue2 对应):rail 空态原来恒显 photosPlacesEmpty,即使全量
-  // 地点非空、只是当前筛选条件过滤成了零结果——用户会误以为索引坏了。这里补一个专门
-  // 区分"过滤后为空"与"本来就没有位置数据"的文案。
+  photosPlacesLoadFailed: '地点加载失败', // follows the precedent set by photosPersonLoadFailed
+  photosPlacesRetry: '重试', // this repo's convention is a separate Retry key per domain (see photosPersonRetry/appWidgetRetry etc.), not reused
+  // New-UI addition, no Vue2 counterpart: the rail empty state used to always show
+  // photosPlacesEmpty even when the full place list is non-empty and only the active filters
+  // narrowed it to zero -- misleading users into thinking the index is broken. Added a distinct
+  // copy for "empty after filtering" vs. "no location data at all".
   photosPlacesFilterEmpty: '没有符合当前筛选条件的城市',
-  // ── SP7-P6b T1: Places detail panel i18n keys ──────────────────────────────
-  // 42 条取自 Vue2 面板的 src/assets/lang/zh_CN.json 原文(逐条回源核对,零出入);
-  // 3 条自拟(D8 + 偏离登记 6,见下方各自的行内注释)。
+  // ── Places detail panel i18n keys ──────────────────────────────────────────
+  // 42 sourced verbatim from the Vue 2 panel's src/assets/lang/zh_CN.json (verified against
+  // source, zero discrepancies); 3 authored (see the inline notes below).
   photosPlacesHomeBase: '常驻地',
-  // 注:zh_CN.json 里 trip/trips 两个 key 的中文译文同为"次旅行"(单复数在中文不体现),
-  // 照 json 原样各自保留一键,不合并。
+  // Note: zh_CN.json's trip/trips keys share the same Chinese translation "次旅行" (Chinese
+  // doesn't mark singular/plural) -- kept as two separate keys matching json as-is, not merged.
   photosPlacesTrip: '次旅行',
   photosPlacesTrips: '次旅行',
   photosPlacesSpotsLabel: '地点',
@@ -723,9 +759,9 @@ export default {
   photosPlacesSpotNamePlaceholder: '地点名称',
   photosPlacesSpotSave: '保存',
   photosPlacesSpotViewInLibrary: '在 Library 中查看这个 spot 的全部照片',
-  photosPlacesSpotResetName: '恢复默认名', // 自拟(D8),Vue2 无对应键
-  photosPlacesSpotRenameFailed: '地点重命名失败', // 自拟(偏离登记 6),Vue2 无对应键
-  photosPlacesCoverFailed: '封面更新失败', // 自拟(偏离登记 6),Vue2 无对应键
+  photosPlacesSpotResetName: '恢复默认名', // authored, no Vue2 counterpart
+  photosPlacesSpotRenameFailed: '地点重命名失败', // authored, no Vue2 counterpart
+  photosPlacesCoverFailed: '封面更新失败', // authored, no Vue2 counterpart
   photosPlacesCoverSet: '设置主图',
   photosPlacesCoverTitle: '设置 {city} 主图',
   photosPlacesCoverSubtitle: '从 {count} 张照片里选一张作为封面',
@@ -736,33 +772,38 @@ export default {
   photosPlacesCoverTabRecent: '近期',
   photosPlacesCoverTabTop: '最高分',
   photosPlacesCoverTabFav: '已收藏',
-  // 与既有 photosPlacesAll(筛选面板"全部")同值不同语义域(封面选择的分类 tab),各留一键。
+  // Same value as the existing photosPlacesAll (filter panel "All") but a different semantic
+  // domain (cover-picker category tab) -- kept as a separate key.
   photosPlacesCoverTabAll: '全部',
   photosPlacesInsightMostPhotographed: '你拍得最多的地方——共 {count} 张。',
-  // 去掉原 json 的 <b> 标签,{spot} 改为插值槽(<i18n-t> 只能对插值位开槽)。
+  // Original json wraps this in <b>; dropped the tag and made {spot} the interpolation slot
+  // instead (<i18n-t> can only open a slot at an interpolation position).
   photosPlacesInsightTopSpot: '{spot} 是主要拍摄点——{count} 张。',
   photosPlacesInsightCompanions: '在这里和 {names} 同框。',
-  // 偏离登记 10:原 json 是"你的<b>大本营</b>——…",加粗的静态词"大本营"拆成 {base} 插槽,
-  // 见下方 photosPlacesInsightHomeBase。
+  // Original json is "你的<b>大本营</b>——…"; the bolded static word "大本营" is split into a
+  // {base} slot, see photosPlacesInsightHomeBase below.
   photosPlacesInsightHome: '你的{base}——{trips} 次行程共 {count} 张。',
-  // 注:与上方 photosPlacesHomeBase("常驻地")是 Vue2 对同一概念的两种不同说法——
-  // 前者是筛选/列表语境的用词,这里是 insight 文案里加粗词的原文("大本营")。
-  // 界面 1:1 铁律高于术语统一,两处照 Vue2 原样各自保留,不擅自合并。
+  // Note: this and photosPlacesHomeBase ("常驻地") above are Vue2's two different phrasings for
+  // the same concept -- the former is filter/list-context wording, this is the bolded word
+  // inside the insight sentence ("大本营"). The UI-parity rule outranks terminology
+  // unification, so both are kept as Vue2 has them, not merged.
   photosPlacesInsightHomeBase: '大本营',
-  // ---- P7a-T1: 智能视图(Smart Views)107 键,追加于 photosPlacesInsightHomeBase 之后 ----
-  // (表里原列 115 行,其中 8 行与既有键值重复,按 brief 第 7 条改为复用既有键,未新增,见任务报告)
-  // Whole-branch review, Minor 6: photosSvAddedThisWeek ("+{n} this week") was SmartViewCard.vue's
-  // only consumer. That component was deleted this phase (Task 10); grep confirmed zero consumers
-  // left, so the key is removed here in both locales.
-  // P7a-T8 fix round 1 · I3:去掉字面 <b>,改 <i18n-t> 具名插槽(零 v-html)。回源核实
-  // zh_CN.json 后两条都是"插值 + 语言相关静态词"整个短语加粗(`<b>1 张新照片</b>` /
-  // `<b>{n} 张新照片</b>` 形态完全对称)⇒ 都拆成主句键 + 加粗短语键,不再区分对待
-  // (详见 SmartViewActivityFeed.vue 文件头注释与 task-8-report.md fix round 1 章节)。
+  // ---- Smart Views: 107 keys appended after photosPlacesInsightHomeBase ----
+  // (the original table listed 115 rows; 8 of them duplicated pre-existing key values and are
+  // reused rather than re-added)
+  // photosSvAddedThisWeek ("+{n} this week") was SmartViewCard.vue's only consumer. That
+  // component was later deleted; grep confirmed zero consumers left, so the key is removed
+  // here in both locales.
+  // Strip the literal <b>, switch to <i18n-t> named slots (zero v-html). Checked against
+  // zh_CN.json's source: both rows bold the whole "interpolation + language-specific word"
+  // phrase (`<b>1 张新照片</b>` / `<b>{n} 张新照片</b>` are symmetric) ⇒ both split into a
+  // base-sentence key + a bold-phrase key, treated the same way (see SmartViewActivityFeed.vue's
+  // own header comment).
   photosSvActOneMatched: '{photo} 已自动添加',
   photosSvActOneMatchedBold: '1 张新照片',
   photosSvActNMatched: '{photo} 已自动添加',
   photosSvActNMatchedBold: '{n} 张新照片',
-  // Task 8: converted_from_album activity row (reverse of Task 7's convertFromAlbum). No
+  // The converted_from_album activity row (reverse of the convertFromAlbum flow). No
   // <b> in Vue2 for either branch, so these are plain text keys -- no split main-clause +
   // bold-phrase pair like the matched rows above.
   photosSvActConvertedFromAlbum: '由相册转换而来',
@@ -770,7 +811,7 @@ export default {
   photosSvActivity: '活动',
   photosSvAddAnother: '添加另一个…',
   photosSvAllMatches: '全部匹配',
-  // P7a-T8:<b> 只包住插值 {n} ⇒ 直接开槽,去掉字面 <b></b>(零 v-html)。
+  // <b> only wraps the interpolation {n} ⇒ slot directly, strip the literal <b></b> (zero v-html).
   photosSvThreshHelp: '阈值 {pct}% 时，预计每周新增约 {n} 张照片。',
   photosSvAutoAddMatches: '自动添加新匹配',
   photosSvAutoAddMatchesPhotos: '有新照片匹配时自动加入',
@@ -783,17 +824,16 @@ export default {
   photosSvChangeSmartViewName: '修改智能视图名称',
   photosSvConditions: '条件',
   photosSvConditionsSettingsUpdated: '条件或设置已更新',
-  // ── Task 8: smart album -> regular album conversion (reverse of Task 7) ──
+  // ── Smart album -> regular album conversion (reverse flow) ──
   photosSvConvertToAlbum: '转为普通相册',
   photosSvConvertToAlbumHint: '停止自动更新，固化当前已匹配的照片',
   photosSvConvertToAlbumTitle: '将「{name}」转为普通相册？',
   photosSvConvertToAlbumBody: '停止自动更新，当前 {n} 张照片将固化为普通相册，主题与条件将被移除。',
   photosSvConvertedToAlbum: '已转为普通相册',
   photosSvCopyQuerySv: '将查询复制为新的智能视图',
-  // SP15-P2b Task 4: embedded-mode label for the same submit button that reads
-  // photosSvCreateSmartView in standalone mode (Vue2 PhotosSmartAlbumCreate.vue's own
-  // hard-coded 'Create Smart Album' string, ported here as a key since this file merges
-  // both modes into one component).
+  // Embedded-mode label for the same submit button that reads photosSvCreateSmartView in
+  // standalone mode (Vue2 PhotosSmartAlbumCreate.vue's own hard-coded 'Create Smart Album'
+  // string, ported here as a key since this file merges both modes into one component).
   photosSvCreateSmartAlbum: '创建智能相册',
   photosSvCreateSmartView: '创建智能视图',
   photosSvDeleteName: '删除「{name}」？',
@@ -809,8 +849,8 @@ export default {
   photosSvKeepLive: '保持实时更新',
   photosSvLastUpdate: '最近更新',
   photosSvLastUpdatedTime: '最近更新 {time}',
-  // SP15-P2b Task 4 (Vue2 939a7d3a:PhotosAlbumsView.vue's `sourceOptions`, 4th entry --
-  // verbatim from zh_CN.json:1987-1988, not the plan's guessed values).
+  // (Vue2 939a7d3a:PhotosAlbumsView.vue's `sourceOptions`, 4th entry -- verbatim from
+  // zh_CN.json:1987-1988, not an earlier guess.)
   photosSvLetNimoDraft: '让 Nimo 起稿',
   photosSvLetNimoDraftHint: '你描述主题，交给 AI 填充',
   photosSvLive: '即时生效',
@@ -848,7 +888,7 @@ export default {
   photosSvResumeAutoUpdates: '恢复自动更新',
   photosSvRunEveryUpload: '每次新上传都运行',
   photosSvSavedSearchKeepsItself: '已保存的搜索会自动保持最新',
-  photosSvSettingsSection: '设置', // 偏离登记:json['Settings']=系统设置,但此处是智能视图右栏段标题误用全局键(Vue2 文案 bug),这里刻意取「设置」而非回源值
+  photosSvSettingsSection: '设置', // deviation from Vue2: json['Settings'] = system settings, but here it's the Smart View right-panel section title misusing the global key (a Vue2 copy bug) -- deliberately uses "设置" rather than the source value
   photosSvSharpDogCatPortraits: '清晰的猫狗写真',
   photosSvBadgeSmartView: '智能视图',
   photosSvSmartViewNameDeleted: '智能视图「{name}」已删除',
@@ -856,8 +896,8 @@ export default {
   photosSvSmartViewRenamed: '智能视图已重命名',
   photosSvSmartViews: '智能视图',
   photosSvSmartViewsAutoUpdate: '智能视图自动更新已关闭',
-  // SP15-P2b Task 4: disabled-option title on the Albums "New album" panel's 4th fill
-  // choice when the smartview AI feature is off.
+  // Disabled-option title on the Albums "New album" panel's 4th fill choice when the
+  // smartview AI feature is off.
   photosSvSmartViewsOffCreateHint: '智能视图已关闭——请在「设置 · AI 行为」中重新开启后再创建。',
   photosSvStats: '统计',
   photosSvStrict: '严格',
@@ -876,38 +916,42 @@ export default {
   photosSvNPhotosMbMb: '{n} 张照片 · 约 {mb} MB',
   photosSvRelHours: '{n} 小时前',
   photosSvRelMinutes: '{n} 分钟前',
-  // P8a-T6:此处原有 photosSvSettingsPending(「设置页待迁移(P8)」)已删 —— 全仓零引用。
-  // 它是智能视图列表页 AI 横幅里「设置 · AI 行为」不可点 <span aria-disabled="true"> 的
-  // title,P8a-T5 建好设置页后,T6 把该 span 换成真实 <RouterLink to="/photos/settings
-  // ?section=ai">(§7e-9),这个占位 title 键随之失去用途。同 :847 处 photosPersonSubtitle
-  // 的删除先例。
-  // ---- P7a-T6: 详情页外壳新增键(T1 的 107 键之外,brief §结构规格 1/2/4/8) ----
-  // New-UI 新增路径:byId(id) 找不到这一项(手改地址栏 / 旧书签),Vue2 无此分支——见
-  // task-6-report.md 偏离登记。
+  // photosSvSettingsPending ("设置页尚未迁移") is removed here -- zero references repo-wide.
+  // It was the title on the Smart Views list page's AI banner's non-clickable
+  // "设置 · AI 行为" <span aria-disabled="true">; once the Settings page was built, that span was
+  // replaced with a real <RouterLink to="/photos/settings?section=ai">, so this placeholder
+  // title key lost its purpose. Same precedent as the photosPersonSubtitle deletion above.
+  // ---- Detail-page shell additions (beyond the 107 keys above) ----
+  // New-UI addition: byId(id) can't find this item (hand-edited address bar / stale bookmark).
+  // Vue2 has no such branch.
   photosSvNotFound: '找不到这个智能视图',
-  // T6 阶段搜索路由(T16 才建)不存在,「在搜索中细化」渲染成 disabled + 此 title；
-  // T16 接线时把这个键与本组件里对应的 disabled 一起删掉(注释已在组件里登记接线点)。
-  // 改名失败的 toast(Vue2 :512-513 无 catch,New-UI 补上,偏离登记):照
-  // photosAlbumRenameFailed / photosPersonRenamedFailed 的既定命名与文案。
+  // At this stage the search route doesn't exist yet, so "Refine in Search" renders disabled
+  // + this title; once the route is wired up, this key and the component's corresponding
+  // `disabled` should be removed together (the component's own comment notes the wiring point).
+  // The rename-failed toast (Vue2 :512-513 has no catch; New-UI adds one, a deviation from
+  // Vue2): follows the established naming/copy of photosAlbumRenameFailed /
+  // photosPersonRenamedFailed.
   photosSvRenameFailed: '重命名失败',
-  // 暂停/恢复自动更新失败的 toast(Store 纪律:向上抛出的 action 必须在视图层 catch → toast,
-  // Vue2 本无对应路径——那套本地 paused 状态从不失败,因为它压根不等后端响应)。
+  // The pause/resume auto-updates failure toast (store convention: an action that throws
+  // must be caught in the view layer and surfaced as a toast; Vue2 has no equivalent path here
+  // -- its local paused state never fails, because it never waits on a backend response).
   photosSvUpdateFailed: '更新失败',
-  // 删除/复制失败的 toast(Vue2 均无 catch,New-UI 补上,照既定命名惯例)。
+  // The delete/duplicate failure toasts (Vue2 has no catch for either; New-UI adds them,
+  // following the established naming convention).
   photosSvDeleteFailed: '删除失败',
   photosSvDuplicateFailed: '复制失败',
-  // ── SP15-P2a: manual asset actions ──
+  // ── Manual asset actions ──
   // Chinese values are Vue2's own zh_CN.json entries for the same English source strings,
   // not fresh translations. Five more strings this screen needs are already in this file
   // under other names and are reused rather than duplicated: photosPersonSelect ('选择'),
   // photosCancel ('取消'), photosSelectedCount ('已选择 {count} 项' — note the parameter is
   // `count`, not `n`), photosAlbumPickerTitle and photosMoAddSelected ('添加所选' — the
   // static label Vue2 :288 hands this screen's picker, not the album pages' counting one).
-  // Final review, finding 2: this key shipped as '加照片', a local shortening nobody asked
-  // for. Vue2's own zh_CN.json:2020 says `"Add photos": "添加照片"`, and the neighbouring
-  // reused photosAlbumPickerTitle already renders 添加照片到「…」, so the screen contradicted
-  // itself as well as the source. Corrected to the Vue2 value; the rule stands that the
-  // Chinese here is copied from Vue2, never translated here.
+  // This key had briefly shipped as '加照片', a local shortening nobody asked for. Vue2's own
+  // zh_CN.json:2020 says `"Add photos": "添加照片"`, and the neighbouring reused
+  // photosAlbumPickerTitle already renders 添加照片到「…」, so the screen contradicted itself
+  // as well as the source. Corrected to the Vue2 value; the rule stands that the Chinese here
+  // is copied from Vue2, never translated here.
   photosSvAddPhotos: '添加照片',
   photosSvRemoveFromView: '从此视图移除',
   photosSvRemovedNFromView: '已从此视图移除 {n} 张',
@@ -920,19 +964,20 @@ export default {
   photosSvShow: '显示',
   photosSvHide: '隐藏',
   photosSvRestore: '恢复',
-  // ── SP15-P2c Task 6: the smart-view detail header's sort capsule + the edit-mode bar's
-  // empty-selection hint. Chinese values are Vue2's own zh_CN.json entries for the same
-  // English source strings (:2145 "Match score", :2012 "Click to select"), not fresh
-  // translations. Everything else the rebuilt row needs already exists in this file and is
-  // reused verbatim rather than duplicated: photosAlbumSort ('排序：'), photosAlbumSortTaken
-  // ('拍摄日期'), photosAlbumEdit ('编辑'), photosAlbumDone ('完成'),
-  // photosDensityComfortable ('舒适'), photosDensityCompact ('紧凑'), photosSelectedCount,
-  // photosSvAddPhotos and photosSvRemoveFromView.
+  // ── The smart-view detail header's sort capsule + the edit-mode bar's empty-selection
+  // hint. Chinese values are Vue2's own zh_CN.json entries for the same English source strings
+  // (:2145 "Match score", :2012 "Click to select"), not fresh translations. Everything else
+  // the rebuilt row needs already exists in this file and is reused verbatim rather than
+  // duplicated: photosAlbumSort ('排序：'), photosAlbumSortTaken ('拍摄日期'), photosAlbumEdit
+  // ('编辑'), photosAlbumDone ('完成'), photosDensityComfortable ('舒适'), photosDensityCompact
+  // ('紧凑'), photosSelectedCount, photosSvAddPhotos and photosSvRemoveFromView.
   photosSortScore: '匹配分数',
   photosSvClickToSelect: '点击选择',
-  // ---- P7a-T9: 搜索面板(过滤条 + 弹层)54 键,照 Vue2 PhotosSearchView.vue 的
-  // 英文键逐条核对(zh 值取自 Vue2 src/assets/lang/zh_CN.json),接在文件末尾追加,
-  // 不与前面已有键重排。与 T1 已加键语义相同的(Cancel/Close 等)不重复添加。 ----
+  // ---- Search panel (filter bar + popovers), 54 keys, checked one by one against Vue2
+  // PhotosSearchView.vue's English keys (zh values taken from Vue2's
+  // src/assets/lang/zh_CN.json), appended at the end of the file, not reordered with the
+  // existing keys above. Keys with the same meaning as ones already added (Cancel/Close etc.)
+  // are not duplicated. ----
   photosSearchAlbums: '相册',
   photosSearchApply: '提交',
   photosSearchAskNimoSearchDifferently: '让 Nimo 换个方式搜索',
@@ -988,31 +1033,33 @@ export default {
   photosSearchCountMatches: '{count} 条匹配',
   photosSearchCountResultsSecondsS: '{count} 条结果 · {seconds}秒',
   photosSearchNameSavedSmartView: '“{name}”已保存为智能视图',
-  // fix round 1 · I3:PhotosSearchBar 的 placeholder 新键(追加,不重排)。回源
-  // Vue2 面板的 src/assets/lang/zh_CN.json:2405 的英文原文 "Search photos, people,
-  // places, or describe in a sentence…" 对应译文(文案回源铁律,不自己译)。
+  // PhotosSearchBar's placeholder, a new key appended at the end (not reordered). Sourced
+  // from the Vue 2 panel's src/assets/lang/zh_CN.json:2405, the translation for the English
+  // source "Search photos, people, places, or describe in a sentence…" (copy is always
+  // looked up from source, never translated fresh here).
   photosSearchSearchBarPlaceholder: '搜索照片、人物、地点，或用一句话描述…',
-  // ── SP7-P8a 相册设置页 + 深链 + 错误态 ──
-  // zh 文案权威 = Vue2 src/assets/lang/zh_CN.json;json 里没有对应键的(Vue2
-  // PhotosSettings.vue 内联硬编码英文)在该键上方单独注明「自拟」与 Vue2 行号。
-  // 本期不迁:主题开关(台账第二笔)· AI 入口(D1)· Sign out(D22)· 上传整块(D21)。
-  // 自拟(Vue2 PhotosSettings.vue:18 内联 "Settings")
+  // ── Albums settings page + deep links + error states ──
+  // Chinese copy authority = Vue2's src/assets/lang/zh_CN.json; where json has no matching key
+  // (Vue2 PhotosSettings.vue inlines hardcoded English), the key above is annotated "authored"
+  // with the Vue2 line number.
+  // Not migrated this round: theme toggle, AI entry point, sign out, the whole upload section.
+  // Authored (Vue2 PhotosSettings.vue:18 inline "Settings")
   photosSettingsTitle: '设置',
-  // Plan H Task 11 review fix: photosSettingsSubtitle ('Storage · AI behavior', matching Vue2
-  // PhotosSettings.vue:19's topbar subtitle) is restored. The final-review Minor 4 deletion
-  // rationale no longer holds -- it argued AreaShell.vue's `title`-only prop had no slot for a
-  // subtitle, but Task 11's re-shell dropped AreaShell entirely in favor of PhotosTopbar (which
-  // DOES take a `sub` prop, same as every other re-shelled Photos view) -- that premise no
-  // longer applies, so the key is back and wired via `:sub="t('photosSettingsSubtitle')"`.
+  // photosSettingsSubtitle ('Storage · AI behavior', matching Vue2 PhotosSettings.vue:19's
+  // topbar subtitle) is restored. It had previously been deleted on the grounds that
+  // AreaShell.vue's `title`-only prop had no slot for a subtitle, but the page was later
+  // re-shelled off AreaShell entirely in favor of PhotosTopbar (which DOES take a `sub` prop,
+  // same as every other re-shelled Photos view) -- that premise no longer applies, so the key
+  // is back and wired via `:sub="t('photosSettingsSubtitle')"`.
   // Ad-hoc (Vue2 PhotosSettings.vue:19 inline "Storage · AI behavior")
   photosSettingsSubtitle: '存储 · AI 行为',
-  // 自拟(Vue2 PhotosSettings.vue:31 内联英文长句)
+  // Authored (Vue2 PhotosSettings.vue:31 inlines a long English sentence)
   photosSettingsHeroDesc: 'Nimo 在你的 NAS 上做的一切 —— 什么在跑、跑在哪、占多少空间。',
-  // 自拟(Vue2 PhotosSettings.vue:33 内联 "Storage")
+  // Authored (Vue2 PhotosSettings.vue:33 inlines "Storage")
   photosSettingsNavStorage: '存储',
-  // 自拟(Vue2 PhotosSettings.vue:34 内联 "AI behavior")
+  // Authored (Vue2 PhotosSettings.vue:34 inlines "AI behavior")
   photosSettingsNavAi: 'AI 行为',
-  // 自拟(Vue2 PhotosSettings.vue:46 内联 "Storage")
+  // Authored (Vue2 PhotosSettings.vue:46 inlines "Storage")
   photosSettingsStorage: '存储',
   photosSettingsVolume: '容量',
   photosSettingsFree: '可用',
@@ -1024,13 +1071,13 @@ export default {
   photosSettingsSegThumbs: '缩略图缓存',
   photosSettingsSegAi: 'AI 索引',
   photosSettingsSegOther: '其他数据',
-  // 自拟(Vue2 PhotosSettings.vue:72 内联 "Free"；图例里的"可用"行，与 photosSettingsFree 同义分用两处)
+  // Authored (Vue2 PhotosSettings.vue:72 inlines "Free"; the legend's "可用" row, sharing the same meaning as photosSettingsFree across two separate usages)
   photosSettingsSegFree: '可用',
-  // 自拟(Vue2 PhotosSettings.vue:81 内联 "Recently Deleted retention")
+  // Authored (Vue2 PhotosSettings.vue:81 inlines "Recently Deleted retention")
   photosSettingsRetentionLabel: '最近删除保留期',
-  // 自拟(Vue2 PhotosSettings.vue:82 内联长句)
+  // Authored (Vue2 PhotosSettings.vue:82 inlines a long sentence)
   photosSettingsRetentionDesc: '已删除的照片在从 NAS 永久移除前保留多久。',
-  // 自拟(Vue2 PhotosSettings.vue:87 内联 "{{d}}d"，未走 $t)
+  // Authored (Vue2 PhotosSettings.vue:87 inlines "{{d}}d", not routed through $t)
   photosSettingsRetentionDay: '{n} 天',
   photosSettingsRetentionFailed: '保存保留期失败',
   photosSettingsRescanLabel: '重扫图库',
@@ -1041,28 +1088,30 @@ export default {
   photosSettingsScanIntervalLabel: '自动重扫间隔',
   photosSettingsScanIntervalDesc: '每隔多久自动扫描所有分区以发现新媒体。',
   photosSettingsScanIntervalOff: '关闭',
-  // 自拟(Vue2 PhotosSettings.vue:116 内联 "Thumbnail cache"；同名 json 键"Thumbnail cache"
-  // 被 photosSettingsCacheLabel 复用，此处是同一段文案的两个引用点，取值一致)
+  // Authored (Vue2 PhotosSettings.vue:116 inlines "Thumbnail cache"; the same-named json key
+  // "Thumbnail cache" is reused by photosSettingsCacheLabel -- two reference points for the
+  // same copy, same value)
   photosSettingsCacheLabel: '缩略图缓存',
   photosSettingsCacheDesc: '已删除照片遗留的过期预览图。使用中的缩略图会保留。',
   photosSettingsClearCache: '清理缓存',
   photosSettingsClearing: '清理中…',
   photosSettingsCleared: '已清理',
-  // json "Cache cleared" + "freed" 拼接键（Vue2 :422 运行时用 `·` 连接两个 $t 片段 +
-  // 原始字节数），此处收成一个带 {size} 占位符的完整句子。
+  // A concatenation of json's "Cache cleared" + "freed" keys (Vue2 :422 joins two $t fragments
+  // and a raw byte count with `·` at runtime); collapsed here into one complete sentence with
+  // a {size} placeholder.
   photosSettingsCacheClearedToast: '缓存已清理 · {size} 已释放',
   photosSettingsCacheClearFailed: '清理缓存失败',
-  // 自拟(Vue2 PhotosSettings.vue:135 内联 "AI behavior")
+  // Authored (Vue2 PhotosSettings.vue:135 inlines "AI behavior")
   photosSettingsAiTitle: 'AI 行为',
-  // 自拟(Vue2 PhotosSettings.vue:136 内联 "What Nimo does, and where it runs.")
+  // Authored (Vue2 PhotosSettings.vue:136 inlines "What Nimo does, and where it runs.")
   photosSettingsAiSubtitle: 'Nimo 做什么，以及在哪里跑。',
-  // 自拟(Vue2 PhotosSettings.vue:145 内联 "Nothing leaves your NAS")
+  // Authored (Vue2 PhotosSettings.vue:145 inlines "Nothing leaves your NAS")
   photosSettingsPrivacyTitle: '数据不出你的 NAS',
-  // 自拟(Vue2 PhotosSettings.vue:147-149 内联长句)
+  // Authored (Vue2 PhotosSettings.vue:147-149 inlines a long sentence)
   photosSettingsPrivacyBody: '所有推理 —— 人脸、场景、OCR、评分 —— 都在这台 NAS 上运行。不会有任何图片、向量或元数据被发往外部服务。',
-  // 自拟(Vue2 PhotosSettings.vue:155 内联 "Features")
+  // Authored (Vue2 PhotosSettings.vue:155 inlines "Features")
   photosSettingsFeaturesTitle: '功能',
-  // 自拟(Vue2 PhotosSettings.vue:156 内联长句)
+  // Authored (Vue2 PhotosSettings.vue:156 inlines a long sentence)
   photosSettingsFeaturesDesc: '关掉你不想让 Nimo 计算的项。关掉的功能会停止运行并释放算力。',
   photosSettingsFeatFaces: '人脸识别',
   photosSettingsFeatFacesDesc: '按人物归组照片，并在新上传中识别人脸。',
@@ -1077,41 +1126,43 @@ export default {
   photosSettingsIndexRebuilding: '重建中…',
   photosSettingsIndexLastBuilt: '上次构建于',
   photosSettingsIndexNever: '从未',
-  // 自拟——但并非纯自拟:Vue2 PhotosSettings.vue:176 渲染 `{{indexedPct}}% {{ $t('complete.') }}`,
-  // 数字未译、"complete." 是 json 键(译"已完成。")。中文按语序把数字放到"已完成"之后，
-  // 而非逐字直译成"42% 已完成。"。
+  // Authored, but not purely authored: Vue2 PhotosSettings.vue:176 renders
+  // `{{indexedPct}}% {{ $t('complete.') }}`, where the number is untranslated and "complete."
+  // is a json key (translated "已完成。"). The Chinese word order puts the number after "已完成"
+  // rather than a literal "42% 已完成。".
   photosSettingsIndexPct: '已完成 {pct}%。',
-  // json "Covers" + "items. Rebuild after restoring from backup or changing the model." 拼接键
-  // （Vue2 :177 运行时用 `$t('Covers') + coverageCount + $t('items. Rebuild after…')` 拼接）。
+  // A concatenation of json's "Covers" + "items. Rebuild after restoring from backup or
+  // changing the model." keys (Vue2 :177 concatenates
+  // `$t('Covers') + coverageCount + $t('items. Rebuild after…')` at runtime).
   photosSettingsIndexCoverage: '覆盖 {count} 个项目。从备份恢复或更换模型后建议重建。',
   photosSettingsRebuildIndex: '重建索引',
   photosSettingsRebuiltToast: 'AI 索引已重建',
   photosSettingsRebuildFailed: '重建失败',
   photosSettingsRebuildStartFailed: '启动重建失败',
-  // 自拟(Vue2 PhotosSettings.vue:189 内联 "Re-cluster faces"，未走 $t)
+  // Authored (Vue2 PhotosSettings.vue:189 inlines "Re-cluster faces", not routed through $t)
   photosSettingsRecluster: '重新聚类人脸',
   photosSettingsReclusterStarted: '人脸重新聚类已在后台开始',
   photosSettingsReclusterFailed: '启动重新聚类失败',
   photosSettingsAppearance: '外观',
   photosSettingsThemeDark: '深色',
   photosSettingsThemeLight: '浅色',
-  // 自拟(Vue2 PhotosSettings.vue:196 内联 "Nimo Photos")
+  // Authored (Vue2 PhotosSettings.vue:196 inlines "Nimo Photos")
   photosSettingsFooterApp: 'Nimo 相册',
   photosSettingsRunningOn: '运行于',
   photosSettingsLibrarySince: '建库于',
   photosDeepLinkPhotoNotFound: '未找到该图片',
-  // 自拟(New-UI 新增失败态，Vue2 无对应)
+  // Authored (New-UI addition, failure state, no Vue2 counterpart)
   photosFavoritesLoadFailed: '收藏加载失败',
-  // 自拟(New-UI 新增失败态，Vue2 无对应)
+  // Authored (New-UI addition, failure state, no Vue2 counterpart)
   photosAlbumLoadFailed: '相册加载失败',
-  // 自拟(New-UI 新增，两处失败态共用的重试按钮，Vue2 无对应)
+  // Authored (New-UI addition, retry button shared by the two failure states above, no Vue2 counterpart)
   photosRetry: '重试',
-  // SP15-P3 Task 11: NimoOS-Photos#54 turned an absent limit on GET /photos/favorites into
-  // 500 rather than "everything" — these two keys are new-UI-only pagination copy, no Vue2
-  // equivalent (Vue2 never paged this endpoint).
+  // NimoOS-Photos#54 turned an absent limit on GET /photos/favorites into 500 rather than
+  // "everything" — these two keys are new-UI-only pagination copy, no Vue2 equivalent (Vue2
+  // never paged this endpoint).
   photosLoadedSubsetHint: '统计基于已加载的前 {n} 项',
   photosLoadMore: '加载更多',
-  // ── SP15-P1 Moments ──
+  // ── Moments ──
   photosMoBadge: '时刻',
   photosMoTypeTrip: '行程',
   photosMoTypePets: '宠物',
@@ -1122,13 +1173,13 @@ export default {
   photosMoAddedThisWeek: '本周 +{n}',
   photosMoHeroTitle: '时刻 · 为你推荐',
   photosMoHeroDesc: 'Nimo 会自动把你最好的照片聚成时刻 —— 行程、人物，以及值得重温的主题。',
-  // SP15-P2b Task 5: the sidebar entry's new label (was "Smart Views"), and the slim
-  // settings hint shown when the band is hidden.
+  // The sidebar entry's new label (was "Smart Views"), and the slim settings hint shown when
+  // the band is hidden.
   photosMoForYou: '为你推荐',
   photosMoFollowsSmartViewSetting: '「时刻」跟随「智能视图」开关——可在以下位置重新开启',
-  // SP15-P1-T6: shown when moments.reorder() fails a drag-drop and reverts to server order.
+  // Shown when moments.reorder() fails a drag-drop and reverts to server order.
   photosMoOrderSaveFailed: '排序保存失败',
-  // ── SP15-P1-T7: moment detail page (Vue2 899af59b:PhotosMomentDetail.vue) ──
+  // ── Moment detail page (Vue2 899af59b:PhotosMomentDetail.vue) ──
   photosMoBackToAll: '全部时刻',
   photosMoLastUpdated: '最后更新 {time}',
   // New-UI only: Vue 2 received the moment as a prop and could never hit a missing id.
@@ -1144,16 +1195,16 @@ export default {
   photosMoLastUpdate: '最后更新',
   photosMoPhotos: '照片',
   photosMoFeatured: '精选',
-  // fix round 1 · finding 4: shown when the moment list itself could not be fetched.
-  // Deliberately says nothing about whether the moment exists — we do not know.
+  // Shown when the moment list itself could not be fetched. Deliberately says nothing about
+  // whether the moment exists — we do not know.
   photosMoLoadFailed: '时刻加载失败',
-  // ── SP15-P1-T8: the two photo grids ──
+  // ── The two photo grids ──
   photosMoAllPhotos: '全部照片',
   // Same Chinese wording as filesViewerLoading/aiMentionLoading/etc. — not a fresh
   // translation, this repo's existing generic "loading" ellipsis.
   photosMoLoading: '加载中…',
   photosMoNoPhotosYet: '这个时刻还没有照片。',
-  // ── SP15-P1-T9: adding photos to the moment / removing them from it ──
+  // ── Adding photos to the moment / removing them from it ──
   // Every string below is Vue 2's own zh_CN copy, taken verbatim from
   // 899af59b:src/assets/lang/zh_CN.json (:2019/:2020/:2021/:2033/:2045/:2242/:2243 and
   // "Add failed" at :1598) — not retranslated here.
@@ -1170,38 +1221,37 @@ export default {
   photosMoRemoveFromMoment: '从此时刻中移除',
   photosMoRemovedN: '已从此时刻移除 {n} 张',
   photosMoRemoveFailed: '移除失败',
-  // ── SP15-P1-T10: save as album / delete moment ──
-  // Six of the brief's proposed keys already exist verbatim elsewhere in this repo and are
-  // reused rather than duplicated (see PhotosMomentDetail.vue file-header deviation 19):
+  // ── Save as album / delete moment ──
+  // Six of the proposed keys already exist verbatim elsewhere in this repo and are reused
+  // rather than duplicated (see PhotosMomentDetail.vue's file-header notes):
   // photosPlacesToastOpen ('打开'), photosSvPhotosStayLibrary ('照片仍保留在你的图库中'),
   // photosSvDeleteName ('删除「{name}」？'), photosSvDeleteFailed ('删除失败'), photosCancel
   // ('取消'), photosDelete ('删除'). The seven below are the genuinely new ones — all Vue 2's
   // own zh_CN copy, taken verbatim from 899af59b:src/assets/lang/zh_CN.json.
   photosMoSaveAsAlbum: '保存为相册',
   photosMoAlbumCreated: '已创建相册「{name}」· {count} 张照片',
-  // Vue 2's own translation (:1960) — not '已存在' as the brief's draft test assumed; a test
+  // Vue 2's own translation (:1960) — not '已存在' as an earlier draft test assumed; a test
   // asserting that substring would be checking a mistranslation, not this feature's real copy.
   photosMoAlbumExists: '已有同名相册',
   photosMoAlbumFailed: '相册创建失败',
   photosMoDeleteMoment: '删除时刻',
   photosMoDeleteBody: '该时刻会被删除。图库中的 {n} 张照片不受影响。',
   photosMoDeleted: '时刻「{name}」已删除',
-  // ── Task 3(壳 + 侧栏重刻):sidebar-head 主题切换按钮的 title,照 Vue2
-  // PhotosSidebar.vue:29 的 $t('Switch to dark theme')/$t('Switch to light theme')。
+  // ── Sidebar-head theme toggle button title, matching Vue2 PhotosSidebar.vue:29's
+  // $t('Switch to dark theme')/$t('Switch to light theme'). ──
   photosSwitchToDarkTheme: '切换到深色主题',
   photosSwitchToLightTheme: '切换到浅色主题',
-  // ── Task 4(顶栏重刻):顶栏折叠按钮的 title,照 Vue2 PhotosTopbar.vue:3 的
-  // $t('Toggle sidebar')。KVM 区已有同文案键 kvmToggleSidebar,但该键按 kvm 前缀命名
-  // 约定专属 KVM 区,本区另起 photos 前缀键而非跨区复用,与本仓"键名按区前缀"的既有惯例
-  // 一致(不是漏查复用)。
+  // ── The topbar's collapse-toggle button title, matching Vue2 PhotosTopbar.vue:3's
+  // $t('Toggle sidebar'). KVM already has the same copy under kvmToggleSidebar, but that key
+  // is namespaced to the KVM area per this repo's per-area-prefix key convention — a new
+  // photos-prefixed key here, not a cross-area reuse (not an oversight).
   photosToggleSidebar: '切换侧边栏',
-  // ── PhotosTopbar 的
-  // 搜索模式返回键 title,对应 Vue2 PhotosTopbar.vue:8 的 $t('Back (Esc)')——New-UI 这里
-  // 没有 Esc 语义(搜索页是真路由,Esc 已被浮层统一治理占用),故文案改成描述真实去向
-  // (返回照片库),不照抄带 "(Esc)" 字样的原文。
+  // ── PhotosTopbar's search-mode back-button title, mapped from Vue2 PhotosTopbar.vue:8's
+  // $t('Back (Esc)') — New-UI has no Esc semantics here (the search page is a real route, and
+  // Esc is already owned by the unified overlay-dismiss handling), so the copy describes the
+  // real destination instead (back to the photo library), not copying the "(Esc)" wording.
   photosSearchBackToLibrary: '返回照片库',
-  // ── Task 7 (Plan D, SP7-P5 People): the Hidden people section + hide action + duplicate-name
-  // dupconfirm flow ──
+  // ── The Hidden people section + hide action + duplicate-name dupconfirm flow ──
   // Vue2 PhotosPeopleView.vue:228 (section title $t('Hidden people')).
   photosPeopleHiddenSection: '隐藏的人物',
   // Vue2 PhotosPeopleView.vue:279 / PhotosPersonDetail.vue:45 — both menu items are literally the
@@ -1269,54 +1319,63 @@ export default {
   photosSuggestFindPeople: '找人物',
   photosGridAskNimoRecap: '从这 {count} 张照片创建一个回顾相册。',
   photosSearchFindPhotosPrefix: '查找照片：',
-  // ── Plan C Task 2 (2026-08-20 people-suggestions-ui): the "待确认" suggestion-confirmation
-  // section on the People page — per-face join/review suggestions grouped by person, sitting
-  // above the named-people area. New-UI-only feature, no Vue2 counterpart to transcribe. ──
+  // ── 2026-08-20 people-suggestions-ui: the "待确认" suggestion-confirmation section on the
+  // People page — per-face join/review suggestions grouped by person, sitting above the
+  // named-people area. New-UI-only feature, no Vue2 counterpart to transcribe. ──
   photosPeopleSuggestions: '待确认',
-  // 2026-08-21 (people-confirm-polish, Apple 风格审阅向导): 该问句在旧版每张卡片的组标题里用
-  // 过("是 {name} 吗?"),现在向导的问句行复用同一个 key(视觉位置变了,文案含义不变)。
+  // 2026-08-21 (people-confirm-polish, Apple-style review wizard): this question used to live
+  // on every card's group title in the old grid; the wizard's question line reuses the same
+  // key (the wording is unchanged, only where it appears changed).
   photosPeopleSuggestTitle: '这是 {name} 吗?',
-  // kind='review' 徽标: 语义是"曾归属于此人、现在存疑"——与普通新归入('join')的候选脸区分开。
-  // 向导的对比视图沿用了这个 key(旧版每张脸缩略图角标的同一枚徽标)。
+  // kind='review' badge: semantically "previously attributed to this person, now in doubt" —
+  // visually distinct from a plain new-join ('join') candidate face. The wizard's compare view
+  // reuses this same key (the old grid's per-face badge).
   photosPeopleReviewBadge: '复核',
-  // 2026-08-21 (people-confirm-polish): 入口卡片"开始审阅"按钮——点击后打开全屏审阅向导,
-  // 一次只看一条建议,按顺序走完所有分组。
+  // 2026-08-21 (people-confirm-polish): the entry card's "Start review" button — opens the
+  // full-screen review wizard, one suggestion at a time, across all groups in order.
   photosPeopleStartReview: '开始审阅',
-  // 向导头部:人物姓名下方的参考照片行标签，配合 exemplarFaceIds（新增可选后端字段，旧后端
-  // 缺失时向导会退化为只显示封面头像，不渲染这一行）。
+  // Wizard header: label above the reference-faces row under the person's name, paired with
+  // exemplarFaceIds (a new optional backend field — an older backend without it makes the
+  // wizard fall back to cover-only, and this row never renders).
   photosPeopleReviewReferenceLabel: '参考照片',
-  // 原图 / 对比 分段切换控件的两个选项文案。
+  // Original/Compare segmented view-toggle option labels.
   photosPeopleReviewViewOriginal: '原图',
   photosPeopleReviewViewCompare: '对比',
-  // 对比视图右侧候选脸的标签。
+  // Compare view's right-hand candidate-face label.
   photosPeopleReviewCandidateLabel: '候选',
-  // 对比视图里 kind='join' 候选脸的徽标（与上面 review 徽标相对）。
+  // Compare view's kind='join' candidate badge (the counterpart of the Review badge above).
   photosPeopleJoinBadge: '新归入',
-  // 三个决策按钮：是 / 不是 / 跳过。"跳过"纯前端推进，不调用后端。
+  // The three decision buttons: Yes / No / Skip. Skip is purely client-side advance -- it
+  // never calls the backend.
   photosPeopleReviewYes: '是',
   photosPeopleReviewNo: '不是',
   photosPeopleReviewSkip: '跳过',
-  // 进度指示："k / N"，N 在向导打开的那一刻定格，不随中途决定/跳过而变化。
+  // Progress indicator: "k / N" -- N is pinned at the moment the wizard opens and does not
+  // shrink/grow as items get decided or skipped mid-session.
   photosPeopleReviewProgress: '{k} / {n}',
-  // 全部处理完（决定或跳过）后的完成态标题。
+  // Done-state title once every suggestion has been decided or skipped.
   photosPeopleReviewDoneTitle: '全部已处理完成',
-  // 2026-08-20(people-confirm-polish item 2 遗留):人脸/情境照片的 alt 文案、放大图的 alt
-  // 文案，以及点击缩略图放大查看的 hover title——向导的默认视图/对比视图/zoom 灯箱共用。
+  // 2026-08-20 (people-confirm-polish, carried into the wizard): alt text for the face/context
+  // photo images and the hover title for "click to view full photo" -- shared by the wizard's
+  // default view, compare view, and zoom lightbox.
   photosPeopleSuggestPeekAlt: '查看完整照片',
-  // ── 合并卡片(merge-cards,2026-08-21):HAC 灰区聚簇对话式复核问题——依赖后端
-  // DEV-NimoOS-Photos feat/cluster-merge-questions 分支(PR #6,合并前始终 404 自我隐藏，
-  // 与其他 photosPeopleReview* 键共用同一个向导，只是排在人脸建议之后。──
+  // ── Merge cards (2026-08-21): HAC gray-band cluster-merge review questions -- depends on a
+  // backend change that has not shipped yet; the endpoint 404s until then. Shares the same
+  // review wizard as the other photosPeopleReview* keys above, just queued after the per-face
+  // suggestions. ──
   photosPeopleMergeQuestionTitle: '这两组是同一个人吗？',
-  // 合并/不同/跳过三个决策按钮——"跳过"复用上面 photosPeopleReviewSkip（纯前端推进，
-  // 两个流程语义相同）。
+  // Merge / Different / Skip -- Skip reuses photosPeopleReviewSkip above (purely client-side
+  // advance, same semantics in both flows).
   photosPeopleMergeAccept: '合并',
   photosPeopleMergeReject: '不同',
-  // 卡片一侧的"入向"标签（into 一侧，即合并后保留的那个人）。
-  // 合并卡片可读性修复（2026-08-21）：大号人脸网格下方每一侧的照片数量。特意单独开一个 key，
-  // 不复用 photosPeoplePhotosCount（其它很多调用点只传 {n}）——{s} 是英文单复数后缀
-  // （pluralWord()，src/photos/util/peopleView.ts），中文不需要单复数标记，{s} 未被引用时
-  // vue-i18n 会静默替换为空字符串，对中文文案无影响。
+  // Label for the card's "into" side (the person that survives the merge).
+  // Merge-card legibility fix (2026-08-21): each side's photo count under the large face-tile
+  // grid. Deliberately its own key rather than reusing photosPeoplePhotosCount (many other call
+  // sites pass only {n}) -- {s} is the English plural suffix (pluralWord(),
+  // src/photos/util/peopleView.ts); Chinese doesn't need a plural marker, and vue-i18n silently
+  // replaces an unreferenced {s} with an empty string, so it has no effect on the Chinese copy.
   photosPeopleMergePhotosCount: '{n} 张照片',
-  // 距离数值低调展示在问句下方（值越小越相似，不是百分比，不与 mergeConfidencePct 混用）。
+  // Distance shown subtly under the question (lower = more similar -- a raw distance, not a
+  // percentage, deliberately not reusing mergeConfidencePct's formatting).
   photosPeopleMergeDistLabel: '相似距离 {dist}',
 }

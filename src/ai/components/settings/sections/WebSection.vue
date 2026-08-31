@@ -49,9 +49,9 @@ async function load() {
   }
 }
 
-// 逐字段自动保存,四个入口(switch/下拉/SearXNG 地址/API key)共用同一个
-// save():每次都把当前完整状态整体 PUT 回去,只有 api_key 按"留空则不带"的
-// 规则单独处理——见 fix round 2 头注释。
+// Auto-saves per field; all four entry points (switch/dropdown/SearXNG address/API key) share
+// the same save(): every call PUTs the full current state back wholesale, except api_key,
+// which is handled specially under the rule "omit it entirely if left blank".
 async function save() {
   const payload: {
     backend: string

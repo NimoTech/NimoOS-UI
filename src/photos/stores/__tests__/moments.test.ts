@@ -1,8 +1,8 @@
-// SP15-P1-T3: moments store. Cross-checked against the momentResponse shape in
+// Moments store. Cross-checked against the momentResponse shape in
 // NimoOS-Photos/route/v1/moments.go:39-73 — featured_asset_ids / added_this_week /
 // cover_ratio are always emitted; cover_asset_id / time_from / time_to / place /
 // sort_order carry `omitempty` and may be absent; **updated_at is never sent by the
-// backend at all** (see plan Global Constraints).
+// backend at all**.
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
@@ -248,7 +248,7 @@ describe('staleness guard under concurrency', () => {
     expect(s.moments.map((m) => m.id)).toEqual(['second'])
   })
 
-  // fix round 1 · finding 4: listError is shared state, so the guard has to cover it too.
+  // listError is shared state, so the guard has to cover it too.
   it('a late failure from a superseded fetch does not raise listError over the newer success', async () => {
     let rejectA: (e: unknown) => void = () => {}
     listMoments.mockImplementationOnce(() => new Promise((_r, rej) => { rejectA = rej }))
@@ -267,7 +267,6 @@ describe('staleness guard under concurrency', () => {
   })
 })
 
-// fix round 1 · finding 4.
 describe('listError', () => {
   it('is false before anything is fetched', () => {
     expect(usePhotosMoments().listError).toBe(false)
@@ -292,7 +291,6 @@ describe('listError', () => {
   })
 })
 
-// fix round 1 · finding 7.
 describe('ensureLoaded joins an in-flight fetch', () => {
   // The assertion that bites is `secondSettled === false` *while the request is still on the
   // wire*, not the state observed after everything settles. A first attempt at this test did

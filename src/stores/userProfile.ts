@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
-// SP8-P1c2 Task 7: app-level home for "did the user's avatar change" state.
+// App-level home for "did the user's avatar change" state.
 //
 // Why this exists: in the Vue2 app, changing your avatar broadcast an
 // `$EventBus` 'avatar-changed' event and every subscriber (incl. the AI

@@ -1,10 +1,10 @@
-// Task 6 (SP7-P5 People): PhotosPeople.vue —— the people list view (banner + filter/sort +
+// PhotosPeople.vue —— the people list view (banner + filter/sort +
 // two warning banners + merge-suggestion banner + Pinned/Named/Unnamed sections + floating
 // action menu + empty state).
 // Mounts Pinia + i18n + a real router (spy on push, don't mock the whole vue-router — both
 // AreaShell and PhotosSidebar use useRouter(), following the existing mounting pattern from
 // PhotosAlbums.test.ts), mocks the shared package's photos methods.
-// Covers the 12-item behavior checklist from brief Step 1 + the three sources of
+// Covers the original 12-item behavior checklist + the three sources of
 // facesEnabled (false / missing field / request failure).
 //
 // Task 7 (added in this pass): the three submission-path wiring cases now that
@@ -86,7 +86,7 @@ const BOB = { id: 'b7', name: 'Bob', favorite: false, relation: 'friend', count:
 // u1, u2, and u4 are all multi-photo clusters (count>1), so they render regardless of
 // confidence — with only 3 multi-photo clusters in this fixture, well under
 // splitUnnamedByDistribution's MIN_SHOW=12, none of them ever get folded either. u3
-// (0.95 but only 1 photo) is a singleton — fix round 2: singletons are permanently excluded
+// (0.95 but only 1 photo) is a singleton — singletons are permanently excluded
 // from the grid now, with no toggle anywhere on the page to reveal them.
 const U1 = { id: 'u1', name: '', favorite: false, relation: '', count: 9, confidence: 0.87 }
 const U2 = { id: 'u2', name: '', favorite: false, relation: '', count: 5, confidence: 0.93 }
@@ -140,13 +140,13 @@ describe('PhotosPeople.vue — lifecycle and sections', () => {
     expect(svc.photos.getConfig).toHaveBeenCalledTimes(1)
   })
 
-  // P8a-T6 (§7e-10): facesEnabled is folded into the photosSettings store, the view no
+  // (§7e-10): facesEnabled is folded into the photosSettings store, the view no
   // longer reads getConfig directly itself.
-  // The брief's literal assertion `expect(service.photos.getConfig).not.toHaveBeenCalled()`
-  // contradicts the existing test above (the store's fetchAiFeatures still calls getConfig
+  // A literal assertion `expect(service.photos.getConfig).not.toHaveBeenCalled()` would
+  // contradict the existing test above (the store's fetchAiFeatures still calls getConfig
   // internally, and the mock is at the service layer, so there's no way to distinguish "the
   // view reads it directly" from "it reads it indirectly via the store" — the two assertions
-  // can't both hold). This brief-vs-existing-test conflict has been logged in the task report;
+  // can't both hold). This conflict with the pre-existing test is deliberate;
   // switched to an assertion that can actually distinguish "the view reads it directly" from
   // "reads it via the store": spy on the store's fetchAiFeatures action, and prove that
   // onMounted calls this action rather than wrapping its own extra getConfig call.
@@ -224,11 +224,11 @@ describe('PhotosPeople.vue — lifecycle and sections', () => {
   })
 })
 
-// Task 2 (Plan D People re-shell): brief's Step 1 RED test, adapted to this file's own mountView()
+// Task 2 (Plan D People re-shell): the Step 1 RED test, adapted to this file's own mountView()
 // helper and to its zh_cn-only i18n fixture (every other assertion in this file checks
-// Chinese literal output, e.g. line 166-167 above — the brief's illustrative `'People'` /
+// Chinese literal output, e.g. line 166-167 above — an illustrative `'People'` /
 // `/named/i` text assumed an English fixture that doesn't exist here).
-describe('PhotosPeople.vue — re-shell (Plan D Task 2)', () => {
+describe('PhotosPeople.vue — re-shell', () => {
   it('mounts the .app shell with PhotosTopbar (People title + counts sub)', async () => {
     const { w } = await mountView()
     expect(w.find('.photos-root .app').exists()).toBe(true)
@@ -302,8 +302,8 @@ describe('PhotosPeople.vue — unnamed clusters', () => {
     expect(w.find('[data-test="cluster-grid"]').exists()).toBe(false)
   })
 
-  // Fix round 2 (2026-08-19, product decision — supersedes the singleton toggle and the fold
-  // expander that briefly existed between fix rounds 1 and 2): the grid renders EXACTLY
+  // Product decision — supersedes the singleton toggle and the fold
+  // expander that briefly existed earlier: the grid renders EXACTLY
   // splitUnnamedByDistribution's `visible` head, and nothing on the page can reach the folded
   // long tail or the singleton clusters, even when both are non-empty.
   it('the unnamed grid renders exactly the distribution split\'s visible head — no singleton toggle, no fold expander, even with a large folded tail and a singleton both present', async () => {
@@ -568,8 +568,8 @@ describe('PhotosPeople.vue — empty state', () => {
     expect(w.find('[data-test="people-empty"]').exists()).toBe(false)
   })
 
-  // Task 6 fix round 1 (coordinator finding, plain coverage addition — code already verified
-  // correct against Vue2 PR#137, so these are GREEN immediately, no RED theater): the
+  // A plain coverage addition — code already verified
+  // correct against Vue2 PR#137, so these are GREEN immediately, no RED theater: the
   // empty-state hint's two branches (face recognition on/off) had no assertion on the actual
   // rendered copy.
   it('with face recognition on, the empty state renders the photosPeopleEmptyHintFaces copy', async () => {
@@ -656,7 +656,7 @@ describe('PhotosPeople.vue — T7 three-state dialog wiring: merge', () => {
     expect(w.find('[data-test="cad-overlay"]').exists()).toBe(false)
   })
 
-  it('failure: mergePersons rejects → failure toast (T7 deviation log #8: Vue2 doesn\'t await and pops a false success toast first); dialog still closes', async () => {
+  it('failure: mergePersons rejects → failure toast (Vue2 doesn\'t await and pops a false success toast first); dialog still closes', async () => {
     svc.photos.mergePersons.mockRejectedValueOnce(new Error('boom'))
     const { w } = await mountView()
     const toast = useToast()
@@ -685,14 +685,14 @@ describe('PhotosPeople.vue — T7 three-state dialog wiring: merge', () => {
     await flushPromises()
   })
 
-  // P8a-T10: targetName previously had no fallback, so when the target was unnamed (or
+  // targetName previously had no fallback, so when the target was unnamed (or
   // personById couldn't find it at the moment of submission) it would render as
   // "merged into "". personById is looked up fresh at submission time (not the object
   // captured when the candidate was clicked), so we can use patchPerson to blank out the
   // target's name right before clicking the candidate, simulating the defensive scenario of
   // "the name goes empty right before confirming" (not contrived — real concurrent renames /
   // data refreshes take this same personById re-lookup path).
-  it('P8a-T10: target name is empty → toast falls back to "the same person", doesn\'t render as "merged into ""', async () => {
+  it('target name is empty → toast falls back to "the same person", doesn\'t render as "merged into ""', async () => {
     const { w } = await mountView()
     const toast = useToast()
     const people = usePhotosPeople()
@@ -752,8 +752,8 @@ describe('PhotosPeople.vue — T7 three-state dialog wiring: delete', () => {
   // dispatchEvent, so `dialog.value = null` is itself a natural re-entrancy lock. Both
   // clicks land on the same button within the same synchronous window before Vue removes
   // the panel from the DOM, so the second call gets stopped at the top of `onSubmitDelete`
-  // by `!dialog.value` (the first call already nulled it out). Ran a mutation-testing check
-  // (see task-7-report.md §11): temporarily changed `if (!dialog.value) return` to
+  // by `!dialog.value` (the first call already nulled it out). Ran a mutation-testing
+  // check: temporarily changed `if (!dialog.value) return` to
   // `if (false) return` (i.e. removing this guard entirely while keeping everything else the
   // same), reran this test — `purgePersonWithUndo` gets called 2 times, and the
   // `toHaveBeenCalledTimes(1)` assertion genuinely goes red; reverting and rerunning goes

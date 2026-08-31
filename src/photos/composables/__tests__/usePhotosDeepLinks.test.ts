@@ -1,4 +1,4 @@
-// SP7-P8a-T7/T8: usePhotosDeepLinks — ?asset / ?photoset / ?q / ?album / ?person deep links.
+// usePhotosDeepLinks — ?asset / ?photoset / ?q / ?album / ?person deep links.
 // Source: the Vue 2 panel's src/views/Photos/PhotosTimeline.vue:364-377/:431-440/:441-465/
 // :491-523; ?album is read in PhotosAlbumsView.vue:264 mounted hook itself (New-UI unified into this composable).
 //
@@ -12,9 +12,9 @@
 // `usePhotosDeepLinks()` gets a new return object literal, vi.spyOn(the outer object, 'openAt')
 // only replaces that outer object's own properties, won't intercept calls to the internal copy
 // that references the same module-level functions (learned the hard way: first version did it
-// this way, openAt assertions all missed — changed to assert real state, also better aligned
-// with review requirement of "test real behavior, not just mock calls"). T8 follows the same
-// discipline: ?album/?person assertions land on vue-router's real parsed route results
+// this way, openAt assertions all missed — changed to assert real state instead, aligned with
+// the general principle of testing real behavior, not just mock calls. The same discipline
+// applies here: ?album/?person assertions land on vue-router's real parsed route results
 // (fullPath/name/params/query), not on string form of mock call parameters — the original skeleton
 // gave `router.replace.mock.calls[0][0].path` assertion which only works for "hand-stitched
 // string path" implementations; this file uses vue-router named routes + params encoding
@@ -40,7 +40,7 @@ import { useToast } from '../../../stores/toast'
 // lb.openAt is a real singleton, internally calls recordView/reconcileFavIds from usePhotosFavorites()
 // and getAsset from hydrateDetail for secondary detail fetch — these are not behaviors this file
 // tests, but missing mocks would throw uncaught exceptions on the openAt path and pollute test runs
-// (same as existing examples in Photos.lightbox.test.ts / PhotosPlaceAssets.test.ts). T8 adds
+// (same as existing examples in Photos.lightbox.test.ts / PhotosPlaceAssets.test.ts). This also adds
 // listPersons — ?person existence validation actually calls usePhotosPeople().fetchPeople().
 const svc = vi.hoisted(() => ({
   photos: {
@@ -49,7 +49,7 @@ const svc = vi.hoisted(() => ({
     recordView: vi.fn().mockResolvedValue(undefined),
     listFavoriteIds: vi.fn().mockResolvedValue([]),
     listPersons: vi.fn().mockResolvedValue({ persons: [] }),
-    // P8b: ?smartview goes through usePhotosSmartViews().fetchSmartViews(); ?place goes through getPlace().
+    // ?smartview goes through usePhotosSmartViews().fetchSmartViews(); ?place goes through getPlace().
     listSmartViews: vi.fn().mockResolvedValue([]),
     getPlace: vi.fn().mockResolvedValue({ city: '', spots: [] }),
   },
@@ -58,7 +58,7 @@ vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 
 const lb = useLightbox()
 
-// P8b: Host changed to factory — `?tab` is the only key that needs host page cooperation
+// Host changed to factory — `?tab` is the only key that needs host page cooperation
 // (tab is timeline display filtering, not a navigation destination, no corresponding route to
 // navigate to), so usePhotosDeepLinks takes a hooks parameter. Factory lets each mount carry its
 // own hooks, without relying on module-level mutable state to pass state between tests.
@@ -71,7 +71,7 @@ function makeHost(hooks?: PhotosDeepLinkHooks) {
   })
 }
 
-// T8 target route placeholder component — don't reuse Host, avoid mounting an extra
+// Target route placeholder component — don't reuse Host, avoid mounting an extra
 // usePhotosDeepLinks() outside <router-view> (this file never mounts <router-view>, Host is
 // mounted directly, but placeholder still uses the simplest null render to reduce noise. Real
 // navigation only changes router.currentRoute, won't re-render Host).
@@ -83,7 +83,7 @@ function makeRouter(host: Component): ReturnType<typeof createRouter> {
     { path: '/photos/search', name: 'photos-search', component: Blank },
     { path: '/photos/albums/:id', name: 'photos-album-detail', component: Blank },
     { path: '/photos/people/:id', name: 'photos-person-detail', component: Blank },
-    // P8b landing destinations (?view / ?settings / ?smartview / ?place).
+    // Landing destinations for ?view / ?settings / ?smartview / ?place.
     { path: '/photos/albums', name: 'photos-albums', component: Blank },
     { path: '/photos/people', name: 'photos-people', component: Blank },
     { path: '/photos/places', name: 'photos-places', component: Blank },
@@ -99,10 +99,10 @@ function makeRouter(host: Component): ReturnType<typeof createRouter> {
 
 // assets: id -> detail response (bare asset shape, resolve immediately when found); any id not
 // in the table rejects, simulating real backend 404. opts.getAssetImpl can replace the fetch
-// implementation entirely (T8's execution order test needs a manually-resolvable pending promise,
-// doesn't fit into the default "look up by id in table" implementation).
-// Return value adds router (T7's existing call sites don't destructure return, unaffected) — T8
-// tests need to assert real router.replace calls / router.currentRoute parsed results.
+// implementation entirely (the execution-order test below needs a manually-resolvable pending
+// promise, which doesn't fit into the default "look up by id in table" implementation).
+// Return value adds router (older call sites don't destructure the return value, so they're
+// unaffected) — some tests need to assert real router.replace calls / router.currentRoute parsed results.
 async function mountWithQuery(
   query: Record<string, string>,
   assets: Record<string, { id: string }> = {},
@@ -257,7 +257,7 @@ describe('usePhotosDeepLinks · ?photoset', () => {
   })
 })
 
-// SP7-P8a-T8: ?q / ?album / ?person. Source: Vue2 PhotosTimeline.vue:491-494 (?q),
+// ?q / ?album / ?person. Source: Vue2 PhotosTimeline.vue:491-494 (?q),
 // PhotosAlbumsView.vue:264 (?album, read in that view's mounted hook), PhotosTimeline.vue:509-523
 // (?person, _applyPersonFromQuery).
 //
@@ -329,7 +329,7 @@ describe('usePhotosDeepLinks · ?person', () => {
     const toast = useToast()
     const showSpy = vi.spyOn(toast, 'show')
     svc.photos.listPersons.mockResolvedValueOnce({ persons: [{ id: 'someone-else' }] })
-    // Sidekick key (proves "only remove person key, don't touch others") P8b changed from view
+    // Sidekick key (proves "only remove person key, don't touch others") changed from view
     // to highlight — ?view was then inert (no handler on New-UI side), now it navigates itself,
     // as sidekick would break this test's "stay in place" assertion. Switched to a truly inert
     // key to preserve original intent.
@@ -398,7 +398,7 @@ describe('usePhotosDeepLinks · Execution order (lightbox first, route after)', 
   })
 })
 
-// Real-device acceptance feedback correction (2026-08-04): editing query in address bar on
+// Fix: editing query in address bar on
 // timeline directly (without reopening tab), original implementation of all five forms had no
 // response — vue-router 4 doesn't re-mount for same route component with only query changed,
 // onMounted that time can't reach this. Each key below adds a "already stayed at /photos, query
@@ -463,7 +463,7 @@ describe('usePhotosDeepLinks · query-only (already at /photos, query appears la
     expect(localStorage.getItem('nimo:photoset:tok2')).toBeNull()
   })
 
-  // 🔴 Requirement 2 core test: after consuming one-time handoff, editing a completely
+  // Core test: after consuming one-time handoff, editing a completely
   // unrelated query key (?q) must never make photoset branch misclassify as "missing" and retake
   // degrade path (shrink lightbox content to active single). This is why the original constraint
   // "forbid watcher", now unblocked by "compare key-by-key, only process the one that actually
@@ -491,7 +491,7 @@ describe('usePhotosDeepLinks · query-only (already at /photos, query appears la
     )
   })
 
-  // requirement 4: deleting ?asset from address bar (value becomes undefined) must be no-op —
+  // Deleting ?asset from address bar (value becomes undefined) must be no-op —
   // no toast, don't close lightbox, don't re-fetch.
   it('?asset deleted from address bar (undefined) is no-op: no toast, lightbox stays open', async () => {
     const { router } = await mountWithQuery({ asset: 'a1' }, { a1: { id: 'a1' } })
@@ -510,7 +510,7 @@ describe('usePhotosDeepLinks · query-only (already at /photos, query appears la
     expect(showSpy).not.toHaveBeenCalled()
   })
 
-  // requirement 3: ?asset/?photoset don't change route, only open lightbox — component won't
+  // ?asset/?photoset don't change route, only open lightbox — component won't
   // unmount because of them, watcher stays alive. Must confirm "second completely unrelated
   // query change" doesn't reopen lightbox on the same asset (fetch shouldn't be re-called).
   it('?asset value unchanged, only another key (?q) changed: lightbox not reopened, getAsset not re-called', async () => {
@@ -530,7 +530,7 @@ describe('usePhotosDeepLinks · query-only (already at /photos, query appears la
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// P8b: Vue2 has been retired, so its `/photos` query keys will never be caught by Vue2's own
+// Vue2 has been retired, so its `/photos` query keys will never be caught by Vue2's own
 // components again — each key must land here,
 // else old bookmarks all become dumb. This section covers navigation keys (?view / ?tab /
 // ?settings), source: Vue2 PhotosTimeline.vue:475-489.
@@ -614,7 +614,7 @@ describe('usePhotosDeepLinks · ?tab (only key needing host page cooperation)', 
   })
 })
 
-describe('usePhotosDeepLinks · P8b three-key query-only path', () => {
+describe('usePhotosDeepLinks · three-key query-only path', () => {
   it('After staying at /photos, manually changing ?view also applies', async () => {
     const { router } = await mountWithQuery({})
     await flushPromises()
@@ -649,7 +649,7 @@ describe('usePhotosDeepLinks · P8b three-key query-only path', () => {
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// P8b second batch: async three keys (?photo / ?smartview / ?place+?spot). All three must ask
+// Async three keys (?photo / ?smartview / ?place+?spot). All three must ask
 // backend/store first to decide where to go, failures all **silent** (remove key, stay in place),
 // semantics differ from ?asset's. Source: Vue2 PhotosTimeline.vue:504-506 + :556-571 (photo),
 // :527-554 (place/spot), PhotosSmartViewsView.vue:337-348 (smartview).

@@ -1,4 +1,4 @@
-// SP8-P2a Task 11 — ported from Vue2
+// Ported from Vue2
 // src/views/AI/Settings/sections/ThinkingDefaultsSection.vue(73 lines). brief Step 2
 // has 11 test cases; landing each one.
 //

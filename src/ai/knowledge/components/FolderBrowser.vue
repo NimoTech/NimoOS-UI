@@ -1,5 +1,5 @@
 <!--
-  SP8-P5c Task 3 (half two) — directory selector for "add root directory". 1:1 ported from the
+  Directory selector for "add root directory". 1:1 ported from the
   Vue 2 panel's blueprint `src/components/common/FolderBrowser.vue` (143 lines,
   read via `git show main:` rather than the on-disk working tree, which was a stale branch).
 

@@ -1,17 +1,16 @@
 <!--
-  SP8-P5c Task 8 — "System Settings" page (rail item 9, route `/ai/knowledge/settings`),
+  "System Settings" page (rail item 9, route `/ai/knowledge/settings`),
   1:1 ported from Vue 2 reference the Vue 2 panel (main@7a6ee6b7)
   `src/views/AI/Knowledge/SettingsView.vue` (322 lines, read via `git show main:` —
   governance §1: the working tree in that repo is an old branch, not reliable).
 
-  Upper half (service card / concurrency card / sandbox link / danger zone) implemented by **T8**
-  and reviewed; lower half (notes root folder collapse section + migrate confirmation dialog +
+  Upper half (service card / concurrency card / sandbox link / danger zone) implemented
+  and reviewed first; lower half (notes root folder collapse section + migrate confirmation dialog +
   auto-capture toggle + `notesSettings` / `rootPicker` / `dirProbe` / `browserRoots` script)
-  inserted by **T9** between "concurrency card" and "sandbox link" — together they comprise
+  inserted later between "concurrency card" and "sandbox link" — together they comprise
   all 322 lines of the reference, **zero placeholders, zero comment stubs**.
 
-  Structure mapping (reference line ranges → this file; New-UI line numbers recalculated by script,
-  see T8 / T9 reports §2):
+  Structure mapping (reference line ranges → this file; New-UI line numbers recalculated by script):
     :2-4     `.k-view` → `.k-scroll` → `.k-scroll-inner` three-layer shell (copied verbatim)
     :7-19    service card: status light `[data-state]` + two lines of text + resume/pause button
     :22-34   concurrency card · concurrency row: three buttons, text **is the number itself**
@@ -90,7 +89,7 @@
     suggests missed refactoring, not intentional design. This repo's fix (minimal): read `paused`
     once **before** `await` and store in `wasPaused`, use it both places → resume toasts "Resumed",
     pause toasts "Paused". DOM / class / icon / text / request payload unchanged, only toast
-    text from "wrong" to "right". **Already explicitly declared in T8 report; if coordinator
+    text from "wrong" to "right". **Already explicitly declared; if coordinator
     judges "copy reference," reverting requires deleting `wasPaused` in two places.**
 
   【K34 — Vue 3 mechanical rewrite (zero behavior change)】
@@ -161,7 +160,7 @@
         so they use `VisuallyHidden > DialogTitle` to add a hidden node; **this reference `:124`
         already has `.k-modal-title`** → use `<DialogTitle as-child>` to wrap that div,
         DOM structure verbatim with reference (no extra hidden node), a11y satisfied. **This is
-        closer to 1:1 than copying precedent, explicitly declared in T9 report.**
+        closer to 1:1 than copying precedent, explicitly declared.**
     Warning: `DialogPortal to=".knowledge-app"` **only recognizes first matching host** (P5b handoff
     #3) — production host from `KnowledgeLayout.vue`; tests must supply own host in body
     (`SettingsView.test.ts` `withHost()`, precedent `QueueView.test.ts:141-146`).

@@ -87,7 +87,7 @@ describe('InstalledAppsPage', () => {
     expect(evs.filter((e) => e === 'app:install-end').length).toBeLessThanOrEqual(1)
   })
 
-  // Regression case (SP5-P1 final review CRITICAL): reka-ui's AlertDialogAction is itself a
+  // Regression case (found in an earlier review): reka-ui's AlertDialogAction is itself a
   // DialogClose, so clicking the real red confirm button dispatches update:open(false) before the
   // confirm in @click — the old implementation used a single uninstallTarget ref for both the open
   // state and the target; the update:open handler nulled it first, confirm read null and

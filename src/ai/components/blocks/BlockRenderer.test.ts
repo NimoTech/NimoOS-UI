@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
 import BlockRenderer from './BlockRenderer.vue'
 
-// SP8-P1b Task 8: BLOCK_MAP recovers from "md only" to full 20-type dispatch,
+// BLOCK_MAP recovers from "md only" to full 20-type dispatch,
 // 'tool'/'thinking' is no longer "unimplemented" — assertions for fallback state of these two types use truly unmapped type names.
 // BlockRenderer.batchA.test.ts covers full dispatch + 17 new renderers.
 describe('BlockRenderer (md + fallback chip)', () => {

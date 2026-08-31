@@ -57,7 +57,7 @@ describe('photosAlbums store', () => {
       expect(errSpy).toHaveBeenCalled()
       errSpy.mockRestore()
     })
-    // Task 9(P4 legacy closeout): new loadError, semantics completely independent from
+    // New loadError, semantics completely independent from
     // albumsLoaded — on failure loadError=true but albumsLoaded remains false
     // (cannot merge/cannot substitute for each other).
     it('fetchAlbums fails: loadError set true, albumsLoaded remains false', async () => {
@@ -575,7 +575,7 @@ describe('photosAlbums store', () => {
       expect(s.albums).toHaveLength(0)
     })
 
-    // Final fix wave: the backend deletes the source smart view, so it must leave the other
+    // The backend deletes the source smart view, so it must leave the other
     // store too. Without this, smartViews.listLoaded stays true, PhotosSmartViewDetail.vue:96
     // skips its own fetch, and one browser Back press lands on a fully interactive detail page
     // for an object the server has already deleted.

@@ -1,4 +1,4 @@
-// Task 9(SP7-P6a Places - map main view): PlacesFilterMenu.vue — Map toolbar Filters popup.
+// PlacesFilterMenu.vue — Map toolbar Filters popup.
 // Each item corresponds to the required test checklist + six delete-code verification checks.
 import { describe, it, expect, afterEach, vi } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
@@ -429,7 +429,7 @@ describe('cssCascade: three places where base class + variant hover belongs to v
     // .mfp-tick` rule itself (it's an independent rule placed after .mfp-tick, doesn't fall into the "compound selector" assumption of
     // hoverBackgroundRules, here we change to directly assert that the source style block has both rules and the is-on version comes after).
     //
-    // Review-approved deviation registration: brief clearly states "use cssCascade to assert by priority", but this is a bare
+    // This is a deliberate deviation: the usual approach is "use cssCascade to assert by priority", but this is a bare
     // substring existence check, does not go through winningHoverBackground's priority calculation — the reason is this pair has no
     // competing rules with the same priority at all: .mfp-checkbox:hover only changes its own (.mfp-checkbox) background, never touches
     // .mfp-tick's border/background (verified below using baseRuleSelectorLine assertion that the selector does not contain mfp-tick),
@@ -451,11 +451,11 @@ describe('cssCascade: three places where base class + variant hover belongs to v
   })
 })
 
-// Review I1: Vue2 photos-places.scss:882's color-scheme: dark causes <input type="date"> native
+// Vue2 photos-places.scss:882's color-scheme: dark causes <input type="date"> native
 // components (calendar icon, unfilled placeholder text) to wash out to unreadable on light theme's light background (--chip-bg/--popup-bg).
 // The fix is to delete this line, let the root node (theme.css :root / :root[data-theme="light"]) already set by theme cascade down
 // — this test pins down "no regression", not "once existed".
-describe('date input does not hardcode color-scheme (review I1, prevent native components washing out unreadable under light theme)', () => {
+describe('date input does not hardcode color-scheme (prevents native components washing out unreadable under light theme)', () => {
   it('color-scheme does not appear in style block (root node theme.css already set by theme, cascade here is sufficient)', () => {
     const styleText = extractStyleBlock(placesFilterMenuRaw)
     expect(styleText).not.toContain('color-scheme')

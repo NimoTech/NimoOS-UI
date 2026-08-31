@@ -1,5 +1,5 @@
 <!--
-  SP8-P2b Task 7 — 1:1 port from Vue2 src/views/AI/Settings/sections/SearchSection.vue (230 lines).
+  1:1 port from Vue2 src/views/AI/Settings/sections/SearchSection.vue (230 lines).
 
   【D2 declaration】 State remains in component local (ref), direct call to service.ai —
   consistent with Vue2 attribution (Vue2 data() is component local state),
@@ -172,7 +172,7 @@ async function copyCmd() {
   const cmd = status.value.inotify?.raise_cmd
   if (!cmd) return
   // Logic fix 3: see header comment.
-  // SP8-P2b acceptance round 5: copy feedback (toast + checkmark state) unified via useCopyFeedback.
+  // Copy feedback (toast + checkmark state) unified via useCopyFeedback.
   await copy(cmd, 'raise-cmd')
 }
 

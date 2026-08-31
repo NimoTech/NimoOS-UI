@@ -1,4 +1,4 @@
-// SP7-P7a-T14: SearchPeoplePopover.vue — tests for search bar "People" filter popover.
+// SearchPeoplePopover.vue — tests for search bar "People" filter popover.
 // Mounts with i18n (real zh_cn/en_us entries), no Pinia needed (component does not
 // touch store). Mocks shared package @nimotech/nimoos-service (PersonAvatar calls
 // personFaceThumbnailUrl internally).
@@ -129,24 +129,23 @@ describe('Apply button count text', () => {
 })
 
 describe('count thousand separator follows locale', () => {
-  // fix round 1 · M3 (review mutation evidence): old pattern `/toLocaleString\(\s*\S+/`
-  // has no discrimination power — `)` itself is `\S`, so the regex even matches
-  // bare `toLocaleString()` call (changing back from quantified to bare still passes
-  // 19 cases; review confirmed via mutation). Changed to pin the actual identifier
-  // `toLocaleString(localeTag)` — removing param or changing to bare call turns red.
+  // The old pattern `/toLocaleString\(\s*\S+/` had no discrimination power — `)` itself is `\S`,
+  // so the regex even matches a bare `toLocaleString()` call (changing back from quantified to
+  // bare still passed all cases; confirmed by mutation testing). Changed to pin the actual
+  // identifier `toLocaleString(localeTag)` — removing the param or changing to a bare call now
+  // turns this red.
   it('source text: toLocaleString(localeTag) is a call with identifier arg, not bare', () => {
     expect(searchPeoplePopoverRaw).toMatch(/toLocaleString\(\s*localeTag\s*\)/)
   })
 
-  // fix round 1 · M3 (review mutation evidence): this render assertion itself has
-  // no discrimination power for "whether localeTag was really passed" — 'zh-cn' /
-  // 'en-us' / bare call (runtime default locale) all produce identical thousand-separator
-  // output for 1200 (all comma); changing locale or removing param doesn't change the
-  // rendered result for this specific number. Still worth keeping as a basic regression
-  // anchor for "render actually has thousand-separator" (not a tautology — dropping
-  // separator or changing to bare string concatenation turns red), but **the real pin
-  // on "using localeTag variable" is the source text regex above**, not this render
-  // assertion; different responsibilities, don't expect this to cover for the above.
+  // This render assertion itself has no discrimination power for "whether localeTag was really
+  // passed" — 'zh-cn' / 'en-us' / a bare call (runtime default locale) all produce identical
+  // thousand-separator output for 1200 (all comma); changing locale or removing the param
+  // doesn't change the rendered result for this specific number. Still worth keeping as a basic
+  // regression anchor for "render actually has a thousand-separator" (not a tautology — dropping
+  // the separator or changing to bare string concatenation turns this red), but **the real pin
+  // on "using the localeTag variable" is the source-text regex above**, not this render
+  // assertion; these are different responsibilities, don't expect this test to cover for that one.
   it("Alice's count=1200 renders as string with thousand separator (basic regression anchor, not locale discrimination source)", () => {
     const w = mountPop({ people: people(), selected: [] })
     const cells = w.findAll('.face-cell')
@@ -188,9 +187,8 @@ describe('footer buttons + bubbling', () => {
   })
 })
 
-// 2026-08-13 rollback (the owner overturned the EXIF glass exception; Fix-3 item 7 follow-up —
-// this component was missed in that round, and the brief names it explicitly: "align their
-// chrome to parity like the FilterChip/Popover treatment"): the whole colour rule set
+// Rollback: this component's chrome should align to parity the same way the
+// FilterChip/Popover treatment does. The whole colour rule set
 // .fpop/.fpop-search/.face-pop-grid/.face-cell-name/.face-cell-count/.fpop-quick(+:hover)/
 // .btn/.btn-primary(+:hover) has been removed wholesale from this component's scoped style and
 // handed to the bare selectors in vue2-parity/photos.scss (:2690-2726; the .btn family goes

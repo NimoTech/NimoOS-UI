@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Task 8 (SP7-P4 albums): the album detail view -- the biggest single item this period.
+// The album detail view -- the biggest single item this period.
 // Structure/sequencing ported section-by-section from the Vue 2 panel's
 // src/views/Photos/PhotosAlbumDetail.vue (419 lines): hero (cover/rename/edit toggle/⋯ menu
 // delete) + toolbar (bulk remove/add photos, or sort+density) + a hand-drawn grid (drag reorder/
@@ -8,7 +8,7 @@
 // Slideshow (Vue2's own version only ever popped a "coming soon" toast) and Ask Nimo (deferred
 // to SP8).
 //
-// ★ SP15-P2c Task 3 supersedes the two structures named above. The cover hero and the toolbar
+// ★ This supersedes the two structures named above. The cover hero and the toolbar
 // band are both gone; the page now wears the same skeleton as PhotosSmartViewDetail.vue --
 // .sv-detail-bar, then .sv-detail-layout splitting into a scrolling .sv-detail-main (header +
 // action row + photo grid) and the .sv-detail-side rail. Edit mode's two buttons moved to a
@@ -26,14 +26,14 @@
 //  3) selected is a Set<string> (String-normalized).
 //  4) No object-reference === anywhere in this file.
 //
-// Plan C Task 2 (shared re-shell): the shell moves from AreaShell + a `.photos-layout` flex row
+// Shared re-shell: the shell moves from AreaShell + a `.photos-layout` flex row
 // to Photos.vue's Vue2 structure `.photos-root[themeClass] > .app[data-collapsed] >
 // PhotosSidebar + main.main` — `collapsed` now comes from the shared composable
 // useSidebarCollapse(), which also brings collapsed-state persistence along with the re-shell
 // (PhotosSidebar used to eat the prop default of false and stay permanently expanded). Same as
 // PhotosAlbums.vue's own re-shell comment; the known leftover (on narrow mobile viewports there
-// is no AreaShell hamburger entry point to open the sidebar drawer, and the brief states this
-// task must not overreach and fix it) is not repeated per page — see task-2-report.md.
+// is no AreaShell hamburger entry point to open the sidebar drawer) is deliberately left
+// unfixed here (out of this task's scope) and not repeated per page.
 import '../photos/styles/vue2-parity'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -93,7 +93,7 @@ const localeTag = computed(() => locale.value.replace('_', '-'))
 // downstream store call uses it.
 const albumId = computed(() => String(route.params.id))
 
-// ── Local state (named per the brief's structure checklist) ──
+// ── Local state ──
 const edit = ref(false)
 const selected = ref<Set<string>>(new Set())
 const sortBy = ref<SortBy>('manual')
@@ -111,7 +111,7 @@ const confirmDelete = ref(false)
 // PhotosAlbums.vue's `creating` / AlbumPickerDialog.vue's `submitting`/`adding`.
 const removing = ref(false)
 const pickerOpen = ref(false)
-// Task 9 (SP7-P4 albums): the lightbox's "Add to album" -> adds to some *other* album (not this
+// The lightbox's "Add to album" -> adds to some *other* album (not this
 // one) -- named distinctly from PhotosLibraryPicker's pickerOpen above (this album's "Add
 // photos"), to avoid a same-named ref conflating two different panels.
 const albumPickerOpen = ref(false)
@@ -120,7 +120,7 @@ function openAlbumPicker(ids: Array<string | number>) {
   albumPickerIds.value = ids
   albumPickerOpen.value = true
 }
-// Adds to some other album, not this one -- no fetchAlbumAssets refresh needed (per the brief).
+// Adds to some other album, not this one -- no fetchAlbumAssets refresh needed (deliberate).
 // This empty function is a placeholder only, kept for readability consistency with the
 // same-named wiring in Photos.vue/PhotosFavorites.vue.
 function onAlbumPickerAdded(): void {}
@@ -169,7 +169,7 @@ const photos = computed<Photo[]>(() => sortAlbumPhotos(albums.assetsOf(albumId.v
 const isLoadingPhotos = computed(() => albums.isLoadingAssets(albumId.value))
 const isAlbumEmpty = computed(() => !isLoadingPhotos.value && photos.value.length === 0)
 
-// SP15-P2c Task 3: `coverBgImage` is gone with the cover hero it painted. The
+// `coverBgImage` is gone with the cover hero it painted. The
 // `--album-cover-fallback` token it referenced stays in theme.css -- PhotosAlbums.vue's
 // .album-cover-fallback is still a consumer (grep-verified before the deletion).
 
@@ -527,7 +527,7 @@ function pickSort(s: SortBy): void {
 }
 
 // ── PhotosLibraryPicker (T6) wiring ──
-// SP15-P1-T9 · Step 0: with the component generalised, the write, the success/failure toasts and
+// With the component generalised, the write, the success/failure toasts and
 // closing the panel belong to the caller (the component only picks photos). Behaviour is
 // unchanged from before the refactor: the same addAssetsToAlbum, the same photosAlbumAddedToast
 // (album name + count), the same photosAlbumAddFailed, closing on success only (a failure leaves
@@ -540,12 +540,12 @@ const pickerExistingIds = computed(
   () => new Set(albums.assetsOf(albumId.value).map((p) => String(p.id))),
 )
 // The label carries the selected count, so the caller passes a function rather than a fixed
-// string (see deviation b in the component's header).
+// string.
 function pickerSubmitLabel(count: number): string {
   return t('photosAlbumPickerAdd', { count })
 }
 const pickerAdding = ref(false)
-// Fix round 2 (coordinator review, Important): onPickerConfirm used to read `albumId.value`
+// onPickerConfirm used to read `albumId.value`
 // fresh at call time. If the picker was left open while the route's id moved to a *different,
 // real* album, a confirm arriving after that point would silently write into the newly-viewed
 // album instead of the one the user actually picked photos for. `pickerAlbumId` snapshots the id
@@ -588,7 +588,7 @@ async function onPickerConfirm(ids: Array<string | number>): Promise<void> {
   }
 }
 
-// ── PhotoLightbox (P2) wiring -- @delete + @add-to-album (T9: only wired at the lightbox; the
+// ── PhotoLightbox wiring -- @delete + @add-to-album (only wired at the lightbox; the
 // edit toolbar's "Add photos" already has its own semantics, so "Add to album" isn't duplicated
 // there) ──
 // Following the same handling as P3's favorites view T8: the lightbox has already deleted at the
@@ -653,7 +653,7 @@ onBeforeUnmount(() => {
   document.removeEventListener('keydown', onDocKeydown)
 })
 
-// Task 4 fix round 2 (coordinator review): the invariant this watcher exists to hold is that
+// The invariant this watcher exists to hold is that
 // any state scoped to "the album currently being viewed" must not survive an id change --
 // `selected`/`titleEditing`/`titleDraft` were already reset on that basis; `edit` and
 // `pickerOpen` are exactly the same kind of state and were missing from the list.
@@ -736,7 +736,7 @@ watch(gridRef, () => {
         </div>
 
         <!-- Not loaded yet: skeleton -->
-        <!-- SP15-P2c Task 3: the placeholder used to be a 260px hero-shaped block. With the hero
+        <!-- The placeholder used to be a 260px hero-shaped block. With the hero
              gone it stands in for the detail bar + header instead, which is what actually
              arrives when the album lands. -->
         <div v-else-if="!album && !albums.albumsLoaded" class="album-loading" data-test="album-loading">
@@ -757,7 +757,7 @@ watch(gridRef, () => {
         </div>
 
         <template v-else-if="album">
-          <!-- SP15-P2c Task 3 (Vue2 33b05636:PhotosAlbumDetail.vue:5-11): the same top bar the
+          <!-- Vue2 33b05636:PhotosAlbumDetail.vue:5-11: the same top bar the
                smart-view/moment detail pages carry -- back on the left, the creation date on the
                right. The date span does not render at all when createdLabel is the placeholder. -->
           <div class="sv-detail-bar">
@@ -1122,8 +1122,8 @@ watch(gridRef, () => {
        parity selectors written as `.photos-root .sv-select-bar` / `.photos-root .lb-confirm-scrim`
        (photos-smartview.scss:675 / photos.scss:620) -- a CSS descendant combinator only matches
        real DOM descendants, and "declared after `.photos-root`'s closing tag in the same
-       template" does not qualify (identical root cause to Fix-1 item 3's "New album" modal bug,
-       acceptance-fix-report.md §F1). Outside `.photos-root`, `position: fixed` / the scrim
+       template" does not qualify (identical root cause to the earlier "New album" modal bug).
+       Outside `.photos-root`, `position: fixed` / the scrim
        background / centering / z-index never applied -- the edit-mode bar likely rendered
        unstyled (or invisible under other page content) and the delete-confirm modal the same way
        AlbumPickerDialog's own portal-less siblings already were flagged as a "latent instance"
@@ -1133,21 +1133,21 @@ watch(gridRef, () => {
        scrims) or don't need viewport-relative sizing (the pickers/lightbox/dialogs), and
        `.photos-root` itself sets no transform/filter/perspective/`contain` that would create a
        new containing block for `position: fixed` (same reasoning F1 item 3 already verified).
-       Correction (Fix-8 round 4, 2026-08-14): the lightbox was temporarily pulled back OUT of
+       Correction: the lightbox was temporarily pulled back OUT of
        this "moved inside" group -- its `.lb-*` class family collided with a *future* parity
        re-skin describing a different DOM shape at the time, so nesting it re-introduced a
-       different bug than the one this note fixes. Plan F Task 5 (2026-08-15) rejoins it: once
+       different bug than the one this note fixes. It was rejoined once
        the re-skin (Tasks 3-4) actually landed and the local skeleton CSS duplicating parity's
        rules was retired, that collision was gone -- see the lightbox's own mount further down. -->
 
   <!-- Edit-mode select bar (Vue2 :322-343). This is where the deleted toolbar band's two edit
-         buttons live now, plus the hint line the band also carried. Deviation from the plan's
-         prose, registered: it renders on `edit` alone, not only once something is selected --
+         buttons live now, plus the hint line the band also carried. It deliberately renders on
+         `edit` alone, not only once something is selected --
          the target says so explicitly at :326 and has to, because the hint copy only ever shows
          with an empty selection and Add photos would otherwise be unreachable in an empty album.
-         Plan C Task 2 had made the bar a sibling of `.photos-root` itself (previously a sibling
-         of `.photos-layout` inside AreaShell's slot, before AreaShell was unwrapped); Fix-2 item 5
-         (see the correction note just above) moves it back to being a sibling of `.app`, still
+         The shared re-shell had made the bar a sibling of `.photos-root` itself (previously a sibling
+         of `.photos-layout` inside AreaShell's slot, before AreaShell was unwrapped); the fix above
+         moves it back to being a sibling of `.app`, still
          inside `.photos-root` -- it is position:fixed, so nesting it inside the scrolling column
          buys nothing either way, but it does need to stay inside `.photos-root` for its own
          parity CSS to match.
@@ -1163,7 +1163,7 @@ watch(gridRef, () => {
          where `album` disappears without a route change (e.g. a concurrent fetchAlbums no longer
          finds it) -- a watcher on route.params.id alone would miss that.
 
-         Fix round 2 (coordinator review): the watcher below now also resets `edit` on every id
+         The watcher below now also resets `edit` on every id
          change (not just a missing one), closing the sibling Minor finding -- edit mode used to
          survive navigating between two perfectly valid albums. The two fixes are complementary,
          not redundant: the watcher handles "the id changed", this `&& album` guard handles
@@ -1275,9 +1275,9 @@ watch(gridRef, () => {
 </template>
 
 <style scoped>
-/* Plan C Task 2: `.photos-layout` flex-row + the transitional `.sidebar { flex... }` width
+/* Shared re-shell: `.photos-layout` flex-row + the transitional `.sidebar { flex... }` width
    pin are gone — the `.app` CSS Grid (parity scss photos.scss:116-129) now owns both the
-   sidebar's width and the height cap, same as Photos.vue since its own Task 3 re-skin.
+   sidebar's width and the height cap, same as Photos.vue's own re-skin.
    `.photos-layout` no longer appears anywhere in this file's source — photosLayoutHeightCap
    .test.ts's CAPPED list has been updated to drop this page accordingly. */
 .photos-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; min-height: 0; }
@@ -1297,17 +1297,17 @@ watch(gridRef, () => {
    own empty-state buttons are never disabled), kept below. */
 .empty-state-btn:disabled { opacity: 0.45; cursor: not-allowed; pointer-events: none; }
 
-/* ── SP15-P2c Task 3: loading placeholder ──
+/* ── Loading placeholder ──
    The 260px cover hero it used to imitate is gone; it now stands in for the detail bar and the
    header, which is what the album actually renders on arrival. */
 .album-loading { display: flex; flex-direction: column; gap: 14px; padding: 16px 32px; }
 .album-skel-bar { height: 20px; width: 200px; border-radius: 6px; background: var(--skeleton-bg); }
 .album-skel-header { height: 90px; border-radius: 12px; background: var(--skeleton-bg); }
 
-/* ── SP15-P2c Task 3 / Task 4 re-skin: detail bar / two-column skeleton / header / action row ──
-   Task 4: `.sv-detail-bar`/`.sv-detail-bar .back`(+:hover)/`.sv-header`/`.sv-header-stats`(+`b`)
-   used to restate PhotosSmartViewDetail.vue's own scoped values verbatim (the "KEEP-THE-
-   DUPLICATION ruling P2b" this comment used to cite) -- but photos.scss/photos-smartview.scss are
+/* ── Re-skin: detail bar / two-column skeleton / header / action row ──
+   `.sv-detail-bar`/`.sv-detail-bar .back`(+:hover)/`.sv-header`/`.sv-header-stats`(+`b`)
+   used to restate PhotosSmartViewDetail.vue's own scoped values verbatim (an earlier "KEEP-THE-
+   DUPLICATION" ruling this comment used to cite) -- but photos.scss/photos-smartview.scss are
    *global*, unscoped, already-imported stylesheets (`import '../photos/styles/vue2-parity'`,
    line 29), not another SFC's own `<style scoped>` that genuinely cannot be reused. P2b's ruling
    never applied to them: a local scoped rule with an identical selector text shadows the global
@@ -1496,7 +1496,7 @@ watch(gridRef, () => {
    `.mo-about-row`(+`:last-child`,`b`)/`.sv-stat-grid`/`.sv-stat-cell`(+`.l`)/`.sv-distribution`/
    `.sv-dist-x` are deleted below; parity's own rules (photos-smartview.scss:707-841) govern
    directly. `.sv-detail-side` is the one exception, kept unchanged -- it's covered by the same
-   test-locked, deliberate scroll-model deviation as `.sv-detail-layout`/`.sv-detail-main` above
+   test-locked, deliberate scroll-model divergence as `.sv-detail-layout`/`.sv-detail-main` above
    (this file's own "keeps the rail out of the photo grid's scroll container" test asserts this
    selector's `overflow-y: auto` directly against this file's own source text). `.sv-dist-bar`
    is also gone: parity's own selector for the histogram bars is the child combinator

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Task 13 (SP7-P5 people): PersonRelGraph.vue — relationship graph (SVG force-directed graph). Copied verbatim
+// PersonRelGraph.vue — relationship graph (SVG force-directed graph). Copied verbatim
 // all geometric values from the Vue 2 panel's src/views/Photos/PhotosRelGraph.vue (94 lines):
 // viewBox 0 0 760 400, center {x:380,y:200}, center circle r=34 (clip r=31, image
 // 62x62), center glow r=90, satellite angle (i/n)*2π-π/2, distance 100+(1-count/maxCount)*110,
@@ -8,7 +8,7 @@
 // maxCount = Math.max(...counts, 1) guards against division by zero (when all counts are 0, strength=0,
 // doesn't produce 0/0=NaN).
 //
-// Color refactoring (biggest pitfall in this task, logged reason): SVG presentation attribute (fill=""/
+// Color refactoring (the biggest pitfall here, logged for future reference): SVG presentation attribute (fill=""/
 // stroke="" written directly on elements) doesn't recognize CSS var() — Vue2 therefore hard-coded 6 color locations as literal
 // hex (:5,6,13,18,20,25,38). Here we change all 6 locations to classes, color rules written into
 // scoped style block's CSS properties (fill/stroke in CSS recognizes var(), presentation
@@ -16,11 +16,11 @@
 // (class="rg-name", :33,48), here we extend the same trick to all colors. Geometric quantities
 // (stroke-width/stroke-opacity/r/coordinates) are not colors, stay on attributes.
 //
-// Fill in affordance (explicitly required by brief, not Vue2 behavior): Vue2 relationship graph nodes aren't clickable, navigation
+// Fill in affordance (not Vue2 behavior): Vue2 relationship graph nodes aren't clickable, navigation
 // entry is only in co-occurrence list/bar. Here we add click → emit
 // open-person to satellite nodes (excluding center), logged as proactive supplement not ported gap.
 //
-// Task 6 (Plan D, PR 137 gap-close): three behaviors ported from the Vue 2 panel commit
+// PR 137 gap-close: three behaviors ported from the Vue 2 panel commit
 // 03245590 (PhotosRelGraph.vue) that were missing here —
 //  1) MAX_GRAPH_NODES = 12 cap on positions (Vue2 :64/:73 `.slice(0, MAX_GRAPH_NODES)`);
 //     the empty-state gate also switched from `relations.length > 0` to `positions.length > 0`
@@ -33,10 +33,10 @@
 //     different opacities (matching this component's own `.rg-glow-stop` technique) rather
 //     than Vue2's two literal hex tones, since this app's color rule forbids fixed literals.
 //  3) Empty state `.rg-empty` (title + hint) when there are no co-appearances at all — ported
-//     from Vue2's own scoped style block (photos-people.scss doesn't have this rule; the
-//     brief's controller ruling puts it there directly with this task, not Task 1).
+//     from Vue2's own scoped style block (photos-people.scss doesn't have this rule; it's
+//     added directly here rather than in the shared parity file).
 //
-// Unnamed-person fallback (one of the 5 "Unnamed person fallback" spots the brief calls out):
+// Unnamed-person fallback (one of several such fallback spots across this component tree):
 // centerName and the satellite name label both fall back to photosPersonUnnamedTitle — same
 // key PersonHero.vue/topbar already use. Ported verbatim from Vue2's own asymmetry: the
 // *displayed* satellite name falls back (`pos.name || $t('Unnamed person')`), but the *initial*
@@ -87,12 +87,12 @@ interface NodePos {
 }
 
 // Vue2 :68-85 positions computed — sort by count descending, then position by angle/distance formula.
-// Task 6: truncate to MAX_GRAPH_NODES after sorting (Vue2 :73 `.slice(0, MAX_GRAPH_NODES)`) —
+// Truncate to MAX_GRAPH_NODES after sorting (Vue2 :73 `.slice(0, MAX_GRAPH_NODES)`) —
 // prevents a person with a lot of relations from squashing the graph into an unreadable knot.
 const positions = computed<NodePos[]>(() => {
   if (props.relations.length === 0) return []
   const sorted = [...props.relations].sort((a, b) => b.count - a.count).slice(0, MAX_GRAPH_NODES)
-  const maxCount = Math.max(...sorted.map((r) => r.count), 1) // guard against division by zero (brief hard constraint)
+  const maxCount = Math.max(...sorted.map((r) => r.count), 1) // guard against division by zero
   return sorted.map((rel, i) => {
     const angle = (i / sorted.length) * Math.PI * 2 - Math.PI / 2
     const dist = 100 + (1 - rel.count / maxCount) * 110
@@ -123,7 +123,7 @@ function thumbUrl(pos: NodePos): string {
 </script>
 
 <template>
-  <!-- Task 6: gate switched from `relations.length > 0` to `positions.length > 0` (Vue2's own
+  <!-- Gate switched from `relations.length > 0` to `positions.length > 0` (Vue2's own
        diff makes the same rename) so the MAX_GRAPH_NODES cap can't accidentally desync from
        what actually renders — positions is already the capped, empty-when-no-relations list. -->
   <svg v-if="positions.length > 0" viewBox="0 0 760 400" width="100%" height="400">
@@ -132,7 +132,7 @@ function thumbUrl(pos: NodePos): string {
         <stop offset="0%" class="rg-glow-stop" stop-opacity="0.35" />
         <stop offset="100%" class="rg-glow-stop" stop-opacity="0" />
       </radialGradient>
-      <!-- Task 6: avatar-fallback gradient (Vue2 :10-13 `#rgAvatarFallback`) — ported as a
+      <!-- Avatar-fallback gradient (Vue2 :10-13 `#rgAvatarFallback`) — ported as a
            single accent-derived color at two opacities (`.rg-avatar-fallback-stop`), not
            Vue2's two literal hex tones, per this component's own established color-rework
            technique (see script-block comment). -->
@@ -163,7 +163,7 @@ function thumbUrl(pos: NodePos): string {
 
     <g>
       <circle class="rg-center-ring" :cx="center.x" :cy="center.y" r="34" stroke-width="2" />
-      <!-- Task 6: fallback disc + initial painted UNDER the avatar (Vue2 :34-39 comment,
+      <!-- Fallback disc + initial painted UNDER the avatar (Vue2 :34-39 comment,
            ported verbatim) — if the <image> below fails to load it simply never covers this,
            no onerror handler needed. initial() reads the already-fallback-substituted
            centerName (Vue2 :92 `initial(centerName)`), so an unnamed center shows "U". -->
@@ -191,7 +191,7 @@ function thumbUrl(pos: NodePos): string {
       @click="emit('open-person', pos.id)"
     >
       <circle class="rg-node-ring" :cx="pos.x" :cy="pos.y" :r="nodeRadius(pos) + 2" stroke-width="1" />
-      <!-- Task 6: same fallback disc + initial as the center avatar above. initial() here
+      <!-- Same fallback disc + initial as the center avatar above. initial() here
            reads the RAW pos.name (Vue2 :48 `initial(pos.name)`, NOT the fallback-substituted
            display name below) — an unnamed satellite therefore shows a bare fallback disc
            with no letter, matching Vue2's own asymmetry exactly (see script-block comment). -->
@@ -216,10 +216,10 @@ function thumbUrl(pos: NodePos): string {
       >{{ pos.name || t('photosPersonUnnamedTitle') }}</text>
     </g>
   </svg>
-  <!-- Task 6 (Plan D, PR 137 gap-close): empty state when this person has no co-appearances
+  <!-- PR 137 gap-close: empty state when this person has no co-appearances
        at all — ported from Vue2 :55-58, styles transcribed into
-       src/photos/styles/vue2-parity/photos-people.scss (`.rg-empty`, controller ruling: this
-       rule lands with this task, not Task 1). -->
+       src/photos/styles/vue2-parity/photos-people.scss (`.rg-empty`, added directly here
+       rather than in the shared parity file). -->
   <div v-else class="rg-empty" data-test="rel-graph-empty">
     <div class="t">{{ t('photosPersonRelGraphEmptyTitle') }}</div>
     <div class="d">{{ t('photosPersonRelGraphEmptySub') }}</div>
@@ -230,7 +230,7 @@ function thumbUrl(pos: NodePos): string {
 /* Colors all go through CSS classes (SVG presentation attribute doesn't recognize var(), see top of script
    comment). Geometric quantities (stroke-width/stroke-opacity/r/coordinates) are not colors, stay in template
    attributes, not moved here. */
-/* Task 5 (Plan D) shadowing cleanup: `.rg-name`/`.rg-name-dim` duplicated parity's own
+/* Shadowing cleanup: `.rg-name`/`.rg-name-dim` duplicated parity's own
    `.rel-graph-wrap svg .rg-name`/`.rg-name-dim` rules (this SVG only ever renders inside
    `.rel-graph-wrap`, per PersonRelationsTab.vue's template) and have been deleted — parity
    now governs directly with `fill: var(--text-1)`/`var(--text-2)`.
@@ -269,7 +269,7 @@ function thumbUrl(pos: NodePos): string {
 .rg-node {
   cursor: pointer;
 }
-/* Task 6 (Plan D, PR 137 gap-close): avatar-fallback disc + initial-letter text (Vue2 :10-13
+/* PR 137 gap-close: avatar-fallback disc + initial-letter text (Vue2 :10-13
    `#rgAvatarFallback` gradient + :35-39/:97-99 initial <text>s). `.rg-avatar-fallback-stop` is
    reused for both <stop>s (same technique as `.rg-glow-stop` above) — a single accent-derived
    color at two opacities, not Vue2's two literal hex tones (see script-block comment).

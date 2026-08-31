@@ -125,7 +125,7 @@ describe('Files.vue context-menu target (F11)', () => {
     expect(w.findComponent(FileContextMenu).props('selectedCount')).toBe(1)
   })
 
-  // 2026-08-13 contract change (owner request): right-click must NOT touch the selection.
+  // Contract change: right-click must NOT touch the selection.
   // It used to collapse the selection to the clicked entry (files.selectOnly), which had
   // two user-visible side effects: the row lit up as "selected" and, worse, the top
   // SelectionToolbar popped in for a plain right-click. Now the context menu is driven

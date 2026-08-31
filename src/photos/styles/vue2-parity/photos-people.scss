@@ -1672,7 +1672,7 @@
    earlier section — class names follow New-UI's already-established naming
    (src/views/PhotosPeople.vue scoped block, ~707-917) while every value
    below has been re-checked against those two Vue2 inline-style blocks.
-   Final-review cleanup: the confidence dropdown itself (Vue2 ~:15-39,
+   Cleanup note: the confidence dropdown itself (Vue2 ~:15-39,
    `.people-menu-conf`) was removed from the New-UI template — its
    now-orphaned CSS (`.people-menu-conf` and its `.check`-width override)
    has been deleted below along with it; only the sort dropdown survives.

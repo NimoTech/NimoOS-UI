@@ -801,7 +801,7 @@ export function createAi(http: AxiosInstance, getToken: () => string | null) {
       /** null = automatic (backend infers from the model's limit). Vue2
        *  MemorySection.vue:141 sends null when the input is left blank —
        *  the original type omitted null, forcing callers under TS strict
-       *  to cast. SP8-P2b Task 6 / D5. */
+       *  to cast. */
       context_window?: number | null
     }): Promise<unknown> {
       const res = await http.put(`${PREFIX}/agent/user-memory/settings`, {
@@ -814,16 +814,17 @@ export function createAi(http: AxiosInstance, getToken: () => string | null) {
 
     // ---- Web tools (web_search / web_fetch) settings ----
 
-    /** 响应形状固定 `{backend, base_url, enabled, has_key}` —— 后端**从不**把密钥本身
-     *  发回来,只给一个 has_key 布尔位。 */
+    /** Response shape is fixed as `{backend, base_url, enabled, has_key}` —— the backend
+     *  **never** sends the secret itself back, only a has_key boolean flag. */
     async getWebSettings(): Promise<unknown> {
       const res = await http.get(`${PREFIX}/agent/web-settings`)
       return res.data
     },
 
-    /** `api_key` 是可选字段:不传 = 保留已存密钥,传 `''` = 清空密钥。调用方(WebSection.vue)
-     *  据此决定"密钥输入框留空"时干脆不带这个字段,而不是发空串——否则每次保存
-     *  (哪怕只是切换 enabled 开关)都会把已存密钥冲掉。 */
+    /** `api_key` is an optional field: omitting it keeps the stored secret, sending `''` clears
+     *  it. Callers (WebSection.vue) rely on this: when the secret input is left blank, they
+     *  simply omit this field entirely rather than sending an empty string — otherwise every
+     *  save (even just toggling the enabled switch) would wipe out the already-stored secret. */
     async putWebSettings(payload: {
       backend: string
       base_url: string

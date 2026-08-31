@@ -179,7 +179,7 @@ async function save() {
               {{ t('settingsNetTypeHotspot') }}
             </button>
           </div>
-          <!-- v-if instead of v-show: sp8-P2a logged a narrow-screen regression caused by v-show -->
+          <!-- v-if instead of v-show: an earlier fix logged a narrow-screen regression caused by v-show -->
           <WifiForm
             v-if="tab === 'wifi'"
             :form="form"

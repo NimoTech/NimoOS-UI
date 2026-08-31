@@ -236,9 +236,8 @@
 .photos-root .mo-badge {
   background: linear-gradient(135deg, #FF9F0A, #FF6B5C);
 }
-/* Overlong title hardening (round 10 final-review minimal fix):
-   moment.title has no length cap, clip at two lines max, only applies in the
-   mo scope, doesn't touch SV cards' .sv-name. */
+/* Overlong title hardening: moment.title has no length cap, clip at two
+   lines max, only applies in the mo scope, doesn't touch SV cards' .sv-name. */
 .photos-root .mo-card .sv-name {
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -865,7 +864,7 @@
   overflow: hidden;
 }
 
-/* Fix round (P1): embedded mode's outer wrapper — only "disappears" in the
+/* Fix round: embedded mode's outer wrapper — only "disappears" in the
    box model (display:contents), handing off the flex-child slot it would
    otherwise occupy directly to the inner .sv-modal.sv-modal-embedded, so the
    host .albums-modal-wide (display:flex;flex-direction:column) can actually

@@ -518,7 +518,7 @@
 /* Generic empty state (mirrors the same visual spec as the existing .set-net-empty / .set-comp-empty). */
 .set-empty { padding: 28px 16px; text-align: center; color: var(--fg-muted); font-size: 12px; }
 
-/* -- SP9-P4 folder-permissions (four partitions) ---------------------------------------- */
+/* -- Folder-permissions (four partitions) ---------------------------------------- */
 .set-fp-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
 .set-fp-intro { flex: 1; margin: 0; font-size: 13px; color: var(--fg-muted); }
 .set-fp-box { padding: 16px; margin-bottom: 12px; border-radius: 12px; background: var(--card-bg); border: 1px solid var(--card-border); }
@@ -533,7 +533,7 @@
 .set-fp-tag { flex-shrink: 0; padding: 2px 8px; border-radius: 999px; font-size: 12px; background: var(--chip-bg); border: 1px solid var(--chip-border); color: var(--fg-muted); }
 .set-fp-empty { margin: 0; font-size: 13px; color: var(--fg-muted); }
 
-/* ── SP9-P4 account ───────────────────────────────────────────────────── */
+/* ── Account ───────────────────────────────────────────────────── */
 /* Visual measurements mirror Vue2 AccountPanel: card corner radius 1.25rem, username 2rem,
    avatar 108px circular with a 4px border, button height 36px / 0.875rem, menu corner radius
    10px / min-width 176px. All colors go through tokens. */
@@ -555,7 +555,7 @@
 .set-acc-avatar-initial { font-size: 40px; font-weight: 600; color: var(--fg-muted); }
 .set-acc-foot { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
 
-/* -- SP9-P4 account - choose avatar from NAS ---------------------------------------------- */
+/* -- Account - choose avatar from NAS ---------------------------------------------- */
 .set-nas-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; max-height: 300px; overflow-y: auto; }
 .set-nas-card { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 14px 10px 12px; border-radius: 12px; text-align: center; cursor: pointer; background: var(--card-bg); border: 1px solid var(--card-border); }
 .set-nas-card:hover { background: var(--chip-bg); }
@@ -573,7 +573,7 @@
 .set-nas-item-icon { font-size: 20px; line-height: 1; }
 .set-nas-item-name { font-size: 0.7rem; line-height: 1.3; text-align: center; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--fg-muted); }
 
-/* -- SP9-P4 account - members section ------------------------------------------------------ */
+/* -- Account - members section ------------------------------------------------------ */
 .set-mem { margin-top: 24px; }
 .set-mem-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; padding: 0 4px; }
 .set-mem-title { flex: 1; font-size: 1rem; font-weight: 500; color: var(--fg); }

@@ -4,7 +4,7 @@ import { copyText } from '../../files/util/clipboard'
 import { useToast } from '../../stores/toast'
 
 /**
- * [SP8-P2b acceptance round 5, user requirement from 2026-07-30] Copy button "copied" checkmark state.
+ * Copy button "copied" checkmark state.
  *
  * Original requirement: "After clicking copy, mark the corresponding copy button with a checkmark
  * to show it's been copied, reset when clicking to copy something else". In other words: **at most

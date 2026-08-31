@@ -1,15 +1,19 @@
-// SP8-P6 合流:AI 区文案分片(本文件由 sp8-ai 的 zh_cn.ts 末尾整块逐字搬来,一字未改)。
+// AI section string shard (this file was copied verbatim, word-for-word, from the tail block of
+// sp8-ai's zh_cn.ts).
 //
-// 为什么单独一块:AI 区 1200 多条文案自成一块,散在主表里会让主表变得极难维护,
-// 也让几条并行线频繁在同一文件上相撞。与 zh_cn.photos.ts 同一套做法。
+// Why a separate file: the AI section's 1200+ strings form a self-contained block; mixing them into
+// the main table would make it very hard to maintain, and would cause several parallel work lines to
+// collide repeatedly on the same file. Same approach as zh_cn.photos.ts.
 //
-// 三方比较实测(合流时):sp8 相对分叉点新增 1207 个键、全部以 `ai` 开头
-// (含一个引号键 `'ai.searchMyNas'` —— 带点号,裸标识符正则扫不到,靠运行时
-// Object.keys 集合等式才对上账;静态扫描器若只认 [A-Za-z0-9_]+ 会少数一个),
-// 且对分叉点已有的 520 个 base 键**零修改、零删除** —— 所以 base 一侧整取 master,
-// 不存在把 SP7/SP9 期间的改动静默回退的风险。
+// Three-way comparison (verified at merge time): sp8 added 1207 keys relative to the fork point, all
+// starting with `ai` (including one quoted key `'ai.searchMyNas'` — it contains a dot, so a
+// bare-identifier regex scan won't catch it; only a runtime Object.keys set-equality check reconciles
+// it. A static scanner that only recognizes [A-Za-z0-9_]+ would miss it), and made **zero
+// modifications, zero deletions** to the 520 base keys that already existed at the fork point — so the
+// base side is taken wholesale from master, with no risk of silently reverting changes made during
+// SP7/SP9.
 export default {
-  // ── AI Agent 壳(shell/Sidebar/Topbar)+ 空态建议卡 ──
+  // ── AI Agent shell (shell/Sidebar/Topbar) + empty-state suggestion cards ──
   aiUntitled: '(未命名)',
   aiNewConversation: '新对话',
   aiNoConversations: '暂无对话',
@@ -19,7 +23,7 @@ export default {
   aiCopy: '复制',
   aiCopied: '已复制',
   aiThinking: '思考中',
-  // SP8-P1c2 Task 8 —— ThinkingBar(Vue2 shell/ThinkingBar.vue 105 行逐字港）。
+  // ThinkingBar (ported verbatim from Vue2 shell/ThinkingBar.vue line 105).
   aiThinkingLabel: '思考',
   aiThinkingIntensity: '强度',
   aiThinkingLow: '低',
@@ -27,8 +31,8 @@ export default {
   aiThinkingHigh: '高',
   aiThinkingMax: '极高',
   aiThinkingUnsupported: '该模型不支持思考',
-  // F5 修复(review):沿用 Vue2 zh_CN.json 里对同一句英文源串的现成译法逐字
-  // (原为新写的措辞,与 Vue2 用语不一致)。
+  // F5 fix (review): reuse verbatim the existing translation of the same English source string from
+  // Vue2's zh_CN.json (previously newly-written wording, inconsistent with Vue2 terminology).
   aiThinkingDeepseekNote: 'DeepSeek 上「低/中」以及「高/极高」行为分别相同',
   aiEmptyTitle: '你好,我是 Nimo',
   aiEmptySubtitle: '你的 NAS AI 助手——找照片、清理重复文件、整理文件,或者随便聊聊。',
@@ -46,10 +50,12 @@ export default {
   aiEmptyScriptExample: '搭一个小工具或自动化脚本',
   aiConfirm: '删除',
   aiCancel: '取消',
-  // aiSettingsComingSoon 已在 SP8-P2a Task 12 退役(三个「去设置」入口改真跳转
-  // /ai/settings,占位 toast 不再需要;grep 确认无其它引用后删除)。
-  // SP8-P2a Task 3 —— 设置区导航配置 sections.ts。
-  // 中文值逐字取自 Vue2 生产 zh_CN.json 对应 English key 的既有译文。
+  // aiSettingsComingSoon was retired in an earlier stage (the three "Go to settings" entry points now
+  // navigate for real to /ai/settings, so the placeholder toast is no longer needed; removed after grep
+  // confirmed no other references).
+  // Settings-area navigation config, sections.ts.
+  // Chinese values are copied verbatim from the existing translations of the corresponding English keys
+  // in Vue2's production zh_CN.json.
   aiCfgGroupModel: '模型选择',
   aiCfgGroupAgent: 'Agent 配置',
   aiCfgGroupPlugin: '插件',
@@ -68,42 +74,46 @@ export default {
   aiCfgMcpConnections: 'MCP 连接',
   aiCfgMcpTokens: '对外 MCP 服务',
   aiCfgChannels: '聊天渠道',
-  // SP8-P2a Task 7 —— SettingsRail 头部/账号卡。前三条中文值逐字取自 Vue2
-  // 生产 zh_CN.json 对应英文 key 的既有译文;`aiCfgLocalAccount` 在
-  // zh_CN.json 里查不到对应 key(只有 'Local account · NAS' 这条完整串),
-  // 沿用该完整串。
+  // SettingsRail header / account card. The first three Chinese values are copied verbatim
+  // from the existing translations of the corresponding English keys in Vue2's production zh_CN.json;
+  // `aiCfgLocalAccount` has no matching key in zh_CN.json
+  // (only the full string 'Local account · NAS' exists), so that full string is reused.
   aiCfgPersonalize: '个性化',
   aiCfgBackToNimo: '返回 Nimo',
   aiCfgYou: '你',
   aiCfgLocalAccount: '本地账户 · NAS',
-  // SP8-P2a Task 5 fix(评审 Important)—— settingsStore.js:211 saveProvider
-  // 校验报错文案。ProvidersSection.vue:175-182 消费方 `e.message || t('Save
-  // failed')` 优先展示 e.message,硬编码英文会原样弹给中文用户,故必须走
-  // i18n。中文值逐字取自 Vue2 生产 zh_CN.json['Name and Base URL are required']。
+  // A fix (flagged Important in review) — validation error message for settingsStore.js:211
+  // saveProvider. The consumer ProvidersSection.vue:175-182 does `e.message || t('Save
+  // failed')`, which prefers e.message; a hardcoded English string would surface as-is to
+  // Chinese users, so it must go through i18n. Chinese value copied verbatim from Vue2's
+  // production zh_CN.json['Name and Base URL are required'].
   aiCfgProviderNameUrlRequired: '名称和 Base URL 为必填项',
-  // SP8-P2a Task 8 —— SettingsPage 顶栏 / scroll-spy / 占位面板。
-  // 中文值逐字取自 Vue2 生产 zh_CN.json 对应英文 key 的既有译文(`aiCfgDetails`
-  // /`aiCfgRefresh`/`aiCfgToggleTheme` 三条直接沿用 Settings.vue:23/26/29 用的
-  // 既有 `$t('Details')`/`$t('Refresh')`/`$t('Toggle theme')` 键的译文)。
+  // SettingsPage top bar / scroll-spy / placeholder panel.
+  // Chinese values are copied verbatim from the existing translations of the corresponding English
+  // keys in Vue2's production zh_CN.json (`aiCfgDetails`/`aiCfgRefresh`/`aiCfgToggleTheme` directly
+  // reuse the translations of the existing `$t('Details')`/`$t('Refresh')`/`$t('Toggle theme')` keys
+  // used at Settings.vue:23/26/29).
   aiCfgDetails: '详情',
   aiCfgRefresh: '刷新',
   aiCfgToggleTheme: '切换主题',
   aiCfgParserNotRunning: 'Parser 未运行',
-  // 【i18n 政策核查偏离,已申报】brief Step 6 给出的字面文案是「已暂停 ·
-  // 待处理:{pending} · 并发:{concurrency}」(待处理/并发后带冒号)。全局约束
-  // 「中文值优先逐字复用 Vue2 生产译文」要求以 zh_CN.json 权威查法为准 ——
-  // 实测查得的生产译文是「已暂停 · 待处理 {pending} · 并发 {concurrency}」
-  // (不带冒号,纯空格分隔)。两者冲突时以生产译文(1:1 口径的权威源)为准,
-  // 这里没有照抄 brief 给的字面文案,已在报告里申报。
+  // [i18n policy check deviation, reported] Step 6 of the brief gave the literal copy as "Paused ·
+  // Pending: {pending} · Concurrency: {concurrency}" (with colons after "Pending"/"Concurrency"). The
+  // global constraint "Chinese values should preferentially reuse Vue2's production translation
+  // verbatim" requires treating zh_CN.json as the authoritative source — the production translation
+  // actually found is "Paused · Pending {pending} · Concurrency {concurrency}" (no colons, plain
+  // space-separated). When the two conflict, the production translation (the authoritative 1:1 source)
+  // wins; the literal copy from the brief was not used here, as reported.
   aiCfgParserPaused: '已暂停 · 待处理 {pending} · 并发 {concurrency}',
   aiCfgParserRunning: '运行中 · 待处理 {pending} · 并发 {concurrency}',
   aiCfgSectionDeferred: '该分区将在后续阶段开启',
   aiCfgPlaceholderBody: '该分区尚未迁移到新界面,将在后续阶段开启。',
-  // SP8-P2a Task 9 —— ModelsSection(本地模型)。中文值逐字取自 Vue2 生产
-  // zh_CN.json 对应英文 key 的既有译文(命令见 brief Global Constraints);
-  // 全部 39 处 $t() 调用逐条查证,一条自拟都没有(见任务报告的自拟文案清单)。
-  // aiCfgLocalModels / aiCfgRefresh 复用 Task 3/8 已建的既有键(Vue2 本身也是
-  // 同一个 $t('Local models') / $t('Refresh') 键在导航与本页面两处复用)。
+  // ModelsSection (local models). Chinese values are copied verbatim from the existing translations of
+  // the corresponding English keys in Vue2's production zh_CN.json (lookup method in the brief's Global
+  // Constraints); all 39 $t() call sites were checked individually — none were freely composed (see the
+  // task report's list of freely-composed copy).
+  // aiCfgLocalModels / aiCfgRefresh reuse the existing keys created in Task 3/8 (Vue2 itself also reuses
+  // the same $t('Local models') / $t('Refresh') key in both the nav and this page).
   aiCfgModelsDesc: '在 NAS 上离线运行的模型。可从 Ollama 拉取或从 HuggingFace 导入 GGUF —— 全程不出本机。',
   aiCfgInstalledModels: '已安装模型',
   aiCfgImportComplete: '导入完成',
@@ -112,8 +122,8 @@ export default {
   aiCfgImporting: '正在导入',
   aiCfgClose: '关闭',
   aiCfgCancel: '取消',
-  // Vue2 把 emoji 写进了 key 本身(`$t('⚠️ Do not shut down...')`);本仓键名
-  // 用 aiCfgDownloadWarning,但文案值保留开头的 ⚠️ emoji(视觉 1:1)。
+  // Vue2 baked the emoji into the key itself (`$t('⚠️ Do not shut down...')`); this repo's key name
+  // is aiCfgDownloadWarning, but the copy value keeps the leading ⚠️ emoji (visual parity).
   aiCfgDownloadWarning: '⚠️ 下载期间请勿关闭 NimoOS 机器，否则需重新下载',
   aiCfgEtaApprox: '约 {eta}',
   aiCfgEtaSec: '{n} 秒',
@@ -131,9 +141,10 @@ export default {
   aiCfgPullingHint: '正在拉取：{names} （拉取在后台进行，请稍后手动刷新查看）',
   aiCfgImportGgufTitle: '从 HuggingFace 导入 GGUF',
   aiCfgSearchModelsPlaceholder: '搜索模型，如 Qwen GGUF',
-  // 与 aiCfgSearch(导航「搜索」分区标签,P2b 的 Agent 检索设置)是两个不同
-  // 语义的键,即便当前字面值恰好都是「搜索」——分开建键,避免把两处耦合在
-  // 同一条译文上(见任务报告「偏离」条目)。
+  // A distinct key from aiCfgSearch (the nav's "Search" section label, P2b's agent retrieval settings) —
+  // even though the current literal values happen to both be "搜索" ("Search"), they are kept as
+  // separate keys to avoid coupling the two to the same translation string (see the "deviation" item in
+  // the task report).
   aiCfgSearchBtn: '搜索',
   aiCfgSearchingEllipsis: '搜索中…',
   aiCfgSelectedRepo: '已选: {repo}',
@@ -147,10 +158,11 @@ export default {
   aiCfgSearchFailed: '搜索失败',
   aiCfgImportStartedFor: '已发起导入 {file}',
 
-  // SP8-P2a Task 10 —— ProvidersSection(云端提供商)。中文值优先逐字复用
-  // Vue2 生产 zh_CN.json 对应英文 key 的既有译文(查法见 brief 头部);查不到
-  // 的自拟,已在报告的「自拟文案清单」单列。
-  // aiCfgCloudProviders(标题)复用 Task 3 已建的既有键,这里不重复定义。
+  // ProvidersSection (cloud providers). Chinese values preferentially reuse verbatim the existing
+  // translations of the corresponding English keys in Vue2's production zh_CN.json (lookup method in
+  // the brief's header); values that couldn't be found were freely composed and listed separately in
+  // the report's "freely-composed copy" list.
+  // aiCfgCloudProviders (the title) reuses the existing key created in Task 3 and isn't redefined here.
   aiCfgProvidersDesc: '配置兼容 OpenAI 协议的云端模型服务。仅在隐私策略允许云端请求时生效。',
   aiCfgConfiguredProviders: '已配置提供商',
   aiCfgAdd: '添加',
@@ -180,17 +192,18 @@ export default {
   aiCfgAutoFetchFailedManual: '自动拉取失败，可手动添加',
   aiCfgEnterModelNamePrompt: '输入模型名(如 gpt-4o)',
   aiCfgModelNamePromptPlaceholder: '模型名',
-  // 两个 Vue2 从未 $t() 包裹的裸英文字面量(:25/:107 表头/表单 label、:111
-  // 表单 label)—— 技术术语,生产 zh_CN.json 里也没有中译先例,中英文保留
-  // 原文(见组件头注释「i18n:两个从未被 Vue2 $t() 包裹的英文字面量」)。
+  // Two bare English literals that Vue2 never wrapped in $t() (:25/:107 table header/form label, :111
+  // form label) — these are technical terms with no existing Chinese-translation precedent in
+  // production zh_CN.json either, so both locales keep the original English (see the component's
+  // header comment "i18n: two English literals never wrapped in $t() by Vue2").
   aiCfgBaseUrl: 'Base URL',
   aiCfgApiKey: 'API Key',
 
   aiNoModelsAvailable: '暂无可用模型。请前往设置添加本地模型或启用云服务商。',
-  // SP8-P1c2 Task 9 —— ModelPicker(Vue2 shell/ModelPicker.vue)+ AI 改名按钮
-  // (Vue2 shell/AgentTopbar.vue:26-29)+ 模型回退提示(Vue2 Agent.vue:133-142)。
-  // 中文值取自 Vue2 src/assets/lang/zh_CN.json 里对应英文 key 的既有译文,保持
-  // 与旧应用一致的措辞。
+  // ModelPicker (Vue2 shell/ModelPicker.vue) + the AI rename button
+  // (Vue2 shell/AgentTopbar.vue:26-29) + the model-fallback notice (Vue2 Agent.vue:133-142).
+  // Chinese values are taken from the existing translations of the corresponding English keys in
+  // Vue2's src/assets/lang/zh_CN.json, keeping the wording consistent with the old app.
   aiLocalOllama: '本地 Ollama',
   aiCloudModels: '云端',
   aiSearchModelsPlaceholder: '搜索模型…',
@@ -202,10 +215,10 @@ export default {
   aiNoModelAvailable: '无可用模型',
   aiSessionNotFound: '找不到该会话 — 可能已被删除',
   aiRename: 'AI 重命名',
-  // SP8-P1b Task 11 —— ?search= 自动发送的本地化包装文案(Vue2 Agent.vue:174 对齐)。
+  // Localized wrapper copy for the auto-sent ?search= message (aligned with Vue2 Agent.vue:174).
   'ai.searchMyNas': '在我的 NAS 中搜索"{query}"。',
-  // SP8-P1b Task 8 —— 块渲染器批次 A(confirm/mcp 系列卡片),1:1 对齐 Vue2
-  // src/assets/lang/zh_CN.json 里同一批 key 的既有译文。
+  // Block-renderer batch A (confirm/mcp series cards), aligned 1:1 with the existing translations
+  // of the same batch of keys in Vue2's src/assets/lang/zh_CN.json.
   aiMcpConnectFailed: 'MCP 服务「{server}」连接失败：{error}',
   aiConfirmRequiredTitle: '需要确认：{action}',
   aiHighRiskOperation: '高危操作',
@@ -274,7 +287,7 @@ export default {
   aiRegister: '注册',
   aiPhotoSearch: '图片搜索',
   aiNoMatchingPhotos: '没有匹配的图片',
-  // SP8-P1b Task 9 —— SearchImageLightbox / SearchFileDrawer / SearchFullResults / SemanticSearchCard
+  // SearchImageLightbox / SearchFileDrawer / SearchFullResults / SemanticSearchCard
   aiOpenInPhotos: '在照片应用中打开',
   aiLightboxClose: '关闭',
   aiPrevious: '上一张',
@@ -310,7 +323,7 @@ export default {
   aiViewAllFiles: '查看全部 {n} 个文件',
   aiViewAllSemanticPassages: '查看全部 {n} 条语义段落',
   aiViewAllResults: '查看全部结果',
-  // SP8-P1b Task 10 — ProcessStrip (合并 thinking+tool 步骤条) / TimelineMinimap
+  // ProcessStrip (combined thinking+tool step strip) / TimelineMinimap
   aiProcWorking: '处理中',
   aiProcProcessed: '已处理',
   aiProcThinkingWord: '思考',
@@ -319,16 +332,17 @@ export default {
   aiProcTool: '工具',
   aiProcNoDetails: '无详情',
   aiTimelineYou: '你',
-  // SP8-P1c1 Task 6 — ContextUsageBar(上下文占用环)
+  // ContextUsageBar (context-usage ring)
   aiCtxLabel: '上下文',
-  // SP8-P1c1 Task 7 — MentionPopover(@ 提及/文件抽屉钻取面板),对齐 Vue2
-  // src/views/AI/Agent/shell/MentionPopover.vue 模板 1-80 的全部可见文案。
+  // MentionPopover (@ mention / file-drawer drill-down panel), aligned with all visible copy
+  // in Vue2 src/views/AI/Agent/shell/MentionPopover.vue template lines 1-80.
   aiMentionAllDrives: '全部磁盘',
   aiMentionDrives: '个磁盘',
   aiMentionItems: '项',
   aiMentionLoading: '加载中…',
-  // aiMentionNoMatchTpl 的 {query} 是 <i18n-t> 具名插槽占位符,由 MentionPopover.vue
-  // 用 <b>"{{ query }}"</b> 填充——引号+加粗都在插槽里,不在译文字符串里(见 Fix 2)。
+  // The {query} in aiMentionNoMatchTpl is an <i18n-t> named-slot placeholder, filled in by
+  // MentionPopover.vue with <b>"{{ query }}"</b> — both the quotes and the bold are in the slot,
+  // not in the translation string (see Fix 2).
   aiMentionNoMatchTpl: '没有匹配 {query} 的结果',
   aiMentionEmptyHere: '这里没有内容',
   aiMentionTryDifferentName: '换个名字试试,或按',
@@ -340,43 +354,45 @@ export default {
   aiMentionKbdSelect: '选择',
   aiMentionKbdUp: '上一级',
   aiMentionKbdClose: '关闭',
-  // SP8-P1c1 Task 8 — SlashMenu(`/init` 斜杠面板),对齐 Vue2
-  // src/views/AI/Agent/shell/SlashMenu.vue 模板 1-23 的全部可见文案(`/init` 字面量不译)。
+  // SlashMenu (the `/init` slash panel), aligned with all visible copy in Vue2
+  // src/views/AI/Agent/shell/SlashMenu.vue template lines 1-23 (the `/init` literal is not translated).
   aiSlashInitDesc: '为某个目录生成 agent.md',
   aiSlashNoFolders: "还没有可见目录 —— 先用 {'@'} 选一个",
-  // SP8-P1c1 patch task 2 — SlashPopover(与 @ 面板同款的内联斜杠命令面板,
-  // 替代上面被否掉的全屏 SlashMenu),command 阶段空态 + 底部键位提示新键。
+  // SlashPopover (the inline slash-command panel styled like the @ panel,
+  // replacing the full-screen SlashMenu rejected above); new keys for the command-stage empty
+  // state + the bottom keybinding hint.
   aiSlashNoCommand: '没有匹配的命令',
   aiSlashKbdNav: '导航',
   aiSlashKbdSelect: '选择',
   aiSlashKbdClose: '关闭',
   aiSlashKbdBack: '返回',
-  // SP8-P1c1 Task 9 — AgentComposer(输入框骨架:chips + textarea + 工具栏)。
-  // aiComposerPlaceholder 取自 Vue2 src/assets/lang/zh_CN.json 里
-  // agent.composerPlaceholder 的既有译文,逐字复用。
+  // AgentComposer (input-box skeleton: chips + textarea + toolbar).
+  // aiComposerPlaceholder is taken verbatim from the existing translation of agent.composerPlaceholder
+  // in Vue2's src/assets/lang/zh_CN.json.
   aiComposerPlaceholder: "问 Nimo，或输入 {'@'} 引用文件…",
   aiComposerVoice: '语音',
-  // Vue2 AgentComposer.vue:128 的整句 caption(对齐既有 zh_CN.json 译文)。
+  // The full caption sentence from Vue2 AgentComposer.vue:128 (aligned with the existing zh_CN.json translation).
   aiComposerCaption: '文件保留在你的 NAS。Nimo 可以读取、整理、操作它们。',
   aiComposerBrowse: '浏览',
   aiComposerBrowseTitle: '浏览 NAS',
-  // Browse 弹窗(BrowserModal)本期不做,点击后的占位提示(用户决定,见 Task 9 brief)。
+  // The Browse modal (BrowserModal) is not being built this cycle; this is the placeholder message
+  // shown on click (user decision, see the Task 9 brief).
   aiBrowseComingSoon: '浏览弹窗将在后续版本开启',
   aiNotSupportedYet: '该功能尚未支持',
-  // brief 未列举此键——Vue2 toastError()(654-657)是 removeChip/pickItem/onBrowserPick
-  // 三处共用的通用错误提示,对应 Vue2 zh_CN.json "Authorization failed: {msg}" 键
-  // (译文"授权失败：{msg}"),不是"移除失败"专属文案。
+  // This key is not listed in the brief — Vue2's toastError() (654-657) is the generic error message
+  // shared by removeChip/pickItem/onBrowserPick, corresponding to Vue2 zh_CN.json's "Authorization
+  // failed: {msg}" key (translated "授权失败：{msg}"), not a dedicated "remove failed" message.
   aiAuthFailed: '授权失败：{msg}',
-  // SP8-P1c1 Task 10 — AgentComposer 附件管线。以下中文全部逐字复用 Vue2 既有
-  // src/assets/lang/zh_CN.json 的既有译文(用与 Vue2 源码里 this.$t(...) 调用时
-  // 完全相同的英文字符串去查 zh_CN.json,取回对应中文),未在该文件里出现的键
-  // (仅 aiAttachSessionFailed 因 zh_CN.json 里实际键是 "Failed to create session:
-  // {err}" → "创建会话失败：{err}"，与 brief 建议的“建会话失败”不同，按“复用既有
-  // 译文优先”取 zh_CN.json 原文)。
+  // AgentComposer's attachment pipeline. All Chinese below reuses verbatim the existing translations
+  // in Vue2's src/assets/lang/zh_CN.json (looked up using the exact same English string passed to
+  // this.$t(...) in the Vue2 source to retrieve the corresponding Chinese); one key not present in
+  // that file (aiAttachSessionFailed, because zh_CN.json's actual key is "Failed to create session:
+  // {err}" → "创建会话失败：{err}", different from the brief's suggested "建会话失败" — per the
+  // "prefer reusing the existing translation" rule, zh_CN.json's original text was used).
   //
-  // docErrorKey/docErrorShortKey(attachmentMeta.ts)的 8 长句 + 8 短标签 + 2 个
-  // 通用兜底键,对应 Vue2 docErrorLabel/docErrorShort 里的 8 组 code→label 映射
-  // (AgentComposer.vue:460-486)。
+  // docErrorKey/docErrorShortKey (attachmentMeta.ts): 8 long sentences + 8 short labels + 2 generic
+  // fallback keys, corresponding to the 8 code→label mappings in Vue2's docErrorLabel/docErrorShort
+  // (AgentComposer.vue:460-486).
   aiDocErrEmptyScanned: '看起来是扫描件，无法识别其中的文字。请提供文字版 PDF 或直接粘贴内容。',
   aiDocErrEncrypted: 'PDF 已加密，无法读取。请提供未加密的版本。',
   aiDocErrZipBomb: '文件解压后过大，已拒绝读取。',
@@ -395,11 +411,11 @@ export default {
   aiDocErrShortParserMissing: '解析器缺失',
   aiDocErrShortLost: '已丢失',
   aiDocErrShortParse: '解析失败',
-  // docOkLabel(AgentComposer.vue:488-494)三段拼接文案。
+  // docOkLabel (AgentComposer.vue:488-494), a three-segment concatenated message.
   aiDocOkExtracted: '已抽取为 Markdown，模型可读取内容',
   aiDocPages: '{n} 页',
   aiDocTruncated: '内容过长已截断',
-  // attachmentHint(AgentComposer.vue:234-244)七行,顺序与 Vue2 数组顺序一致。
+  // attachmentHint (AgentComposer.vue:234-244), seven lines, in the same order as Vue2's array.
   aiAttachHint1: '支持的附件类型',
   aiAttachHint2: '· 图片：PNG / JPG / GIF / WebP / AVIF 等（模型直接识图）',
   aiAttachHint3: '· 文档：PDF / DOCX / XLSX / XLSM / PPTX（抽取成 Markdown 供模型阅读）',
@@ -407,20 +423,22 @@ export default {
   aiAttachHint5: '文本/代码：',
   aiAttachHint6: '· 其他文件可上传但模型只能看到文件名',
   aiAttachHint7: '单文件上限 500 MB，会话累计 50 个',
-  // onFilesPicked(AgentComposer.vue:531-537,517-527)的两条 toast 文案,逐字复用
-  // zh_CN.json 既有译文(见上方注释——500MB 提示的既有译文实际写的是 "500MB"
-  // 无空格,与 zh_CN.json 保持一致而非按 brief 字面拼写)。
+  // The two toast messages from onFilesPicked (AgentComposer.vue:531-537, 517-527), reusing
+  // zh_CN.json's existing translations verbatim (see the comment above — the existing translation of
+  // the 500MB notice actually spells it "500MB" with no space; kept consistent with zh_CN.json rather
+  // than the brief's literal spelling).
   aiAttachTooLarge: '{name} 超过 500MB 上限',
   aiAttachSessionFailed: '创建会话失败：{err}',
-  // SP8-P1c1 Task 11 — AgentComposer @提及/斜杠接线,gitignore 409 确认框
-  // (AlertDialog 取代 Vue2 window.confirm,见 AgentComposer.vue pickItem 注释)。
-  // aiGitignoreBlockedMsg 逐字复用 Vue2 既有 zh_CN.json 对 "{path} is blocked by
-  // .gitignore. Authorize anyway?" 的译文;aiGitignoreBlockedTitle 是 AlertDialog
-  // 需要而 window.confirm 没有的标题,新写,词根与既有译文的"屏蔽"保持一致。
+  // AgentComposer @-mention / slash wiring, the gitignore 409 confirmation dialog
+  // (AlertDialog replaces Vue2's window.confirm, see the comment in AgentComposer.vue pickItem).
+  // aiGitignoreBlockedMsg reuses verbatim Vue2's existing zh_CN.json translation of "{path} is blocked
+  // by .gitignore. Authorize anyway?"; aiGitignoreBlockedTitle is a title that AlertDialog needs but
+  // window.confirm didn't have — newly written, keeping the root wording ("屏蔽"/"blocked") consistent
+  // with the existing translation.
   aiGitignoreBlockedTitle: '路径被 .gitignore 屏蔽',
   aiGitignoreBlockedMsg: '{path} 被 .gitignore 屏蔽，确认仍要授权？',
-  // SP8-P1c2 Task 10 —— AgentRightPanel(4 个 tab 按钮)+ ActivityTab + ContextTab
-  // 逐字港。这几个字符串 Vue2 从未 i18n 过(裸英文字面量),按本期拍板补中文键。
+  // AgentRightPanel (4 tab buttons) + ActivityTab + ContextTab, ported verbatim. These strings were
+  // never i18n'd in Vue2 (bare English literals); Chinese keys were added this cycle per the decision made.
   aiTabActivity: '活动',
   aiTabContext: '上下文',
   aiTabSystem: '系统',
@@ -432,15 +450,16 @@ export default {
   aiActivityDone: '完成',
   aiContextNotYet: '暂不可用',
   aiContextDesc: '未来会支持把文件加入对话上下文，让 Agent 直接参考它们。',
-  // SP8-P1c2 Task 11 —— SystemTab(2x2 机器健康磁贴 + 存储条)。这几个字符串
-  // Vue2 SystemTab.vue 从未 i18n 过(裸英文字面量),按本期拍板补键。
-  // aiSysNetwork/aiSysTemp/aiSysLan 中文复用 Vue2 既有 zh_CN.json 对应译文
-  // (119 行 "Network":"网络"、193 行 "Temp":"温度"、1853 行 "LAN (Internal
-  // Network)":"LAN" —— LAN 保留英文缩写不译,与后者一致);aiSysMemory 中文复用
-  // 本文件已有的 memory 键('内存');aiSysCpu 比照 LAN 的先例保留 "CPU" 缩写不译
-  // (磁贴空间紧凑,且 CPU 是通用缩写);aiStorageUnavailable 逐字复用 zh_CN.json
-  // 982 行 "Storage info unavailable":"存储信息不可用"。aiSysHeader/aiSysOf 是
-  // 新写(Vue2 无对应现成译文)。
+  // SystemTab (2x2 machine-health tiles + storage bar). These strings were never i18n'd in Vue2
+  // SystemTab.vue (bare English literals); keys were added this cycle per the decision made.
+  // aiSysNetwork/aiSysTemp/aiSysLan reuse the corresponding existing translations from Vue2's zh_CN.json
+  // (line 119 "Network":"网络", line 193 "Temp":"温度", line 1853 "LAN (Internal
+  // Network)":"LAN" — LAN keeps the English abbreviation untranslated, consistent with that entry);
+  // aiSysMemory reuses this file's existing memory key ('内存'); aiSysCpu, following the LAN precedent,
+  // keeps the "CPU" abbreviation untranslated (tiles have limited space, and CPU is a common
+  // abbreviation); aiStorageUnavailable reuses verbatim zh_CN.json line 982's "Storage info
+  // unavailable":"存储信息不可用". aiSysHeader/aiSysOf are newly written (no existing Vue2 translation
+  // to reuse).
   aiSysHeader: 'NimoOS · 健康',
   aiSysCpu: 'CPU',
   aiSysMemory: '内存',
@@ -449,17 +468,17 @@ export default {
   aiSysLan: 'LAN',
   aiSysOf: '共 {n} GB',
   aiStorageUnavailable: '存储信息不可用',
-  // SP8-P1c2 Task 12 —— ResourcesTab(授权资源 / 附件 / 暂存区三段 + 三级回滚)。
-  // 逐字港 Vue2 tabs/ResourcesTab.vue,裸英文字面量按本期拍板补中文键;
-  // aiResBatchSummary/aiResRevertBatch/aiResRevertItem 三个复用 Vue2 既有
-  // zh_CN.json 现成译文(970-972 行 agent_batch_summary/agent_batch_revert_all/
-  // agent_revert_item),逐字照抄,不重写措辞。
+  // ResourcesTab (authorized resources / attachments / staging-area three sections + three-tier
+  // revert). Ported verbatim from Vue2 tabs/ResourcesTab.vue; Chinese keys were added this cycle for
+  // the bare English literals per the decision made. aiResBatchSummary/aiResRevertBatch/aiResRevertItem
+  // reuse the three existing translations already in Vue2's zh_CN.json (lines 970-972,
+  // agent_batch_summary/agent_batch_revert_all/agent_revert_item), copied verbatim without rewording.
   aiResAuthorized: '已授权',
   aiResAttachments: '附件',
   aiResPending: '待处理更改',
-  // aiResEmptyAuthorized 的 {at} 是 <i18n-t> 具名插槽占位符(同 aiMentionNoMatchTpl
-  // 先例),由 ResourcesTab.vue 用 <code>@</code> 填充 —— 消息本身不含裸 '@',
-  // 不需要 {'@'} 转义。
+  // The {at} in aiResEmptyAuthorized is an <i18n-t> named-slot placeholder (same precedent as
+  // aiMentionNoMatchTpl), filled in by ResourcesTab.vue with <code>@</code> — the message itself
+  // doesn't contain a bare '@', so no {'@'} escaping is needed.
   aiResEmptyAuthorized: '还没有授权任何文件夹 — 在消息框中输入 {at} 以授予访问权限。',
   aiResEmptyAttachments: '暂无附件 — 点击输入框的回形针图标即可上传。',
   aiResSent: '已发送',
@@ -475,8 +494,9 @@ export default {
   aiResSnapshotMissing: '快照缺失 — 无法撤销',
   aiResOrphan: '孤立',
   aiResOrphanTitle: '快照缺失 — 仅可提交',
-  // aiResTurn/aiResFilesInTurns 的 {s} 是纯英文单复数后缀参数(pluralWord()),
-  // 中文文案不使用它——数字后不加单复数标记,与 Vue2 中文习惯一致。
+  // The {s} in aiResTurn/aiResFilesInTurns is an English-only plural-suffix parameter (pluralWord());
+  // the Chinese copy doesn't use it — no plural marker is added after numbers, consistent with Vue2's
+  // Chinese conventions.
   aiResTurn: '轮次 · {time} · {n} 个文件',
   aiResFilesInTurns: '{files} 个文件，共 {turns} 轮',
   aiResCollapse: '收起',
@@ -491,8 +511,9 @@ export default {
   aiResMinutesAgo: '{n} 分钟前',
   aiResHoursAgo: '{n} 小时前',
   aiResDaysAgo: '{n} 天前',
-  // >>> SP8-P2a Task 11 —— PrivacySection + ThinkingDefaultsSection。中文值逐字
-  // 取自 Vue2 生产 zh_CN.json 对应英文 key 的既有译文(权威查法见 brief)。
+  // >>> PrivacySection + ThinkingDefaultsSection. Chinese values are copied verbatim from the existing
+  // translations of the corresponding English keys in Vue2's production zh_CN.json (see the brief for
+  // the authoritative lookup method).
   aiCfgPrivacyDesc: '控制数据是否离开本机、以及默认使用哪一类模型后端。默认一切在本地运行。',
   aiCfgDataBackend: '数据与后端',
   aiCfgAllowCloudRequests: '允许云端请求',
@@ -509,8 +530,8 @@ export default {
   aiCfgThinkingBanner: '新建会话时使用以下设置作为初始值。不支持思考的模型会自动忽略。',
   aiCfgEnableThinkingDefault: '默认开启思考',
   aiCfgDefaultIntensity: '默认强度:',
-  // <<< SP8-P2a Task 11
-  // >>> SP8-P2b Task 4 —— BlacklistSection(文件系统)
+  // <<<
+  // >>> BlacklistSection (filesystem)
   aiCfgBlacklistDesc: '无论你授权哪些文件夹,匹配这些 pattern 的文件 Agent 一律读不到、改不了。内置 pattern 不可修改;下面是你自己追加的。',
   aiCfgBuiltinReadonly: '内置（只读）',
   aiCfgYourPatterns: '你的 pattern',
@@ -519,8 +540,8 @@ export default {
   aiCfgAddingPattern: '添加中…',
   aiCfgNoCustomPatterns: '还没有自定义 pattern。',
   aiCfgAddFailed: '添加失败',
-  // <<< SP8-P2b Task 4
-  // >>> SP8-P2b Task 5 —— ExecutionSection(执行步数)
+  // <<<
+  // >>> ExecutionSection (execution steps)
   aiCfgExecutionDesc: '限制 Agent 处理单个任务时的最大步数,避免失控的长时间运行。',
   aiCfgMaxStepsPerTask: '单次任务最大步数',
   aiCfgExecutionBanner: 'Agent 处理一个任务时最多执行的步数(每次调用工具或模型算一步)。达到上限会暂停并给出「继续」按钮。设为无限可能更慢、更耗资源。',
@@ -529,8 +550,8 @@ export default {
   aiCfgSaving: '保存中…',
   aiCfgSaved: '已保存',
   aiCfgSaveFailed: '保存失败',
-  // <<< SP8-P2b Task 5
-  // >>> SP8-P2b Task 6 —— MemorySection(AI 记忆)
+  // <<<
+  // >>> MemorySection (AI memory)
   aiCfgMemoryDesc: '助手跨会话记住的、关于你的事实与偏好。记忆开启时，会在每次对话开始前注入到上下文中。',
   aiCfgCrossSessionMemory: '跨会话记忆',
   aiCfgMemoryOffBanner: '记忆已关闭 —— 不再记录或注入新内容。已有条目保留,仍可删除。',
@@ -553,14 +574,15 @@ export default {
   aiCfgMemKindFact: '事实',
   aiCfgMemKindGoal: '目标',
   aiCfgMemSourceAuto: '自动',
-  // aiCfgMemSourceTool 与 aiCfgSaved 字面都是「已保存」但语义不同(记忆来源标签 vs
-  // 保存态提示)——刻意分成两个键,不合并,见 brief 表格下方警告。
+  // aiCfgMemSourceTool and aiCfgSaved are both literally "Saved" but have different meanings (a memory
+  // source label vs. a save-state notice) — deliberately kept as two separate keys, not merged; see the
+  // warning below the table in the brief.
   aiCfgMemSourceTool: '已保存',
   aiCfgMemSourceUser: '手动',
-  // <<< SP8-P2b Task 6
-  // >>> SP8-P2b Task 7 —— SearchSection(搜索)。中文值逐字取自 brief 表(brief 已回查
-  // Vue2 生产 zh_CN.json)。复用键(未在此重复定义):aiCfgSearch/aiCfgSave/aiCopy/
-  // aiCopied/aiCfgDelete/aiCfgSaved/aiCfgSaveFailed/aiFailed。
+  // <<<
+  // >>> SearchSection (search). Chinese values are copied verbatim from the authoritative source
+  // (checked against Vue2's production zh_CN.json). Reused keys (not redefined here):
+  // aiCfgSearch/aiCfgSave/aiCopy/aiCopied/aiCfgDelete/aiCfgSaved/aiCfgSaveFailed/aiFailed.
   aiCfgSearchDesc: '配置 Agent 调用统一搜索时的默认行为,以及本地文件名索引的扫描范围与状态。',
   aiCfgSearchRestartRequired: '根目录 / 索引设置已更改，需重启搜索服务后生效。',
   aiCfgRetrievalParams: '检索参数(即时生效)',
@@ -592,10 +614,10 @@ export default {
   aiCfgIndexBuilding: '建立中',
   aiCfgIndexDisabled: '未启用',
   aiCfgCopyFailed: '复制失败,请手动选择',
-  // <<< SP8-P2b Task 7
-  // >>> SP8-P2b Task 8 —— ObservabilitySection(Agent 监控 / Phoenix)。值逐字取自
-  // brief 表(brief 已回查 Vue2 生产 zh_CN.json)。复用键(未在此重复定义):
-  // aiCfgObservability/aiCancel。
+  // <<<
+  // >>> ObservabilitySection (Agent monitoring / Phoenix). Values are copied verbatim from the brief's
+  // table (the brief already checked against Vue2's production zh_CN.json). Reused keys (not redefined
+  // here): aiCfgObservability/aiCancel.
   aiCfgObservabilityDesc: '用本地 Phoenix 追踪并可视化每一次 Agent 运行,便于调试提示词、工具与记忆的使用情况。',
   aiCfgPhoenixTracing: 'Phoenix 追踪',
   aiCfgEnableAgentMonitoring: '启用 Agent 监控',
@@ -613,9 +635,9 @@ export default {
   aiCfgPhoenixRunning: '运行中',
   aiCfgPhoenixNotInstalled: '未安装',
   aiCfgPhoenixStopped: '已停止',
-  // <<< SP8-P2b Task 8
-  // >>> agent web tools —— WebSection(web_search / web_fetch 设置)。
-  // 复用键(未在此重复定义):aiCfgLoadFailed / aiCfgSaveFailed(错误 toast 兜底文案)。
+  // <<<
+  // >>> agent web tools — WebSection (web_search / web_fetch settings).
+  // Reused keys (not redefined here): aiCfgLoadFailed / aiCfgSaveFailed (generic error-toast fallback copy).
   aiCfgWebAccess: '联网',
   aiCfgWebAccessDesc: '允许助手搜索网页、读取网址。每个域名首次访问都会先征求你的同意。',
   aiCfgWebSearch: '网页搜索',
@@ -633,10 +655,10 @@ export default {
   aiCfgWebFetchTitle: '读取网页',
   aiCfgWebFetchDesc: '按网址读取网页不需要服务商，始终可用。助手首次访问某个域名时会请你放行。',
   // <<< agent web tools Task 9
-  // >>> SP8-P2b Task 10 —— McpTokensSection(对外 MCP 服务)。值逐字取自 brief 表(brief
-  // 已回查 Vue2 生产 zh_CN.json)。复用键(未在此重复定义):aiCfgMcpTokens(导航 h1,
-  // P2a 已建)/aiCopy/aiCopied/aiCfgCopyFailed/aiDone/aiCancel/aiCfgDelete/aiCfgDeleteFailed
-  // (发现已存在且值相同,直接复用,未重复定义)。
+  // >>> McpTokensSection (outbound MCP service). Values are copied verbatim from the authoritative
+  // source (checked against Vue2's production zh_CN.json). Reused keys (not redefined here):
+  // aiCfgMcpTokens (nav h1, created in P2a)/aiCopy/aiCopied/aiCfgCopyFailed/aiDone/aiCancel/aiCfgDelete/aiCfgDeleteFailed
+  // (found already existing with the same value, reused directly, not redefined).
   aiCfgMcpTokensDesc: '外部 AI Agent 通过 MCP 连接本 NAS 时所用的长期令牌。令牌仅授予只读工具,可随时吊销。',
   aiCfgMcpEndpoint: 'MCP 端点',
   aiCfgMcpEndpointUrl: 'MCP 端点 URL',
@@ -644,10 +666,11 @@ export default {
   aiCfgConnectAnAgent: '接入 AI Agent',
   aiCfgGiveThisToAgent: '把下面这段交给别的 AI Agent，它就能把本 NAS 加为 MCP 服务器：',
   aiCfgOrPasteIntoConfig: '或把下面的配置粘贴到它的 MCP 配置文件：',
-  // {url}/{token} 是本组件自己的占位标记(见 mcpConnect.ts buildMcpInstruction 的
-  // split/join),不是 vue-i18n 的命名插值 —— 必须转义成 {'{'}url{'}'} / {'{'}token{'}'}，
-  // 否则 t() 在不传 params 时会把裸 {url}/{token} 当成插值变量,解析成空串(已用组件测试
-  // 实测确认;同 messageSyntax.test.ts 对字面 @ 的 {'@'} 转义是同一套机制)。
+  // {url}/{token} are this component's own placeholder markers (see the split/join in mcpConnect.ts's
+  // buildMcpInstruction), not vue-i18n named interpolation — they must be escaped as {'{'}url{'}'} /
+  // {'{'}token{'}'}, otherwise t() without params will treat the bare {url}/{token} as interpolation
+  // variables and resolve them to empty strings (confirmed by component tests; the same mechanism as
+  // messageSyntax.test.ts's {'@'} escaping of a literal @).
   aiCfgMcpInstructionTemplate: '你将获得一台 NimoOS 个人云 MCP 服务器的访问权限。请使用 Streamable HTTP 传输方式，把它添加为一个 MCP server。\n\n端点 URL：{\'{\'}url{\'}\'}\n鉴权：发送 HTTP 请求头  Authorization: Bearer {\'{\'}token{\'}\'}\n\n它提供只读工具：搜索文件、读取文档、查看文档页、浏览 Wiki、搜索相册。添加完成后，请调用 tools/list 确认连接。',
   aiCfgTokens: '令牌',
   aiCfgCreateToken: '创建令牌',
@@ -664,25 +687,27 @@ export default {
   aiCfgTokenLabel: '标签',
   aiCfgCreateFailed: '创建失败',
   aiCfgDeleteTokenConfirm: '确定要删除此令牌吗?',
-  // <<< SP8-P2b Task 10
-  // >>> SP8-P2b Task 12 —— ChannelsSection(聊天渠道)。值逐字取自 brief 表(brief 已回查
-  // Vue2 生产 zh_CN.json)。复用键(未在此重复定义):aiCfgChannels(导航 h1,P2a 已建,值
-  // 「聊天渠道」与本表一致)/aiCancel/aiCopy/aiCopied/aiCfgCopyFailed/aiDone/aiCfgDelete/
+  // <<<
+  // >>> ChannelsSection (chat channels). Values are copied verbatim from the authoritative source
+  // (checked against Vue2's production zh_CN.json). Reused keys (not redefined here): aiCfgChannels
+  // (nav h1, created in P2a, value "聊天渠道" consistent with this table)/aiCancel/aiCopy/aiCopied/aiCfgCopyFailed/aiDone/aiCfgDelete/
   // aiCfgLoadingDots/aiCfgLoadFailed/aiCfgNoLabel/aiCfgSaved/aiCfgSaveFailed/
-  // aiCfgDeleteFailed。
-  // aiCfgChannelsBotTokenTail 里的 {tail}、aiCfgChannelsPairInstructions 里的
-  // {bot}/{code} 转义成 {'{'}tail{'}'} 等(同 Task 9/10 教训,见 channelsFormat.ts 头
-  // 注释:vue-i18n v9 在 t(key) 不传 params 时会把裸 {xxx} 当命名插值解析成空串,而这里
-  // 组件要拿到字面 "{tail}"/"{bot}"/"{code}" 子串自己 split/join)。
-  // aiCfgChannelsBotTokenTelegramHint 与 aiCfgChannelsPairInstructions 里的字面 @ 转义成
-  // {'@'}(messageSyntax.test.ts 拦链接语法)。
+  // aiCfgDeleteFailed.
+  // The {tail} in aiCfgChannelsBotTokenTail, and the {bot}/{code} in aiCfgChannelsPairInstructions,
+  // are escaped as {'{'}tail{'}'} etc. (same lesson as Task 9/10, see the header comment in
+  // channelsFormat.ts: vue-i18n v9's t(key) without params treats a bare {xxx} as named interpolation
+  // and resolves it to an empty string, but here the component needs the literal
+  // "{tail}"/"{bot}"/"{code}" substrings to split/join itself).
+  // The literal @ in aiCfgChannelsBotTokenTelegramHint and aiCfgChannelsPairInstructions is escaped as
+  // {'@'} (messageSyntax.test.ts intercepts link syntax).
   aiCfgChannelsDesc: '通过 Telegram 与你的 NimoOS 智能体对话。先配对你的账号，然后直接给机器人发消息。',
   aiCfgChannelsAdminTitle: '机器人配置',
   aiCfgChannelsAdminHint: '仅管理员可见。机器人为所有 NimoOS 用户服务，每人各自配对自己的账号。',
   aiCfgChannelsAddBot: '添加机器人',
   aiCfgChannelsAddBotFailed: '添加失败，请检查 Token。',
-  // SP8-P2b 验收第 3 轮(用户 2026-07-30):后端 detail 原文改为本地化文案,见
-  // channelsFormat.ts 的 addBotErrorKey。三条对应 agent/main.py:417-424 的三种 422。
+  // From an earlier review round: the raw backend `detail` text was replaced with localized copy, see
+  // addBotErrorKey in channelsFormat.ts. The three entries correspond to the three 422 cases in
+  // agent/main.py:417-424.
   aiCfgChannelsErrTokenRejected: 'Token 没有通过验证。请确认它复制完整、没有多余空格，并且这个机器人没有被删除或重置过。',
   aiCfgChannelsErrTokenRequired: '请先填写机器人 Token。',
   aiCfgChannelsErrUnsupportedType: '暂不支持这个平台。',
@@ -711,22 +736,22 @@ export default {
   aiCfgChannelsCodeWarn: '此配对码 10 分钟内有效，且仅可使用一次。',
   aiCfgChannelsCreateCodeFailed: '生成配对码失败。',
   aiCfgChannelsPairInstructions: '打开 Telegram，给 {\'@\'}{\'{\'}bot{\'}\'} 发送：/pair {\'{\'}code{\'}\'}',
-  // Settings parity（2026-08-24）—— 飞书渠道卡,移植自 Vue2 channelsLark*
-  // (zh_CN.json:1929-1934;标点按本仓全角惯例归一,语义逐字)。
+  // Settings parity (2026-08-24) — the Lark (Feishu) channel card, ported from Vue2 channelsLark*
+  // (zh_CN.json:1929-1934; punctuation normalized to this repo's full-width convention, meaning kept verbatim).
   aiCfgChannelsLarkTitle: '飞书',
   aiCfgChannelsLarkEnable: '启用',
   aiCfgChannelsLarkDisable: '停用',
   aiCfgChannelsLarkDegraded: '点击回调未连接：确认卡不可用，通知能否送达也无法在此确认。',
   aiCfgChannelsLarkConnecting: '正在连接飞书…',
   aiCfgChannelsLarkEnableFailed: '启用失败：飞书 CLI 不可用/未登录，或该账号仅有机器人身份、从未完成用户授权',
-  // Settings parity（2026-08-24）—— 后台任务模型分区,移植自 Vue2
-  // BackgroundTasksSection.vue(notes M1);中文取 zh_CN.json 既有译文。
+  // Settings parity (2026-08-24) — background-task model section, ported from Vue2
+  // BackgroundTasksSection.vue (notes M1); Chinese taken from zh_CN.json's existing translation.
   aiCfgBackgroundDesc: '供文档沉淀等后台任务使用的模型。建议选用本地或低成本模型——这些任务无人值守运行。',
   aiCfgBackgroundModel: '后台任务模型',
   aiCfgBackgroundNotConfigured: '未配置（后台任务将保持关闭）',
   aiCfgBackgroundOffHint: '选定模型前，文档沉淀不会运行。',
-  // <<< SP8-P2b Task 12
-  // >>> SP8-P3a —— 技能分区
+  // <<<
+  // >>> Skills section
   aiSkSearchPlaceholder: '搜索技能…',
   aiSkBuiltIn: '内置技能',
   aiSkYours: '我的技能',
@@ -758,14 +783,14 @@ export default {
   aiSkAuthorYou: '你',
   aiSkTriggerSlash: '/{name}',
 
-  // 输入框内「已挂载技能」提示条(Vue2 无对应 UI;见 AgentComposer.vue 顶部注释)。
-  // {name} 由 <i18n-t> 具名插槽
-  // 用 <code> 填充,值本身不含 <code> 标签。
+  // The "skill mounted" hint bar inside the input box (no equivalent UI in Vue2; see the top-of-file
+  // comment in AgentComposer.vue). {name} is an <i18n-t> named-slot placeholder filled in with
+  // <code>, the value itself doesn't contain a <code> tag.
   aiSkPendingBanner: '已挂载技能 {name},将应用于下一条消息',
   aiSkPendingDetach: '取消挂载',
-  // <<< SP8-P3a
-  // >>> SP8-P3b Task 2 —— 技能分区「写操作」半:新建/启停/卸载/删除/沙箱测试。
-  // 加粗行(见任务书 §2.3)在下方逐条标注为「Vue2 没有的新文案」。
+  // <<<
+  // >>> Skills section — the "write operations" half: create/enable-disable/uninstall/delete/sandbox test.
+  // Bolded lines (see task spec §2.3) are individually marked below as "new copy with no Vue2 equivalent."
   aiSkAddSkill: '添加技能',
   aiSkDisable: '禁用',
   aiSkEnable: '启用',
@@ -774,11 +799,12 @@ export default {
   aiSkExport: '导出技能',
   aiSkUninstall: '卸载',
   aiSkDeleteSkill: '删除技能',
-  aiSkDelete: '删除', // 拍板不复用 aiConfirm(P1a 弹窗标题误用按钮文案的历史遗留),按任务书新增
+  aiSkDelete: '删除', // Decision: not reusing aiConfirm (a historical leftover from P1a where the dialog title mistakenly used button copy) — added new per the task spec
   aiSkUninstallTitle: '卸载这个技能?',
   aiSkDeleteTitle: '删除这个技能?',
-  // 新文案(D3 拍板):Vue2 SkillDetail.vue:161 承诺「以后可从内置目录重新安装」,
-  // 但后端 service/skills.go:330-340 只写 uninstalled=1 标记、全仓无恢复接口 —— 说实话。
+  // New copy (decision D3): Vue2 SkillDetail.vue:161 promises "can be reinstalled from the built-in
+  // catalog later," but the backend service/skills.go:330-340 only sets an uninstalled=1 flag and the
+  // repo has no restore endpoint anywhere — so this tells the truth instead.
   aiSkUninstallBody:
     '技能将从这台 NAS 移除。此界面无法恢复,需要重装系统或手工把技能目录放回。',
   aiSkDeleteBody: '这会永久删除该技能及其 SKILL.md 文件,无法恢复。',
@@ -799,9 +825,10 @@ export default {
   aiSkFieldColor: '颜色',
   aiSkOptional: '可选',
   aiSkScriptFiles: '脚本文件',
-  // 尖括号实测:vue-i18n 9 对裸 `<`/`>` 渲染无异常,但会打印
-  // "[intlify] Detected HTML in ... message" 控制台警告；本仓沿用既有转义惯例
-  // ({'@'} 等),用 {'<'}/{'>'} 转义写法,渲染结果与裸字面完全一致但不触发该警告。
+  // Tested angle brackets: vue-i18n 9 renders bare `<`/`>` without error, but prints a
+  // "[intlify] Detected HTML in ... message" console warning; this repo follows its existing escaping
+  // convention ({'@'} etc.) and uses the {'<'}/{'>'} escape form, which renders identically to the bare
+  // literal without triggering that warning.
   aiSkScriptsHint: '文件会保存在 bundle 的 scripts/{\'<\'}name{\'>\'} 路径下。',
   aiSkSavedLocally: '保存在这台 NAS 本地',
   aiSkCreating: '创建中…',
@@ -813,8 +840,9 @@ export default {
   aiSkTrigDescManual: '仅在明确调用时',
   aiSkMdPlaceholderHead: '你的技能',
   aiSkMdPlaceholderBody: '描述这个技能的工作方式…',
-  // 新文案(拍板偏离⑦):Vue2 AddSkillModal.vue:164-167 对 >1 MiB 的脚本文件直接
-  // continue 静默丢弃,用户看不到文件消失 —— 改为提示。
+  // New copy (decision deviation #7): Vue2 AddSkillModal.vue:164-167 silently `continue`s past script
+  // files over 1 MiB and drops them, with no indication to the user that a file disappeared — changed
+  // to show a notice instead.
   aiSkFilesSkippedTooBig: '{n} 个文件超过 1 MiB,已跳过',
   aiSkErrDuplicate: '已存在同名技能',
   aiSkErrBadId: '名称只能用小写字母、数字和短横线,且不能以短横线开头或结尾',
@@ -846,19 +874,22 @@ export default {
   aiSkTestFailed: '运行失败',
   aiSkTestPlaceholderEx: '试试:"{ex}"',
   aiSkTestPlaceholder: '在示例文件夹上运行该技能',
-  // 新文案:沙箱运行失败的 HTTP 状态码提示(设计要求本地化文案 + 状态码,不回显后端 body)。
+  // New copy: the HTTP-status-code notice for a failed sandbox run (design requires localized copy +
+  // status code, without echoing back the backend body).
   aiSkTestHttpFailed: '沙箱运行失败(HTTP {status})',
-  // 新文案(D4 拍板,收 P3a 挂账③):停用技能点「在对话中试用」先提示,而不是
-  // X-Skill-Id 照发但 agent 找不到 SKILL.md 造成的零反馈(skills_runtime.go:57)。
+  // New copy (decision D4, closing out P3a follow-up item ③): clicking "Try in conversation" on a
+  // disabled skill now shows a notice up front, instead of silently sending X-Skill-Id and having the
+  // agent fail to find SKILL.md with zero feedback (skills_runtime.go:57).
   aiSkTryDisabledTitle: '该技能已停用',
   aiSkTryDisabledBody:
     '停用的技能不会被加载,现在去对话里试用不会有任何效果。要先启用它吗?',
   aiSkTryEnableAndTry: '启用并试用',
-  // <<< SP8-P3b Task 2
-  // >>> SP8-P4 Task 4 —— MCP 分区(McpSection/Group/Detail/Modal)。
-  // §4.2(62 条,不是任务书正文写的「63」——已在报告里申报此计数偏差)中文值逐字取自
-  // Vue2 生产语言包 zh_CN.json(程序化比对见任务报告 Step 4);§4.3(14 条)是本期
-  // 新文案(D5/D8 产物),Vue2 无对应物,按设计文档核对。
+  // <<<
+  // >>> MCP section (McpSection/Group/Detail/Modal).
+  // §4.2 (62 entries, not the "63" written in the task spec body — this count discrepancy was reported)
+  // has Chinese values copied verbatim from Vue2's production language pack zh_CN.json (programmatic
+  // comparison in the task report's Step 4); §4.3 (14 entries) is new copy this cycle (from decisions
+  // D5/D8), with no Vue2 equivalent, checked against the design doc.
   aiMcpSrvAdd: '新增 MCP 服务',
   aiMcpSrvSearchPlaceholder: '搜索服务…',
   aiMcpSrvGroupEnabled: '已启用服务',
@@ -921,17 +952,19 @@ export default {
   aiMcpSrvSavedLocally: '保存在这台 NAS 本地',
   aiMcpSrvAddServer: '添加服务',
   aiMcpSrvParseFailed: '无法解析该命令',
-  // 本期新文案(Vue2 无对应物,D5/D8 产物,按设计文档核对,不进 zh_CN.json 逐码点比对脚本)
+  // New copy this cycle (no Vue2 equivalent, from decisions D5/D8, checked against the design doc, not
+  // run through the zh_CN.json codepoint-diff comparison script)
   aiMcpSrvTestErrTimeout: '探测超时',
   aiMcpSrvTestErrConnect: '连不上这个服务器',
   aiMcpSrvTestErrListTimeout: '读取工具列表超时',
   aiMcpSrvTestErrListFailed: '连上了,但读不到工具列表',
   aiMcpSrvTestErrAgentDown: 'AI 助手服务没在运行,无法发起探测',
   aiMcpSrvTestErrConnectTimeout: '连接超时',
-  // 后端 probe_in_progress:这台服务器已经有一次探测在跑(通常是 TTL 自检的后台刷新),
-  // 等待预算内没等到结果 —— 不是连接失败,措辞不能让用户以为服务器有问题。
+  // Backend probe_in_progress: this server already has a probe in flight (usually a background refresh
+  // from the TTL self-check), and no result arrived within the wait budget — this is not a connection
+  // failure, so the wording must not make the user think something is wrong with the server.
   aiMcpSrvTestErrProbing: '这台服务器正在探测中,还没有结果,稍后再测一次',
-  // 后端 config_changed:这次结果所属的探测在配置被改之前就开始了。
+  // Backend config_changed: the probe that produced this result started before the configuration was changed.
   aiMcpSrvTestConfigChanged: '配置在探测期间被改过,这个结果对应的是改动前的配置,请重新测试',
   aiMcpSrvProtoOnly: '协议 {version}',
   aiMcpSrvProtoAlso: '协议 {version} · 另支持 {list}',
@@ -945,8 +978,8 @@ export default {
   aiMcpSrvParseErrNoCommand: '没解析出可执行的命令',
   aiMcpSrvParseErrOnlyEnv: '只有环境变量,后面缺一条命令',
   aiMcpSrvParseErrQuotes: '引号没有配对',
-  // <<< SP8-P4 Task 4
-  // >>> mcp-progressive-disclosure Task 20 —— 工具清单与授权开关,Vue2 没有对应文案,本期新造
+  // <<<
+  // >>> mcp-progressive-disclosure Task 20 — tool listing and authorization toggles, no Vue2 equivalent, newly created this cycle
   aiMcpSrvToolsTitle: '工具',
   aiMcpToolServerLevelLabel: '整台服务器',
   aiMcpToolServerLevelHint: '批准这整台服务器,覆盖当前列出的全部工具,以及它日后新增的任何工具。',
@@ -961,12 +994,12 @@ export default {
   aiMcpToolStaleSchemaChanged: '该工具的接口已变更,需要重新确认。',
   aiMcpToolStaleStale: '已有一段时间没有在服务器上看到这个工具了。',
   // <<< mcp-progressive-disclosure Task 20 fix round
-  // >>> SP8-P5a Task 5 —— 知识库占位页(K7),Vue2 没有对应文案,本期新造
+  // >>> Knowledge base placeholder page (K7), no Vue2 equivalent, newly created this cycle
   aiKbDeferredTitle: '即将上线',
   aiKbDeferredHint: '这个页面还在迁移到新界面。',
-  // <<< SP8-P5a Task 5
-  // >>> SP8-P5a Task 8 —— 知识库壳与仪表盘文案(Vue2 KnowledgeLayout/DashboardView),
-  // 中文值已按 `git show main:src/assets/lang/zh_CN.json` 逐码点比对(零差异)
+  // <<<
+  // >>> Knowledge-base shell and dashboard copy (Vue2 KnowledgeLayout/DashboardView),
+  // Chinese values verified against `git show main:src/assets/lang/zh_CN.json` via a codepoint-by-codepoint diff (zero differences)
   aiKbKnowledgeBase: '知识库',
   aiKbBrowse: '浏览',
   aiKbStatus: '状态',
@@ -1061,13 +1094,13 @@ export default {
   aiKbSampleContract: '去年的合同',
   aiKbSampleIphone: 'iPhone 配置',
   aiKbSampleSkating: '羽生结弦',
-  // <<< SP8-P5a Task 8
-  // >>> SP8-P5b Task 1 —— 队列页/已收录文件页文案(Vue2 QueueView/IndexedFilesView),
-  // 中文值已按 `git show main:src/assets/lang/zh_CN.json` 逐码点比对(95/95 MATCH)。
-  // 9 行带 Vue2 语言包自身错译/同值撞车(照抄不改):
-  // aiKbColAction(「操作」译成「类型」)· aiKbColVectors/aiKbSortVectorCount(同值撞车)·
-  // aiKbPagerNext(「下一步」)· aiKbPagerPrev(「上一张」)· aiKbRebuild(「恢复」)·
-  // aiKbStatusActive(「已启用」,语义错但是 Vue2 原文)· aiKbTotalDone/aiKbTotalDoneLabel(同值撞车)。
+  // <<<
+  // >>> Queue page / indexed-files page copy (Vue2 QueueView/IndexedFilesView),
+  // Chinese values verified against `git show main:src/assets/lang/zh_CN.json` via a codepoint-by-codepoint diff (95/95 MATCH).
+  // 9 lines carry Vue2's own language-pack mistranslations / same-value collisions (copied as-is, not corrected):
+  // aiKbColAction ("Action" translated as "类型"/"Type") · aiKbColVectors/aiKbSortVectorCount (same-value collision) ·
+  // aiKbPagerNext ("下一步"/"Next step") · aiKbPagerPrev ("上一张"/"Previous photo") · aiKbRebuild ("恢复"/"Restore") ·
+  // aiKbStatusActive ("已启用"/"Enabled", semantically wrong but the Vue2 original) · aiKbTotalDone/aiKbTotalDoneLabel (same-value collision).
   aiKbAll: '全部',
   aiKbAllCaughtUp: '全部处理完了',
   aiKbCancel: '取消',
@@ -1163,42 +1196,49 @@ export default {
   aiKbTypePrefix: '类型前缀',
   aiKbZeroVec: '无可搜索内容',
   aiKbZeroVecTip: '已索引但没有可搜索内容（不是错误）',
-  // K16(蓝本 QueueView.vue:96 两句硬编码英文改走 i18n,两档同填英文原文):
+  // K16 (the reference QueueView.vue:96's two hardcoded English sentences moved into i18n, both locales filled with the original English):
   aiKbQueueAllPendingDone: 'All pending jobs are done.',
   aiKbQueueNoRunningNow: 'No jobs running right now.',
-  // K18(三个重试入口统一 toast,不回显数量):
+  // K18 (unified toast for the three retry entry points, not echoing back the count):
   aiKbRetriedAllFailed: '已重试全部失败任务',
-  // K19(加载错误横幅不回显 e.message,改固定文案):
+  // K19 (the load-error banner no longer echoes e.message, changed to fixed copy):
   aiKbLoadErrorBody: '无法读取已收录文件列表，请稍后重试。',
-  // K20(statusBadgeMap.indexing.en = 'Indexing' 在 Vue2 语言包里没有对应条目,
-  // vue-i18n 回落显示英文原串;两档同填英文,渲染与 Vue2 逐字相同):
+  // K20 (statusBadgeMap.indexing.en = 'Indexing' has no matching entry in Vue2's language pack,
+  // so vue-i18n falls back to displaying the raw English string; both locales are filled with the
+  // English text, rendering identically to Vue2):
   aiKbStatusIndexing: 'Indexing',
-  // <<< SP8-P5b Task 1
-  // >>> SP8-P5c Task 1 —— 知识库配置页 / Parser 详情页 / Parser 测试沙盒 / 目录选择器文案
-  // (Vue2 SettingsView.vue · ParserStatus.vue · ParserTest.vue · FolderBrowser.vue),共 99 条。
-  // 99 条中文值全部有 Vue2 权威源(本期新造 0 条、死键 0 条),已按
-  // `git show main:src/assets/lang/zh_CN.json` 逐码点比对(99/99 MATCH)。
-  // 协调者裁定 A-1(2026-08-03):aiKbDeviceAuto 不复用既有 aiKbOriginAuto —— 两者现值渲染
-  // 完全一致(自动 / Auto),但 aiKbOriginAuto 的语义是「沉淀任务来源 manual|auto」,与「推理
-  // 设备自动档」无关,将来改沉淀文案会静默改掉设备下拉。aiKbDeviceAuto 一个键服务三处调用点
-  // (SettingsView.vue:45 设备单选 · SettingsView.vue:301 setDevice toast · ParserStatus.vue:121
-  // deviceOptions)。
-  // 4 组 Vue2 语言包自身的错译 / 同值撞车,一律照抄不改(N21,详见 p5c-appendix-A-i18n.md §A.3):
-  // ① aiKbResume(`Resume` → 恢复)与既有 aiKbRebuild(`Rebuild` → 恢复)zh 值撞车 ——
-  //    Vue2 把 Rebuild 译成「恢复」才是错的,Resume → 恢复是对的,两个键都要存在;
-  // ② aiKbSetSandboxTitle(`Test Sandbox`)与 aiKbPrTestLink(`Test sandbox`)只差首字母
-  //    大小写,zh 都是「测试沙盒」→ 两个独立键,英文档必须保留大小写差异;
-  // ③ aiKbPrCcPowerSaving(`Power-saving` → 省电)/ aiKbPrCcFullPower(`Full power` → 全力)
-  //    与既有 aiKbCcPowerSaver(`Power saver`)/ aiKbCcFullSpeed(`Full speed`)zh 撞车但
-  //    en 不同 → 绝对不能复用,复用会让英文档渲染成 Power saver / Full speed,界面不 1:1;
-  // ④ aiKbPrOcrHint 的「真实索引的扫描件」是 Vue2 对 truly scanned 的错译,且 en 用
-  //    – (U+2013) / × (U+00D7) 而 zh 用 ASCII - / x —— 逐码点照抄,不许规范化。
-  // emoji 位置照抄(N16):只有 aiKbSetSvcPausedLine / aiKbSetSvcRunningLine 的 ⏸ / ✅ 在
-  // `$t()` 里面(蓝本 SettingsView.vue:11),其余 🧪 ⏳ 🔄 ✅ ❌ 📦 📍 ▼ ▶ 📝 ⚠️ ← 全在
-  // `$t()` 外面(含 ParserStatus.vue:27 script 里拼的 '▶ ' + $t('Resume')),键值里不含它们。
-  // N22:rerank top-20 / dense [0:8]: / sparse top: / chunk # / cos / rr / target_tokens /
+  // <<<
+  // >>> Knowledge-base settings page / Parser detail page / Parser test sandbox / folder picker copy
+  // (Vue2 SettingsView.vue · ParserStatus.vue · ParserTest.vue · FolderBrowser.vue), 99 entries total.
+  // All 99 Chinese values have a Vue2 authoritative source (0 newly-created, 0 dead keys this cycle),
+  // verified against `git show main:src/assets/lang/zh_CN.json` via a codepoint-by-codepoint diff (99/99 MATCH).
+  // Coordinator ruling A-1 (2026-08-03): aiKbDeviceAuto does not reuse the existing aiKbOriginAuto — the
+  // two currently render identically (自动 / Auto), but aiKbOriginAuto's meaning is "distillation-task
+  // source: manual|auto," unrelated to "inference-device auto mode"; a future change to the distillation
+  // copy would silently change the device dropdown too. aiKbDeviceAuto is one key serving three call
+  // sites (SettingsView.vue:45 device radio · SettingsView.vue:301 setDevice toast · ParserStatus.vue:121
+  // deviceOptions).
+  // 4 groups of Vue2's own language-pack mistranslations / same-value collisions, all copied as-is and
+  // left uncorrected (N21, see p5c-appendix-A-i18n.md §A.3 for details):
+  // ① aiKbResume (`Resume` → 恢复/"Restore") collides in zh with the existing aiKbRebuild (`Rebuild` →
+  //    恢复) — Vue2 translating Rebuild as "恢复" was the actual mistake; Resume → 恢复 is correct, and
+  //    both keys must exist;
+  // ② aiKbSetSandboxTitle (`Test Sandbox`) and aiKbPrTestLink (`Test sandbox`) differ only in the
+  //    capitalization of the first letter, and both are "测试沙盒" in zh → kept as two separate keys, and
+  //    the English doc must preserve the capitalization difference;
+  // ③ aiKbPrCcPowerSaving (`Power-saving` → 省电) / aiKbPrCcFullPower (`Full power` → 全力)
+  //    collide in zh with the existing aiKbCcPowerSaver (`Power saver`) / aiKbCcFullSpeed (`Full speed`)
+  //    but differ in en → must never be reused, since reusing them would make the English doc render as
+  //    "Power saver" / "Full speed," breaking 1:1 parity with the UI;
+  // ④ aiKbPrOcrHint's "真实索引的扫描件" is Vue2's mistranslation of "truly scanned," and en uses
+  //    – (U+2013) / × (U+00D7) while zh uses ASCII - / x — copied codepoint-for-codepoint, not normalized.
+  // Emoji placement copied as-is (N16): only the ⏸ / ✅ in aiKbSetSvcPausedLine / aiKbSetSvcRunningLine
+  // are inside `$t()` (reference SettingsView.vue:11); all the rest — 🧪 ⏳ 🔄 ✅ ❌ 📦 📍 ▼ ▶ 📝 ⚠️ ← — are
+  // outside `$t()` (including the '▶ ' + $t('Resume') concatenation in ParserStatus.vue:27's script),
+  // and none of them are in the key values.
+  // N22: rerank top-20 / dense [0:8]: / sparse top: / chunk # / cos / rr / target_tokens /
   // overlap_tokens / min_tokens / chunker=…,target=… / {{ c.token_count }} tokens · offset …
-  // 是技术标识符,Vue2 刻意没进 i18n → 本期不为它们补键。
+  // are technical identifiers that Vue2 deliberately did not put through i18n → no keys were added for them this cycle.
   aiKbConcurrencyLevel: '并发档位',
   aiKbDeviceAuto: '自动',
   aiKbFbEmpty: '(空)',
@@ -1298,32 +1338,34 @@ export default {
   aiKbSetSvcRunningDesc: '正在持续监控并索引新文件',
   aiKbSetSvcRunningLine: '✅ 运行中',
   aiKbSwitchFailed: '切换失败',
-  // <<< SP8-P5c Task 1
-  // >>> SP8-P5d Task 1 —— 知识库笔记区文案(Vue2 NotesView.vue / NoteEditPane.vue /
-  // notesViewHelpers.js 的 NOTE_TYPES/NOTE_SOURCES labelKey 目标),共 92 条,全部有 Vue2
-  // 权威 zh 值(本期新造 0、死键 0)。逐码点比对(92/92 MATCH),
-  // 值取自 `git show 7a6ee6b7:src/assets/lang/zh_CN.json`。
+  // <<<
+  // >>> Knowledge-base notes-area copy (Vue2 NotesView.vue / NoteEditPane.vue /
+  // notesViewHelpers.js's NOTE_TYPES/NOTE_SOURCES labelKey targets), 92 entries total, all with a Vue2
+  // authoritative zh value (0 newly-created, 0 dead keys this cycle). Verified via a codepoint-by-codepoint diff (92/92 MATCH),
+  // values taken from `git show 7a6ee6b7:src/assets/lang/zh_CN.json`.
   //
-  // 🔴 裁定 R10(与本文件的 en 侧连带,详见 en_us.ts 同名注释):en_US.json 的权威源地位本期
-  // 第一次出现 2 处覆盖(aiKbNtDeleteBody2 / aiKbNoteTypeNote),不影响 zh 侧。
+  // 🔴 Ruling R10 (tied to this file's en side, see the identically-named comment in en_us.ts): en_US.json's
+  // status as the authoritative source saw its first 2 overrides this cycle (aiKbNtDeleteBody2 / aiKbNoteTypeNote), not affecting the zh side.
   //
-  // N32 撞车(11 组跨键 + 1 组本期内部,一律照抄不许统一,详见 messageSyntax.test.ts 的
-  // 「P5d Task 1 N32 collision guards」):aiKbNtOpenFolder vs aiOpenInFileManager ·
+  // N32 collisions (11 cross-key groups + 1 internal to this cycle, all copied as-is and not unified —
+  // see "P5d Task 1 N32 collision guards" in messageSyntax.test.ts for details): aiKbNtOpenFolder vs aiOpenInFileManager ·
   // aiKbNtConfirm vs appsSettingsConflictOk · aiKbNtDelete vs appsSettingsRemove ·
-  // aiKbNeSource/aiKbNeSources vs aiSkAddedBy(且二者彼此内部撞车,来源/Source vs Sources)·
-  // aiKbNeRemoveTag vs appsSettingsRemove(镜像:en 撞车、zh 故意不同)·
-  // aiKbNePathCopied vs filesCopiedPath(镜像)· aiKbRelMinAgo/aiKbRelHrAgo/aiKbRelDaysAgo
-  // vs aiResMinutesAgo/aiResHoursAgo/aiResDaysAgo · aiKbNoteTypeNote vs aiKbNavNotes。
+  // aiKbNeSource/aiKbNeSources vs aiSkAddedBy (and the two of those also collide with each other internally, "来源"/Source vs Sources) ·
+  // aiKbNeRemoveTag vs appsSettingsRemove (mirrored: en collides, zh deliberately differs) ·
+  // aiKbNePathCopied vs filesCopiedPath (mirrored) · aiKbRelMinAgo/aiKbRelHrAgo/aiKbRelDaysAgo
+  // vs aiResMinutesAgo/aiResHoursAgo/aiResDaysAgo · aiKbNoteTypeNote vs aiKbNavNotes.
   //
-  // K42:aiKbRelMinAgo/aiKbRelHrAgo/aiKbRelDaysAgo 的占位符是 {n},故意不复用既有
-  // aiKbMinAgo/aiKbHrAgo/aiKbDaysAgo(占位符名是 {m}/{h}/{d},复用会渲染出字面量 {n})。
+  // K42: the placeholder in aiKbRelMinAgo/aiKbRelHrAgo/aiKbRelDaysAgo is {n}, deliberately not reusing the
+  // existing aiKbMinAgo/aiKbHrAgo/aiKbDaysAgo (whose placeholder names are {m}/{h}/{d} — reusing them would render the literal text "{n}").
   //
-  // N26:aiKbNeDraftBar1/2/3 与 aiKbNtDeleteBody1/2/3 是蓝本的三段式拼接,照抄不合并
-  // (第三段各以中文逗号 / 句号收尾,但本仓语言包的中文逗号/括号一律是半角 U+002C/U+0028-29,
-  // 实扫不命中全角标点正则 —— 本批 92 条里唯一的全角标点例外只有 aiKbNtDeleteTitle 的
-  // 「？」U+FF1F,详见 messageSyntax.test.ts 与 p5d-appendix-A-i18n.md §A.0②/§A.5)。
+  // N26: aiKbNeDraftBar1/2/3 and aiKbNtDeleteBody1/2/3 are three-segment concatenations from the
+  // reference implementation, copied as-is and not merged (each third segment ends with a Chinese comma
+  // or period in the reference, but this repo's language pack always uses half-width U+002C/U+0028-29 for
+  // Chinese commas/brackets, which the full-width-punctuation scan regex doesn't catch — the only
+  // full-width-punctuation exception among this batch of 92 is the "？" U+FF1F in aiKbNtDeleteTitle; see
+  // messageSyntax.test.ts and p5d-appendix-A-i18n.md §A.0② / §A.5 for details).
   //
-  // N23:conflictMessage 的硬编码英文串本期不进 i18n(只当布尔谓词用,见 T3)。
+  // N23: conflictMessage's hardcoded English string is not put through i18n this cycle (it's only used as a boolean predicate, see T3).
   aiKbAiDraft: 'AI 草稿',
   aiKbArchived: '已归档',
   aiKbCurated: '已确认',
@@ -1416,38 +1458,40 @@ export default {
   aiKbRelDaysAgo: '{n} 天前',
   aiKbRelHrAgo: '{n} 小时前',
   aiKbRelMinAgo: '{n} 分钟前',
-  // <<< SP8-P5d Task 1
-  // >>> SP8-P5e Task 1 —— 知识库搜索区文案(Vue2 SearchView.vue / FileDetailDrawer.vue /
-  // KFileViewer.vue / searchAggregate.js),共 54 条新键,全部有 Vue2 权威 zh 值
-  // (本期新造 0、死键 0)。另有 9 条 aiKb* 既有键直接复用、不在本块内重复声明
-  // (附录 A §A.1/§A.1.1:5 个 SAMPLE_QUERIES + aiKbTry / aiKbSearch / aiKbClose /
-  // aiKbStatusIndexed)。逐码点比对
-  // (54/54 + 9/9 MATCH,值由脚本直接从 `git show 7a6ee6b7:src/assets/lang/zh_CN.json`
-  // 生成、非手抄 —— P5a-T8 的教训是「附录零差异,手抄进 TS 时引入 5 处全角标点错」)。
+  // <<<
+  // >>> Knowledge-base search-area copy (Vue2 SearchView.vue / FileDetailDrawer.vue /
+  // KFileViewer.vue / searchAggregate.js), 54 new keys total, all with a Vue2 authoritative zh value
+  // (0 newly-created, 0 dead keys this cycle). Another 9 existing aiKb* keys are reused directly and not
+  // re-declared in this block (Appendix A §A.1/§A.1.1: the 5 SAMPLE_QUERIES + aiKbTry / aiKbSearch / aiKbClose /
+  // aiKbStatusIndexed). Verified via a codepoint-by-codepoint diff
+  // (54/54 + 9/9 MATCH, values generated directly by script from `git show 7a6ee6b7:src/assets/lang/zh_CN.json`,
+  // not hand-copied — the lesson was "the appendix showed zero diffs, but hand-copying into TS introduced 5 full-width-punctuation errors").
   //
-  // 🔴 逐字照抄、不许「顺手规整」的标点(附录 A §A.2.2):
-  //   aiKbFdCopyFailed 的逗号是**半角** `,`(U+002C),不是全角;
-  //   aiKbSrMoreHint 的 `—` 是 U+2014 且两侧各一个半角空格;
-  //   aiKbFdSummary / aiKbSrEmptyTipAllowlist 用「」(U+300C/U+300D);
-  //   aiKbSrPlaceholder 结尾是单字符 `…`(U+2026),不是三个点;
-  //   aiKbSrIdleSub 有两个全角 `，` + 两个全角 `。`。
-  //   全角标点扫描的 5 条例外由 messageSyntax.test.ts 用 toBe 逐条钉死。
+  // 🔴 Punctuation to copy verbatim, no "tidying it up" (Appendix A §A.2.2):
+  //   the comma in aiKbFdCopyFailed is **half-width** `,` (U+002C), not full-width;
+  //   the `—` in aiKbSrMoreHint is U+2014 with one half-width space on each side;
+  //   aiKbFdSummary / aiKbSrEmptyTipAllowlist use 「」(U+300C/U+300D);
+  //   aiKbSrPlaceholder ends in the single character `…` (U+2026), not three dots;
+  //   aiKbSrIdleSub has two full-width `，` plus two full-width `。`.
+  //   The 5 full-width-punctuation-scan exceptions are pinned individually with toBe in messageSyntax.test.ts.
   //
-  // 🔴 高危同值一律新建、不许复用别区键(治理 §7.1 / 附录 A §A.1.2,理由逐字:
-  // 键名语义属于别的区,将来那个区改文案会静默改掉搜索区):
-  //   High/Mid/Low → aiKbSrRelHigh/Mid/Low(**不是** appsSettingsCpu* / aiThinking*;
-  //   aiThinkingMedium 的 en 还是 `Medium` ≠ `Mid`,复用会直接改掉界面文案。
-  //   且 relLabel() 在 util 里走 i18n.global.t → 选错键 SearchView 与
-  //   FileDetailDrawer 会同时静默错);Download → aiKbFdDownload(不是 filesDownload
-  //   / aiResDownload;FileDetailDrawer 与 KFileViewer 共用这一个键);
+  // 🔴 High-risk same-value strings must always get a new key, never reuse a key from another section
+  // (governance §7.1 / Appendix A §A.1.2, rationale verbatim: the key name's meaning belongs to a
+  // different section, and a future copy change there would silently change this search section too):
+  //   High/Mid/Low → aiKbSrRelHigh/Mid/Low (**not** appsSettingsCpu* / aiThinking*;
+  //   aiThinkingMedium's en is still `Medium` ≠ `Mid`, so reusing it would directly change the UI copy.
+  //   Also relLabel() in util goes through i18n.global.t → picking the wrong key would silently break
+  //   both SearchView and FileDetailDrawer at once); Download → aiKbFdDownload (not filesDownload
+  //   / aiResDownload; FileDetailDrawer and KFileViewer share this one key);
   //   Copied → aiKbFdCopied · Similarity → aiKbSrSimilarity · matches →
   //   aiKbSrCountMatches · Enabled → aiKbSrAdvOn · Search failed → aiKbSrErrorTitle ·
-  //   (Untitled) → aiKbSrUntitled · Advanced → aiKbSrAdvanced(zh 还不同:
-  //   `高级筛选` vs appsSettingsSectionAdvanced 的 `高级`)。
+  //   (Untitled) → aiKbSrUntitled · Advanced → aiKbSrAdvanced (zh even differs here:
+  //   "高级筛选" vs appsSettingsSectionAdvanced's "高级").
   //
-  // ⚠️ FILE_TYPES 的 5 个 label(PDF/Markdown/TXT/DOC/Code)蓝本 SearchView.vue:194-200
-  // 是裸字面量、模板 `{{ t.label }}` 没过 $t() → **不进 i18n**,组件里照抄字面量。
-  // 同一文件的 MTIMES(过 $t(m.label))与 SAMPLE_QUERIES(过 $t(s))才进,别搞混。
+  // ⚠️ The 5 FILE_TYPES labels (PDF/Markdown/TXT/DOC/Code) in the reference SearchView.vue:194-200
+  // are bare literals — the template's `{{ t.label }}` doesn't go through $t() → **not put through i18n**,
+  // the component copies the literals as-is. In that same file, MTIMES (which does go through
+  // $t(m.label)) and SAMPLE_QUERIES (which does go through $t(s)) ARE included — don't mix them up.
   aiKbFdBack: '返回结果列表',
   aiKbFdCopied: '已复制',
   aiKbFdCopy: '复制内容',
@@ -1508,27 +1552,29 @@ export default {
   aiKbAdOpenInPhotos: '在相册中打开',
   aiKbAdCaption: '匹配的描述',
   aiKbAdTaken: '拍摄于',
-  // <<< SP8-P5e Task 1
-  // >>> SP8-P5f Task 1 —— 知识库最后三页文案(Vue2 AllowlistView.vue / RootsView.vue /
-  // WikiView.vue),共 79 条新键,全部有 Vue2 权威 zh 值(本期新造 0、死键 0)。
-  // 另有 11 条 aiKb* 既有键直接复用、不在本块内重复声明(附录 A §A.2 减去裁定 R3 的三条:
-  // aiKbColPath / aiKbColAction / aiKbCancel / aiKbNavRoots / aiKbRealtimeWatch /
+  // <<<
+  // >>> Copy for the last three knowledge-base pages (Vue2 AllowlistView.vue / RootsView.vue /
+  // WikiView.vue), 79 new keys total, all with a Vue2 authoritative zh value (0 newly-created, 0 dead keys this cycle).
+  // Another 11 existing aiKb* keys are reused directly and not re-declared in this block (Appendix A §A.2 minus
+  // the three from ruling R3: aiKbColPath / aiKbColAction / aiKbCancel / aiKbNavRoots / aiKbRealtimeWatch /
   // aiKbScheduledScanOnly / aiKbLastScan / aiKbNever / aiKbOpFailed / aiKbRetry /
-  // aiKbManageRoots)。逐码点比对
-  // (79/79 + 11/11 MATCH,值由该脚本的映射表直接从 `git show 7a6ee6b7:src/assets/lang/zh_CN.json`
-  // 生成、非手抄 —— P5a-T8 的教训是「附录零差异,手抄进 TS 时引入 5 处全角标点错」)。
+  // aiKbManageRoots). Verified via a codepoint-by-codepoint diff
+  // (79/79 + 11/11 MATCH, values generated directly by that script's mapping table from `git show 7a6ee6b7:src/assets/lang/zh_CN.json`,
+  // not hand-copied — the lesson was "the appendix showed zero diffs, but hand-copying into TS introduced 5 full-width-punctuation errors").
   //
-  // 🔴 裁定 R3:`Delete` / `Auto` / `Removed` 三条 zh 值虽与既有 aiKbNtDelete / aiKbOriginAuto /
-  // aiKbDeviceAuto / aiKbStatusRemoved 完全相同,仍按 A-1 新建 aiKbRtDelete / aiKbRtWatchAuto /
-  // aiKbWkOpRemoved —— 那几个键的语义域是笔记页 / 来源设备 / 索引文件状态,
-  // 将来那些域改文案会静默改掉本区。
+  // 🔴 Ruling R3: although the three zh values `Delete` / `Auto` / `Removed` are identical to the existing
+  // aiKbNtDelete / aiKbOriginAuto / aiKbDeviceAuto / aiKbStatusRemoved, new keys aiKbRtDelete / aiKbRtWatchAuto /
+  // aiKbWkOpRemoved were still created per ruling A-1 — those existing keys' meaning belongs to the notes
+  // page / source device / indexed-file status domains, and a future copy change in those domains would
+  // silently change this section too.
   //
-  // 🔴 逐字照抄、不许「顺手规整」的标点(全角扫描正则 /[，；：？！（）]/ 看不见它们):
-  //   aiKbWkEmptySub / aiKbWkRenderNote  半角逗号 U+002C 夹在中文句子里(蓝本原文)
-  //   aiKbRtDeleteTitle                  半角问号 U+003F
-  //   aiKbRtScanInterval / aiKbRtReadOnly 半角括号 U+0028/U+0029
-  //   aiKbRtReadOnly                     双 em dash 「——」U+2014 ×2,无空格
-  //   aiKbWkCollapsed / aiKbAlNoRules 等  em dash U+2014 / 全角句号 U+3002 / 省略号 U+2026(单字符)
+  // 🔴 Punctuation to copy verbatim, no "tidying it up" (the full-width-punctuation scan regex
+  // /[，；：？！（）]/ can't see these):
+  //   aiKbWkEmptySub / aiKbWkRenderNote  half-width comma U+002C embedded in a Chinese sentence (from the reference)
+  //   aiKbRtDeleteTitle                  half-width question mark U+003F
+  //   aiKbRtScanInterval / aiKbRtReadOnly half-width parentheses U+0028/U+0029
+  //   aiKbRtReadOnly                     double em dash "——" U+2014 ×2, no spaces
+  //   aiKbWkCollapsed / aiKbAlNoRules etc. em dash U+2014 / full-width period U+3002 / ellipsis U+2026 (single character)
   aiKbAdd: '添加',
   aiKbAlAddFailed: '添加失败',
   aiKbAlAddFolderRule: '添加文件夹规则',
@@ -1608,9 +1654,9 @@ export default {
   aiKbWkSummaryUpdated: '摘要更新于 {t}',
   aiKbWkTreeError: '加载 Wiki 树失败',
   aiKbWkViewSource: '查看原文',
-  // <<< SP8-P5f Task 1
-  // >>> Task 21 (2026-08-13 mcp-progressive-disclosure plan) —— 跨服务器授权汇总页 +
-  // 删除确认的级联提示,Vue2 没有对应文案,本期新造
+  // <<<
+  // >>> Task 21 (2026-08-13 mcp-progressive-disclosure plan) — the cross-server authorization summary page +
+  // the cascading notice on the delete-confirmation dialog, no Vue2 equivalent, newly created this cycle
   aiCfgMcpApprovals: 'MCP 授权',
   aiMcpApprovalsDesc: '你曾经对某个 MCP 服务器选择"不再询问"的每一项授权,都汇总在这里,按服务器分组,可随时撤销。',
   aiMcpApprovalsEmpty: '还没有任何已保存的授权。',
@@ -1678,7 +1724,7 @@ export default {
   aiCfgPermCtxAuto: '全部自动批准',
   aiCfgPermHardFloor: '永不可配置:硬黑名单、密钥/凭据上传拦截、系统路径、受保护 shell 命令,始终需要人工确认。',
   // <<< Agent permission policy
-  // ── Toolbox(设置区)— 自 Vue2 ToolboxSection 移植 ──
+  // ── Toolbox (settings section) — ported from Vue2 ToolboxSection ──
   aiCfgToolbox: '工具箱',
   aiCfgToolboxDesc:
     'agent 沙箱的持久化 CLI 组件,重建容器后仍然保留。只有自包含的工具适合放进工具箱;依赖系统库的组件需要随镜像内置。',
@@ -1699,7 +1745,7 @@ export default {
   aiCfgToolboxVersionAvailable: '可安装 v{version}',
   // <<< Toolbox
 
-  // ── 飞书账号绑定(设置区)──
+  // ── Lark (Feishu) account binding (settings section) ──
   aiCfgLark: '飞书账号',
   aiCfgLarkDesc: '绑定你的飞书账号,让智能体可以代表你调用飞书相关工具。',
   aiCfgLarkBind: '绑定飞书账号',
@@ -1714,7 +1760,7 @@ export default {
   aiCfgLarkGoToToolbox: '前往工具箱安装',
   aiCfgLarkLogLabel: '最近一次 CLI 输出',
   aiCfgLarkRetry: '重试',
-  // <<< 飞书账号绑定
+  // <<< Lark (Feishu) account binding
   // ── Scheduled tasks page — ported 1:1 from Vue2 (tasks* keys kept verbatim) ──
   aiTasksAdoptAction: '加入预授权',
   aiTasksAdoptHint: '加入预授权会为该任务添加一条规则,下次运行不再因此被拦。',

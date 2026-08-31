@@ -7,15 +7,16 @@
 //  non-greedy matching, and a fake opening tag in the comment would make it consume all the way to the real closing tag at the end of the file, scanning the entire script +
 //  template as a style block. See the no-fake-style-tag test case in that test file.)
 //
-// Division of responsibility (per brief, following the precedent of P4 AlbumPickerDialog but reversed): this component
+// Division of responsibility (following the precedent of AlbumPickerDialog.vue, but reversed): this component
 // **only collects input and emits**; it does not call any store or toast — the actual calls, re-entrance guards, and toast
 // for all three submission paths (renamePerson / mergePersonInto / purgePersonWithUndo) are entirely in the host PhotosPeople.vue.
 //
-// Review coordinator corrections (post-review, 3 items reverted to Vue2 literal implementation; this period's discipline is
-// "UI must be exactly 1:1, only bug/race/silent failure changes apply" — the brief's structure checklist is a snapshot,
-// Vue2 source code is the authority, absence from the checklist does not mean deletion is permitted):
-//  1) Add <label> for mode='name', key photosPersonNameLabel (coordinator verified zh_CN.json:49
-//     "Name": "名称" and approved new additions; both en and zh locales added at segment end, no reordering of existing keys).
+// Corrections applied to keep this dialog exactly 1:1 with Vue2 (3 items reverted to Vue2's literal
+// implementation; the discipline here is "UI must be exactly 1:1, only bug/race/silent failure changes
+// apply" — a structure checklist is only a snapshot, Vue2 source code is the authority, and absence from
+// the checklist does not mean deletion is permitted):
+//  1) Add <label> for mode='name', key photosPersonNameLabel (zh_CN.json:49 already has
+//     "Name": "名称"; both en and zh locales added at segment end, no reordering of existing keys).
 //  2) Add decorative 2px solid var(--accent-soft) border ring around avatar in header (Vue2 :246-247's
 //     border-box 48px container, actual content area is 44px — use outer .cad-avatar-ring here to replicate the same
 //     geometry, PersonAvatar itself takes size 44).
@@ -24,16 +25,16 @@
 //     foreground pinned to white + theme-exception (reason in that style comment, do not use --on-accent —
 //     it is only readable when the background is definitely the saturated solid var(--accent) color, here background is a danger red gradient, condition not met).
 //
-// Review mandatory 1 (second round): delete mode actually has **three different captions** belonging to three slots; cross-checked
+// Delete mode actually has **three different captions** belonging to three slots; cross-checked
 // Vue2 :259-262 (header title) against :337-343 (warning box's own title line + gray small text body) and discovered the previous version
 // had incorrectly placed the warning box's title line ("Delete this person cluster?") in the header title slot, causing the header's actual
 // "Delete face cluster" line to disappear and the warning box's own title line to be lost. Added header-specific key
 // photosPersonDeleteClusterTitle (en is verbatim 'Delete face cluster'; zh does not copy zh_CN.json's
-// "删除面部集群" — "cluster" violates this period's terminology red line, changed to "delete this group of faces"), warning box restored to
+// "删除面部集群" — "cluster" was avoided as a terminology choice, changed to "delete this group of faces"), warning box restored to
 // "title line + <br/> + gray small text body" two-line structure, all three captions now in their correct slots.
 //
-// Plan D Task 4 (scoped zeroed out): this component's class names are unchanged (Task 1 already
-// landed them in parity under the current .cad-* names — Vue2's entire dialog is built from
+// This component's class names are unchanged (already landed in parity under the current
+// .cad-* names — Vue2's entire dialog is built from
 // :style bindings, so there's no class to anchor to). The whole local scoped style block that
 // used to live at the end of this file has been deleted: every rule now has a matching,
 // line-by-line-compared counterpart in src/photos/styles/vue2-parity/photos-people.scss (the two
@@ -71,7 +72,7 @@ const nameInput = ref('')
 const mergeQuery = ref('')
 const nameInputRef = ref<HTMLInputElement | null>(null)
 const mergeInputRef = ref<HTMLInputElement | null>(null)
-// Task 7 (Plan D, duplicate-name dupconfirm): when non-null, the mode='name' template switches
+// Duplicate-name dupconfirm: when non-null, the mode='name' template switches
 // to the dupconfirm substate (mirroring Vue2's PhotosPeopleView.vue confirmName() :774-785, which
 // switches clusterDialog.mode wholesale to 'dupconfirm' — here it's only a substate, not a new
 // top-level mode, because the open/mode props are owned by the host; this component only
@@ -87,12 +88,12 @@ function sameId(a: string | number, b: string | number): boolean {
 const titleKey = computed(() => {
   if (props.mode === 'name') return 'photosPersonNameTitle'
   if (props.mode === 'merge') return 'photosPersonMergeTitle'
-  // Review mandatory 1: delete mode's header title slot corresponds to Vue2 :262 $t('Delete face cluster'),
+  // Delete mode's header title slot corresponds to Vue2 :262 $t('Delete face cluster'),
   // and is different from the warning box's own internal title line (photosPersonDeleteTitle, :341); they are two different captions and cannot share a key.
   return 'photosPersonDeleteClusterTitle'
 })
 
-// Task 7 (Plan D, duplicate-name dupconfirm): when dupConfirm is non-null (the mode==='name'
+// Duplicate-name dupconfirm: when dupConfirm is non-null (the mode==='name'
 // substate), the header title slot switches to the "a person with this name already exists"
 // interpolated copy (mirroring Vue2 PhotosPeopleView.vue:317
 // `$t('A person named "{name}" already exists.', { name: clusterDialog.pendingName })`); the
@@ -117,9 +118,9 @@ const subtitleText = computed(() => {
 
 const canSaveName = computed(() => nameInput.value.trim().length > 0)
 
-// Candidates: exclude self → sort by count descending, same count by name ascending (deviates from registration 12, per brief) →
+// Candidates: exclude self → sort by count descending, same count by name ascending →
 // empty query takes first 6, query present (case-insensitive includes) takes first 8. Sort → filter → truncate; filtering placed inside
-// the dialog (it holds the query, per brief decision).
+// the dialog (it holds the query).
 const sortedCandidates = computed(() => {
   const selfId = props.person?.id ?? null
   const pool = props.candidates.filter((p) => selfId === null || !sameId(p.id, selfId))
@@ -154,8 +155,8 @@ watch(
       mergeQuery.value = ''
       dupConfirm.value = null
       document.addEventListener('keydown', onDocumentKeydown)
-      // Follow Vue2 openNameDialog/openMergeDialog :624-637 $nextTick + focus (+select per brief
-      // requirement; input is empty now, select() is a no-op but kept to match brief literal description).
+      // Follow Vue2 openNameDialog/openMergeDialog :624-637 $nextTick + focus (+select;
+      // input is empty now, select() is a no-op but kept to match Vue2's literal behavior).
       void nextTick(() => {
         if (props.mode === 'name') {
           nameInputRef.value?.focus()
@@ -172,7 +173,7 @@ watch(
 )
 onUnmounted(() => document.removeEventListener('keydown', onDocumentKeydown))
 
-// Task 7: wires up duplicate-name detection (mirroring Vue2's confirmName :774-785 —
+// Wires up duplicate-name detection (mirroring Vue2's confirmName :774-785 —
 // findNamedDuplicate(peopleNamed, name) switches mode to 'dupconfirm' and focuses that box on a
 // hit, only calling the real applyName otherwise). `candidates` is already the host-supplied full
 // people.named list (the same one the merge mode reuses); the naming scenario doesn't need
@@ -223,7 +224,7 @@ function submitDelete(): void {
       </div>
 
       <template v-if="mode === 'name'">
-        <!-- Task 7: the duplicate-name dupconfirm substate — mirroring Vue2
+        <!-- The duplicate-name dupconfirm substate — mirroring Vue2
              PhotosPeopleView.vue:396-419, replaces the input/hint/regular action row with three
              actions. The header (avatar/subtitle) is unchanged; only this block's content switches. -->
         <template v-if="!dupConfirm">
@@ -249,7 +250,7 @@ function submitDelete(): void {
               :disabled="!canSaveName"
               @click="submitName"
             >
-              <!-- Final review Minor 1: Vue2 PhotosPeopleView.vue:293 button has check icon inside (size 13),
+              <!-- Vue2 PhotosPeopleView.vue:293 button has check icon inside (size 13),
                    original implementation missed it. Delete button on same row (:235) and MergeReviewDialog's accept both have it,
                    only this one of the three is plain text — internally inconsistent. -->
               <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
@@ -297,7 +298,7 @@ function submitDelete(): void {
               <span class="cad-candidate-name">{{ p.name }}</span>
               <span class="cad-candidate-count">{{ t('photosPeoplePhotosCount', { n: p.count.toLocaleString() }) }}</span>
             </span>
-            <!-- Final review Minor 2: Vue2 :322 line end has chevR (size 12, --text-3 → this repo's --fg-muted),
+            <!-- Vue2 :322 line end has chevR (size 12, --text-3 → this repo's --fg-muted),
                  original implementation missed it. Clicking this row **directly executes merge** with no undo; without this
                  "there's a next step" chevron the entire row is left with only hover background as a hint. -->
             <svg class="cad-candidate-chev" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
@@ -312,7 +313,7 @@ function submitDelete(): void {
       </template>
 
       <template v-else>
-        <!-- Review mandatory 1: warning box restored to Vue2 :337-343 two-line structure — first line is warning box's own title
+        <!-- Warning box restored to Vue2 :337-343 two-line structure — first line is warning box's own title
              (photosPersonDeleteTitle, "Delete this person cluster?"), <br/> after line break comes gray small text body
              (photosPersonDeleteBody). These two captions and the header title (titleKey) are three different captions belonging to
              three different slots, cannot be substituted for each other. -->

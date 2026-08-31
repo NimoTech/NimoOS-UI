@@ -1,5 +1,5 @@
 // 1:1 port from Vue2 src/views/AI/Agent/tabs/ContextTab.vue (16 lines) — pure placeholder panel.
-// SP8-P1c2 Task 10 brief explicitly states: this is a placeholder "not yet supported" in Vue2,
+// This is a placeholder "not yet supported" in Vue2,
 // do not implement the real "add files to context" feature while you're at it, port as-is.
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'

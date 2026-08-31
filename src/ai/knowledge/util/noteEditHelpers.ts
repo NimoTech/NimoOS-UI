@@ -1,4 +1,4 @@
-// SP8-P5d Task 3 —— 1:1 ported from Vue2
+// 1:1 ported from Vue2
 // the Vue 2 panel's `src/views/AI/Knowledge/noteEditHelpers.js` (main@7a6ee6b7, 11 lines).
 //
 // N23: `conflictMessage` returns hardcoded English string, no i18n —— only call site

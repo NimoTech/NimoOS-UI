@@ -10,15 +10,15 @@
 // *identity* survives an unrelated reactive change is a strictly more precise proof of "this
 // subtree did no Vue work" than a raw update-count spy would be.
 //
-// Task 6 (Plan E, 2026-08-15) update: this task's own brief scoped Task 5 to sub-commit 4 only
-// (the render-isolation architecture) and explicitly deferred #106's sub-commits 1-3 (colour
-// value/mapping fixes) plus the D5 signal-source revert to a later task — that later task is
-// this one. Case 8's describe block below (and its two `it.each` cases) has been rewritten to
+// A follow-up pass deliberately scoped an earlier pass to sub-commit 4 only (the
+// render-isolation architecture) and explicitly deferred #106's sub-commits 1-3 (color
+// value/mapping fixes) plus the D5 signal-source revert -- this file covers that deferred
+// work. Case 8's describe block below (and its two `it.each` cases) has been rewritten to
 // assert the NOW-correct sub-commit-3 mapping (see src/photos/util/placesMapThemes.ts's own
 // resolveMapTheme() comment) instead of the deliberately-deferred pre-#106 mapping the previous
 // version of this file pinned down; two more cases were added directly below it proving the D5
 // signal switch works in both directions (photos-private theme flips the map, global theme
-// does not) — this is the RED-then-GREEN test Task 6's brief mandates for that switch.
+// does not) -- this is the RED-then-GREEN test mandated for that switch.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, nextTick, ref } from 'vue'
 import { mount } from '@vue/test-utils'
@@ -65,21 +65,23 @@ afterEach(() => {
   document.body.innerHTML = ''
 })
 
-// ── Case 1 的 fixture:两个手写点(照 Vue2 test 的 `{ x, y, visited }` 字面量,不经
-// visitedDots() 计算——直接验证组件契约,不掺入几何算法)。────────────────────────
+// -- Fixture for Case 1: two hand-written dots (mirroring Vue2's test's `{ x, y, visited }`
+// literals, bypassing visitedDots() computation -- directly validates the component's
+// contract without pulling in the geometry algorithm). ------------------------------------
 const HAND_DOTS = [
   { x: 1, y: 2, visited: false },
   { x: 3, y: 4, visited: true },
 ]
 
-describe('PlacesWorldDots · 点阵渲染隔离(props 仅 dots)', () => {
-  it('props 契约恰好只有 dots 一个字段', () => {
-    // <script setup> 编译产物的 props 声明是本组件唯一的响应式输入契约。
+describe('PlacesWorldDots - dot rendering isolation (props is dots only)', () => {
+  it('the props contract has exactly one field, dots', () => {
+    // The <script setup> compiled output's props declaration is this component's only
+    // reactive input contract.
     const declared = Object.keys((PlacesWorldDots as unknown as { props: Record<string, unknown> }).props)
     expect(declared).toEqual(['dots'])
   })
 
-  it('每个点渲染一个 circle,已访问的带 is-visited、未访问的不带', () => {
+  it('each dot renders one circle; visited ones have is-visited, unvisited ones do not', () => {
     const w = mount(PlacesWorldDots, { props: { dots: HAND_DOTS } })
     const circles = w.findAll('circle')
     expect(circles).toHaveLength(2)
@@ -88,10 +90,12 @@ describe('PlacesWorldDots · 点阵渲染隔离(props 仅 dots)', () => {
   })
 })
 
-// ── Case 2/3/4 共用的直接挂载 harness:真实 PlacesMap,外层持有可变的 activeId/themeVars
-// ref,模拟"容器状态变了、往下传新 props"而不经过完整的 PhotosPlaces.vue 容器——这就是
-// PlacesMap 自己的渲染依赖表面,不需要整页容器也能精确测。用 h() 手写 render(不用模板
-// 字符串),避免依赖 vue 的运行时编译器 build。────────────────────────────────────
+// -- Shared direct-mount harness for Cases 2/3/4: a real PlacesMap, with the outer layer
+// holding mutable activeId/themeVars refs, simulating "container state changed, new props
+// passed down" without going through the full PhotosPlaces.vue container -- this is
+// PlacesMap's own rendering-dependency surface, precisely testable without a full-page
+// container. Uses h() to hand-write the render function (not a template string), avoiding
+// a dependency on Vue's runtime compiler build. -------------------------------------------
 const PLAIN: Place = {
   id: 'plain', key: 1, region: 'asia', country: 'China', city: 'Plain City',
   lon: 100, lat: 20, count: 3, recent: false,
@@ -103,12 +107,15 @@ const ACTIVE_RECENT: Place = {
   last: 'Jun 1, 2026', lastDate: new Date(2026, 5, 1), trips: 1, home: false, thumbs: [], coverAssetId: '',
 }
 
-// 评审自查(TDD 第一轮撞见的真坑):`places` 数组必须在 render() 之外只构造一次——若像
-// PhotosPlaces.vue 真实的 filteredPlaces computed 那样保持引用稳定,PlacesMap 自己的
-// `dots = computed(() => visitedDots(props.places))` 才不会被误判"依赖变了"而重新求值。
-// 第一版把 `[PLAIN, ACTIVE_RECENT]` 字面量直接写在 render() 里,每次 Harness 自身重渲染都
-// 会重新构造一个新数组引用喂给 PlacesMap 的 `places` prop——那不是在测 PlacesMap 的隔离,
-// 是在测"我的测试 harness 有没有意外制造一个假故障源",两个用例因此假红,已改正。
+// Self-check (a real pitfall hit during the first TDD pass): the `places` array must be
+// constructed exactly once outside of render() -- only if its reference stays stable, the
+// way PhotosPlaces.vue's real filteredPlaces computed does, will PlacesMap's own
+// `dots = computed(() => visitedDots(props.places))` avoid being wrongly re-evaluated as if
+// "a dependency changed." The first version wrote the `[PLAIN, ACTIVE_RECENT]` literal
+// directly inside render(), so every time the Harness itself re-rendered it constructed a
+// fresh array reference to feed PlacesMap's `places` prop -- that wasn't testing PlacesMap's
+// isolation, it was testing "did my own test harness accidentally create a false failure
+// source." Two test cases went red for this reason and have been corrected.
 const HARNESS_PLACES = [PLAIN, ACTIVE_RECENT]
 
 function mountMapHarness() {
@@ -134,30 +141,33 @@ function mountMapHarness() {
   return { w, activeId, themeVars }
 }
 
-describe('PlacesMap · 拖动取色器不该压主线程(改色不重绘点阵)', () => {
-  it('themeVars 改 30 次(模拟拖动取色器每帧一次 input),dots 子组件的 props 引用全程不变', async () => {
+describe('PlacesMap - dragging the color picker must not block the main thread (recoloring does not repaint the dot field)', () => {
+  it('changing themeVars 30 times (simulating one input event per frame while dragging the color picker) leaves the dots subcomponent\'s props reference unchanged throughout', async () => {
     const { w, themeVars } = mountMapHarness()
     const dotsBefore = w.findComponent(PlacesWorldDots).props('dots')
 
     for (let i = 0; i < 30; i++) {
-      // 每次都是一个全新对象引用,模拟 mapThemeStyleVars() 每次重新计算的产出——
-      // 这正是会让 Vue3 判定"这个 prop 变了"的条件(引用比较,不是深比较)。
+      // A brand-new object reference each time, simulating what mapThemeStyleVars() produces
+      // on every recomputation -- this is exactly the condition that makes Vue3 judge "this
+      // prop changed" (reference comparison, not deep comparison).
       themeVars.value = { background: '#000000', '--map-dot': `#${i.toString(16).padStart(6, '0')}` }
       await nextTick()
     }
 
     const dotsAfter = w.findComponent(PlacesWorldDots).props('dots')
-    // 严格引用相等:证明 PlacesMap 自己的 dots computed 从未因 themeVars 变化而重新求值,
-    // 而 PlacesWorldDots 收到的 props.dots 引用也没变——Vue 因此完全没有理由重绘这个子组件。
+    // Strict reference equality: proves PlacesMap's own dots computed never re-evaluated
+    // due to themeVars changing, and the props.dots reference PlacesWorldDots received also
+    // never changed -- so Vue has no reason at all to repaint this child component.
     expect(dotsAfter).toBe(dotsBefore)
 
-    // 反向确认:themeVars prop 真的传导到了 PlacesMap(不是"什么都没生效,巧合看着没变")。
+    // Reverse check: confirms the themeVars prop actually did propagate to PlacesMap (not
+    // "nothing took effect and it coincidentally looks unchanged").
     expect(w.findComponent(PlacesMap).props('themeVars')['--map-dot']).toBe('#00001d')
   })
 })
 
-describe('PlacesMap · hover / 选中不重绘点阵', () => {
-  it('activeId 变化(hover/选中的下游效果)不改变 dots 子组件的 props 引用,但图钉确实刷新了', async () => {
+describe('PlacesMap - hover / selection does not repaint the dot field', () => {
+  it('changing activeId (a downstream effect of hover/selection) does not change the dots subcomponent\'s props reference, but the pin does refresh', async () => {
     const { w, activeId } = mountMapHarness()
     const dotsBefore = w.findComponent(PlacesWorldDots).props('dots')
     const activeCountBefore = w.findAll('.geo-pin.is-active').length
@@ -167,20 +177,22 @@ describe('PlacesMap · hover / 选中不重绘点阵', () => {
     await nextTick()
 
     const dotsAfter = w.findComponent(PlacesWorldDots).props('dots')
-    expect(dotsAfter).toBe(dotsBefore) // 点阵子组件全程没有理由重绘
+    expect(dotsAfter).toBe(dotsBefore) // the dot-field subcomponent has no reason to repaint throughout
 
-    // 但 PlacesMap 自己确实重渲染了(图钉的 is-active 反映了新 activeId)——证明上面那个
-    // "没变"不是因为整棵树压根没重渲染,而是隔离生效了。
+    // But PlacesMap itself did re-render (the pin's is-active reflects the new activeId) --
+    // proving the "unchanged" above isn't because the whole tree never re-rendered, but
+    // because isolation is actually working.
     expect(w.findAll('.geo-pin.is-active').length).toBe(1)
   })
 })
 
-describe('PlacesMap · 颜色改动通过 CSS 变量落到 DOM 上(watch 触发的后续更新,不只是 mounted 那一次)', () => {
-  it('mount 后再次改变 themeVars,新值确实落到 <svg> 的 style 上', async () => {
-    // 注:PlacesMap.test.ts 已经钉住了"mount 时 themeVars 落到 svg style"这一条(该文件
-    // :62-67)。这里额外补的是它没覆盖的角度——mount *之后* themeVars 再变,watch() 驱动的
-    // 命令式写入是否也跟着更新(证明这是一个持续生效的响应式副作用,不是只在 onMounted 跑
-    // 一次的死值)。
+describe('PlacesMap - color changes land on the DOM via CSS variables (a watch-triggered follow-up update, not just the initial mount)', () => {
+  it('changing themeVars again after mount, the new value does land on the <svg>\'s style', async () => {
+    // Note: PlacesMap.test.ts already pins down "themeVars lands on svg style at mount time"
+    // (that file's :62-67). What's added here is the angle it doesn't cover -- when
+    // themeVars changes again *after* mount, does the watch()-driven imperative write also
+    // update (proving this is an ongoing reactive side effect, not a dead value that only
+    // runs once in onMounted).
     const { w, themeVars } = mountMapHarness()
     const svg = w.find('svg').element as SVGSVGElement
     expect(svg.style.getPropertyValue('--map-dot')).toBe('#111111')
@@ -193,8 +205,9 @@ describe('PlacesMap · 颜色改动通过 CSS 变量落到 DOM 上(watch 触发�
     expect(svg.style.getPropertyValue('--map-grid')).toBe('#00ff00')
     expect(svg.style.getPropertyValue('--map-dot-bg')).toBe('rgba(1,2,3,0.3)')
 
-    // 条件展开语义(mapThemeStyleVars() 的契约,applyMapVars() 必须照顾到):dotBg 不在
-    // vars 里时,上一次写过的 --map-dot-bg 要被 removeProperty 清掉,不能卡在旧值上。
+    // Conditional-spread semantics (mapThemeStyleVars()'s contract, which applyMapVars()
+    // must honor): when dotBg is not in vars, the --map-dot-bg written last time must be
+    // cleared via removeProperty, not left stuck on the old value.
     themeVars.value = { background: '#0A0A0C', '--map-dot': '#6E5BFF', '--map-grid': '#9C8EFF' }
     await nextTick()
     expect(svg.style.getPropertyValue('--map-dot-bg')).toBe('')
@@ -205,15 +218,16 @@ function makeI18n() {
   return createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 }
 
-// ── Case 5:取色器 uncontrolled + 弹层打开喂初值(mount PlacesThemeMenu 直连真 store,不需要
-// 整个 PhotosPlaces.vue——这条契约本身只涉及这两者)。──────────────────────────────────
-describe('PlacesThemeMenu · 弹层打开时把当前颜色喂给无绑定的取色器', () => {
+// -- Case 5: the color picker is uncontrolled + gets fed its initial value when the popover
+// opens (mounts PlacesThemeMenu directly against the real store; doesn't need the whole
+// PhotosPlaces.vue -- this contract only involves these two). -----------------------------
+describe('PlacesThemeMenu - feeds the current colors to the unbound color pickers when the popover opens', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     localStorage.clear()
   })
 
-  it('open 从 false 变 true:两个 <input type=color> 的 .value 被同步成 selection 的当前颜色', async () => {
+  it('open flips from false to true: both <input type=color>\'s .value get synced to selection\'s current colors', async () => {
     const store = usePhotosPlaces()
     store.setCustomColors('#abcdef', '#fedcba')
 
@@ -221,35 +235,37 @@ describe('PlacesThemeMenu · 弹层打开时把当前颜色喂给无绑定的取
       props: { selection: store.themePrefs, isLight: false, open: false },
       global: { plugins: [makeI18n()] },
     })
-    // 打开前:popover 的 v-if 还没渲染,两个 input 压根不在 DOM 里。
+    // Before opening: the popover's v-if hasn't rendered yet, so neither input is in the DOM.
     expect(w.find('[data-test="mtm-dot-input"]').exists()).toBe(false)
 
     await w.setProps({ open: true })
-    await nextTick() // popover 的 v-if 渲染出 input
-    await nextTick() // watch(open) 里的 nextTick(syncColorInputs) 落地
+    await nextTick() // the popover's v-if renders the inputs
+    await nextTick() // the nextTick(syncColorInputs) inside watch(open) lands
 
     const dotInput = w.get<HTMLInputElement>('[data-test="mtm-dot-input"]')
     const gridInput = w.get<HTMLInputElement>('[data-test="mtm-grid-input"]')
     expect(dotInput.element.value).toBe('#abcdef')
     expect(gridInput.element.value).toBe('#fedcba')
 
-    // 无绑定(uncontrolled)契约的另一半:模板上不应该再有 :value 绑定——否则每次拖动都会
-    // 把 customDotColor 拉回这个组件的渲染依赖里,读源文本确认删码没有复发。
+    // The other half of the uncontrolled contract: the template must not have a :value
+    // binding -- otherwise every drag would pull customDotColor back into this component's
+    // render dependencies. Read the raw source to confirm the removed code hasn't crept back.
     expect(placesThemeMenuRaw).not.toMatch(/:value="selection\.customDotColor"/)
     expect(placesThemeMenuRaw).not.toMatch(/:value="selection\.customCityColor"/)
   })
 })
 
-// ── Case 6/7:store 层面的防抖 + flush,集成到真实 <input> 拖拽事件(不只是直接调用
-// action——这一段验证"真实拖拽会不会打到防抖"这条 UI→store 的接线;store 自己的防抖机制单测
-// 见 places.test.ts,不在这里重复)。────────────────────────────────────────────────
-describe('PlacesThemeMenu → store:连续拖拽取色器只落一次 localStorage 写入,卸载时 flush', () => {
+// -- Cases 6/7: store-level debouncing + flush, integrated with real <input> drag events
+// (not just calling the action directly -- this section verifies the UI-to-store wiring for
+// "does a real drag actually hit the debounce"; the store's own debounce mechanism has its
+// own unit test in places.test.ts and isn't repeated here). -------------------------------
+describe('PlacesThemeMenu -> store: continuously dragging the color picker only writes to localStorage once, and flushes on unmount', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     localStorage.clear()
   })
 
-  it('30 次连续 input 事件只触发一次 setItem(250ms 防抖合并)', async () => {
+  it('30 consecutive input events trigger setItem only once (250ms debounce coalescing)', async () => {
     vi.useFakeTimers()
     const store = usePhotosPlaces()
     const w = mount(PlacesThemeMenu, {
@@ -262,31 +278,33 @@ describe('PlacesThemeMenu → store:连续拖拽取色器只落一次 localStora
     for (let i = 0; i < 30; i++) {
       dotInput.element.value = `#${i.toString(16).padStart(6, '0')}`
       await dotInput.trigger('input')
-      // 每次 @input 都 emit update:selection,但这个 harness 没有容器接住 emit 往 store 写——
-      // 直接调用 store action 模拟"容器 onUpdateThemeSelection 已经接线"这一步(容器接线本身
-      // 由 PhotosPlaces.test.ts 的既有集成用例覆盖,不在本文件重复挂一整个容器)。
+      // Every @input emits update:selection, but this harness has no container catching the
+      // emit to write to the store -- call the store action directly to simulate "the
+      // container's onUpdateThemeSelection is already wired up" (the container wiring
+      // itself is covered by PhotosPlaces.test.ts's existing integration test, not repeated
+      // here by mounting a whole container).
       store.setCustomColors(dotInput.element.value, store.themePrefs.customCityColor)
     }
-    expect(setItemSpy).not.toHaveBeenCalled() // 拖动过程中不落盘
+    expect(setItemSpy).not.toHaveBeenCalled() // nothing persisted while dragging
 
     vi.advanceTimersByTime(250)
     expect(setItemSpy).toHaveBeenCalledTimes(1)
     const saved = JSON.parse(localStorage.getItem('nimo_places_map_theme')!)
-    expect(saved.customDotColor).toBe('#00001d') // 最后一次(i=29)的值
+    expect(saved.customDotColor).toBe('#00001d') // the value from the last iteration (i=29)
 
     setItemSpy.mockRestore()
     vi.useRealTimers()
   })
 
-  it('拖动中途卸载页面也会把最后一次选色 flush 落盘(store.flushThemePersist())', () => {
+  it('unmounting mid-drag still flushes the last selected color to disk (store.flushThemePersist())', () => {
     vi.useFakeTimers()
     const store = usePhotosPlaces()
     const setItemSpy = vi.spyOn(Storage.prototype, 'setItem')
 
     store.setCustomColors('#123456', store.themePrefs.customCityColor)
-    expect(setItemSpy).not.toHaveBeenCalled() // 还在 250ms 防抖窗口内
+    expect(setItemSpy).not.toHaveBeenCalled() // still within the 250ms debounce window
 
-    // 卸载即 flush——PhotosPlaces.vue 的 onUnmounted 调用的正是这同一个 store action。
+    // Unmount triggers a flush -- PhotosPlaces.vue's onUnmounted calls this exact same store action.
     store.flushThemePersist()
     expect(setItemSpy).toHaveBeenCalledTimes(1)
     expect(JSON.parse(localStorage.getItem('nimo_places_map_theme')!).customDotColor).toBe('#123456')
@@ -296,11 +314,13 @@ describe('PlacesThemeMenu → store:连续拖拽取色器只落一次 localStora
   })
 })
 
-// ── Case 8(Task 6 rewrite):自定义配色在亮/暗两种 **photos 私有主题**下都能正确地(命令式
-// 地)落到 <svg> 上,且这个信号只跟 photos 私有主题走、不跟全局 app 主题走(D5 revert)——
-// mount 整个 PhotosPlaces.vue 容器,验证 store→resolveMapTheme→mapThemeStyleVars→
-// PlacesMap.applyMapVars 全链路真的接通(前面几个 case 都只挂了半截树,这条补上端到端)。
-describe('自定义配色的命令式写入在亮/暗两种 photos 私有主题下都生效(端到端,D5 signal)', () => {
+// -- Case 8: custom colors land correctly (imperatively) on the <svg> in both light and
+// dark **Photos-private themes**, and this signal follows only the Photos-private theme, not
+// the global app theme (the D5 revert) -- mounts the full PhotosPlaces.vue container to
+// verify the whole chain store -> resolveMapTheme -> mapThemeStyleVars ->
+// PlacesMap.applyMapVars is actually wired up (the previous cases only mounted half the
+// tree; this one adds end-to-end coverage). ------------------------------------------------
+describe('custom-color imperative writes take effect in both light and dark Photos-private themes (end-to-end, D5 signal)', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     localStorage.clear()
@@ -328,7 +348,7 @@ describe('自定义配色的命令式写入在亮/暗两种 photos 私有主题�
   it.each([
     ['dark', 'dark', 'rgb(10, 10, 12)'], // '#0A0A0C'
     ['light', 'light', 'oklch(0.975 0.004 80)'],
-  ] as const)('photos 私有主题 = %s:选自定义色后,svg 的 --map-dot-bg(经 hexToRgba 洗色)与 background(跟随主题)都落地', async (_label, photosThemeValue, expectedBg) => {
+  ] as const)('Photos-private theme = %s: after picking a custom color, both the svg\'s --map-dot-bg (washed through hexToRgba) and background (following the theme) land correctly', async (_label, photosThemeValue, expectedBg) => {
     usePhotosTheme().set(photosThemeValue)
 
     const w = await mountContainer()
@@ -337,43 +357,47 @@ describe('自定义配色的命令式写入在亮/暗两种 photos 私有主题�
     await dotInput.setValue('#ff00aa')
 
     const svg = w.find('svg.map-canvas').element as SVGSVGElement
-    // #106 sub-commit 3 remap: "Land dot color" 拾色器现在喂 dotBg(经 hexToRgba 固定 0.30
-    // alpha 的洗色),不再直接喂 --map-dot(那是 pre-#106 的错误映射,Task 6 已修)。
+    // Remap: the "Land dot color" picker now feeds dotBg (washed through hexToRgba with a
+    // fixed 0.30 alpha), no longer feeding --map-dot directly (that was the earlier
+    // incorrect mapping, since fixed).
     expect(svg.style.getPropertyValue('--map-dot-bg')).toBe('rgba(255,0,170,0.3)')
-    // custom 模式 bg 现在跟随 isLight(#106 sub-commit 3 修的 bug:取色器一动,浅色地图不再
-    // 翻黑),isLight 的信号来源是 photos 私有主题(D5 revert),不是全局 app 主题。
+    // The custom-mode background now follows isLight (fixing the bug where moving the color
+    // picker would stop a light map from turning dark again); the isLight signal's source is
+    // the Photos-private theme (the D5 revert), not the global app theme.
     expect(svg.style.background).toBe(expectedBg)
 
     w.unmount()
   })
 
-  // ── D5 revert 的核心断言:两个方向都要覆盖 —— 全局主题切换不再牵动地图;
-  // photos 私有主题切换才牵动地图。只测一个方向不足以证明"信号源换对了",两个方向合起来
-  // 才排除掉"两个信号恰好同步"的巧合。────────────────────────────────────────────────
-  it('D5:全局 app 主题切换不影响地图 —— photos 私有主题恒为 dark,即使全局主题切 light,custom 模式 bg 仍是深色字面量', async () => {
+  // -- The core assertion of the D5 revert: both directions must be covered -- switching the
+  // global theme no longer affects the map; switching the Photos-private theme does affect
+  // the map. Testing only one direction isn't enough to prove "the signal source was swapped
+  // correctly" -- both directions together rule out "the two signals just happen to stay in
+  // sync" as a coincidence. --------------------------------------------------------------
+  it('D5: switching the global app theme does not affect the map -- with the Photos-private theme fixed at dark, even switching the global theme to light leaves the custom-mode background as the dark literal', async () => {
     usePhotosTheme().set('dark')
-    useThemeStore().setTheme('light') // 全局主题切浅色——地图不该跟着变
+    useThemeStore().setTheme('light') // switch the global theme to light -- the map should not follow
 
     const w = await mountContainer()
     await w.find('[data-test="mtm-chip"]').trigger('click')
     await w.get<HTMLInputElement>('[data-test="mtm-dot-input"]').setValue('#ff00aa')
 
     const svg = w.find('svg.map-canvas').element as SVGSVGElement
-    expect(svg.style.background).toBe('rgb(10, 10, 12)') // 仍是深色,没被全局主题带偏
+    expect(svg.style.background).toBe('rgb(10, 10, 12)') // still dark, unaffected by the global theme
 
     w.unmount()
   })
 
-  it('D5:photos 私有主题切亮时地图跟着变浅 —— 即使全局主题仍是默认深色', async () => {
+  it('D5: when the Photos-private theme switches to light, the map follows and turns light -- even though the global theme is still the default dark theme', async () => {
     usePhotosTheme().set('light')
-    useThemeStore().setTheme('blue') // 全局主题仍是默认深色主题
+    useThemeStore().setTheme('blue') // the global theme is still the default dark theme
 
     const w = await mountContainer()
     await w.find('[data-test="mtm-chip"]').trigger('click')
     await w.get<HTMLInputElement>('[data-test="mtm-dot-input"]').setValue('#ff00aa')
 
     const svg = w.find('svg.map-canvas').element as SVGSVGElement
-    expect(svg.style.background).toBe('oklch(0.975 0.004 80)') // 跟着 photos 私有主题变浅
+    expect(svg.style.background).toBe('oklch(0.975 0.004 80)') // follows the Photos-private theme and turns light
 
     w.unmount()
   })

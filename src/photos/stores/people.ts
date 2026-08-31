@@ -4,7 +4,7 @@
 //   actions    :1079-1099 (fetch/filter), :1100-1120 (rename/relation/fav),
 //              :1121-1132 (cover), :1143-1153 (merge), :1171-1211 (purge+undo)
 // Photos v1 backend has no envelope: listPersons is a { persons, facesIndexedUpTo } object wrapper; not unwrapped inside, self-unwrapped here.
-// 2026-08-20 (people-confirm-polish item 1): the whole-cluster mergeSuggestions state and its
+// The whole-cluster mergeSuggestions state and its
 // fetchMergeSuggestions/acceptMergeSuggestion/rejectMergeSuggestion/dismissAllMerges (ported from
 // Vue2 :1224-1248, backing the People page's old merge-suggestion banner + MergeReviewDialog)
 // were removed here — the banner/dialog were removed as noisy/superseded by the newer per-face
@@ -25,15 +25,15 @@ import { isNotFound } from '../util/httpErrors'
 
 const PURGE_DELAY_MS = 5000
 
-// Plan C Task 1 (2026-08-20 people-suggestions-ui): per-face join/review suggestions grouped by
+// Per-face join/review suggestions grouped by
 // person. Backend contract (verified against the review): GET /photos/persons/suggestions →
 // {"groups":[{"person":<Person>,"suggestions":[{"id","faceId","assetId","kind","score",
 // "createdAt"}]}]}, open-only, hidden persons excluded, groups ordered like ListPersons,
-// suggestions score ASC. createdAt isn't surfaced here — Task 2 (the UI) only needs faceId (for
+// suggestions score ASC. createdAt isn't surfaced here — the UI only needs faceId (for
 // the thumbnail) and the fields below.
-// T12c (suggestion-card face-locate box, 2026-08-28 addendum): bbox is a further additive field
-// on SuggestionItem, same contract/validation as MergeFacePreview.bbox above (backend T12a:
-// normalized [x1,y1,x2,y2], clamped to [0,1], omitted when the basis dimensions are unknown).
+// Suggestion-card face-locate box: bbox is a further additive field
+// on SuggestionItem, same contract/validation as MergeFacePreview.bbox above (normalized
+// [x1,y1,x2,y2], clamped to [0,1], omitted when the basis dimensions are unknown).
 // Absent/malformed -> undefined; the review wizard simply draws no locate-box (fail-open).
 export interface SuggestionItem {
   id: string
@@ -46,7 +46,7 @@ export interface SuggestionItem {
 export interface SuggestionGroup {
   person: Person
   suggestions: SuggestionItem[]
-  // people-confirm-polish (review wizard): up to a handful of the person's OWN reference faces,
+  // (review wizard): up to a handful of the person's OWN reference faces,
   // for the wizard header ("参考照片/Reference faces"). NEW backend field, sourced from the raw
   // group's `person.exemplarFaceIds` -- kept as a sibling field on the group rather than folded
   // into the shared `Person` type (toPerson/peopleView.ts), since Person is reused all over this
@@ -56,7 +56,7 @@ export interface SuggestionGroup {
   exemplarFaceIds?: string[]
 }
 
-// Merge-cards feature (2026-08-21): cluster-merge questions from the HAC gray band, served by
+// Merge-cards feature: cluster-merge questions from the HAC gray band, served by
 // NimoOS-Photos' feat/cluster-merge-questions branch (unmerged at the time of writing).
 // A whole pair of already-clustered persons, not a single face — the review queue's "is this the
 // same person as that OTHER cluster" question, joining the review wizard AFTER the per-face
@@ -66,15 +66,15 @@ export interface SuggestionGroup {
 // collage) -- NOT the same shape as SuggestionGroup.exemplarFaceIds above (that one is a single
 // person's own reference faces; these are per-SIDE preview faces for a pair).
 //
-// Merge-card legibility fix (2026-08-21): fromFaces/intoFaces are a NEW additive pair of fields
+// Merge-card legibility fix: fromFaces/intoFaces are a NEW additive pair of fields
 // on the same v2 endpoint (built in parallel on the backend side -- coded against the contract,
 // not yet verified against a live response), each `[{faceId, assetId}]` -- the assetId is what
 // lets the review wizard's zoom lightbox open the FULL original photo for a tile instead of just
 // the cropped face. Purely additive: an older backend that hasn't shipped this yet omits the
 // fields entirely, and the wizard feature-detects by presence, falling back to the bare
 // fromFaceIds/intoFaceIds (face-crop-only zoom) below.
-// T12b (2026-08-27 addendum): bbox is a further additive, per-entry field on top of
-// fromFaces/intoFaces itself (backend T12a: normalized [x1,y1,x2,y2], clamped to [0,1] of the
+// bbox is a further additive, per-entry field on top of
+// fromFaces/intoFaces itself (normalized [x1,y1,x2,y2], clamped to [0,1] of the
 // displayed image's aspect space, omitted whenever the basis dimensions can't be determined).
 // Same feature-detect-by-presence philosophy: absent/malformed -> undefined, and the review
 // wizard's lightbox simply draws no locate-box (fail-open, never a crash).
@@ -99,7 +99,7 @@ function toFaceIdArray(raw: unknown): string[] {
   return raw.map((x) => String(x))
 }
 
-// T12b (2026-08-27 addendum): a bbox is usable only if it's exactly 4 finite numbers describing
+// A bbox is usable only if it's exactly 4 finite numbers describing
 // a non-degenerate, correctly-ordered rectangle (x1<x2, y1<y2) -- anything else (wrong length,
 // NaN/Infinity, reversed/zero-area) is silently dropped to undefined rather than reaching
 // mapFaceBoxToRect with garbage. faceBox.ts's own mapFaceBoxToRect re-validates independently
@@ -174,7 +174,7 @@ function toExemplarFaceIds(raw: unknown): string[] | undefined {
 interface PurgeEntry { timer: ReturnType<typeof setTimeout>; snapshot: Person | null; idx: number; committed: boolean }
 const _purgeTimers = new Map<string, PurgeEntry>()
 
-// Task 7 (Plan D, SP7-P5 People): a temporary guard for while a hide request is in flight —
+// A temporary guard for while a hide request is in flight —
 // prevents a racing fetchPeople from pulling back in a person that was just optimistically
 // removed (mirroring Vue2's hidePersonAction's _pendingPersonRemovals window: added before the
 // request, removed in finally, photos.js:1592-1607). Not reusing _purgeTimers: that Map stores
@@ -183,7 +183,7 @@ const _purgeTimers = new Map<string, PurgeEntry>()
 // clearer and won't interfere with purge's "reuse the first idx" branch.
 const _pendingHides = new Set<string>()
 
-// Plan C Task 1 (2026-08-20 people-suggestions-ui): pending-decision guard for suggestions,
+// Pending-decision guard for suggestions,
 // same shape/role as _pendingHides above — prevents a racing fetchSuggestions from pulling a
 // suggestion back in while its accept/reject (or a batch decideGroup covering it) is still in
 // flight. Keyed by suggestion id (not person id): decideGroup fans out to every suggestion id
@@ -196,9 +196,9 @@ const _pendingSuggestionIds = new Set<string>()
 // face-suggestion id or vice versa).
 const _pendingMergeQuestionIds = new Set<string>()
 
-// Fix round 2 (2026-08-19, product decision): readFilter/PeopleFilter/the
+// A product decision: readFilter/PeopleFilter/the
 // nimo_people_show_singletons localStorage key are gone along with the singleton toggle they
-// backed — once the toggle's confidence-gate sibling was removed in Task 4, showSingletons was
+// backed — once the toggle's confidence-gate sibling was removed, showSingletons was
 // PeopleFilter's only remaining field and this filter object's only remaining consumer; deleted
 // as a unit rather than left around as a single-field type with no other use (verified
 // repo-wide via grep before deleting).
@@ -206,11 +206,11 @@ const _pendingMergeQuestionIds = new Set<string>()
 export const usePhotosPeople = defineStore('photosPeople', () => {
   const people = ref<Person[]>([])
   // New-UI addition: empty state gate control. Only set to true on fetchPeople success path, leave false on failure for retry
-  // (P3 hard lesson: unconditional setting makes transient failure indistinguishable from "confirmed zero people"). Vue2's peopleLoaded is a write-only dead field.
+  // (a hard lesson learned elsewhere: unconditional setting makes transient failure indistinguishable from "confirmed zero people"). Vue2's peopleLoaded is a write-only dead field.
   const peopleLoaded = ref(false)
   const facesIndexedUpTo = ref<string | null>(null)
 
-  // Task 7 (Plan D): Hidden people section state (mirroring Vue2 photos.js:392-399).
+  // Hidden people section state (mirroring Vue2 photos.js:392-399).
   const hiddenPeople = ref<Person[]>([])
   const hiddenPeopleLoaded = ref(false)
   // Assumed true until a real 404 proves the backend doesn't have the hide feature yet (a
@@ -218,7 +218,7 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
   // and "Hide person" menu item, without popping an error toast (mirroring Vue2 :396-399).
   const hiddenPeopleSupported = ref(true)
 
-  // Plan C Task 1: suggestion groups state. Same "assume supported until a real 404 disproves
+  // Suggestion groups state. Same "assume supported until a real 404 disproves
   // it" convention as hiddenPeopleSupported above.
   const suggestionGroups = ref<SuggestionGroup[]>([])
   const suggestionsSupported = ref(true)
@@ -230,10 +230,10 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
 
   const named = computed(() => namedOf(people.value))
   const unnamed = computed(() => unnamedOf(people.value))
-  // Fix round 2 (2026-08-19, product decision): the grid shows ONLY the distribution split's
+  // A product decision: the grid shows ONLY the distribution split's
   // `visible` head -- nothing else is reachable from this page. splitUnnamedByDistribution
   // itself is untouched (still computes folded/singletons for whoever might need them later);
-  // this store just no longer reads those two fields at all. Superseded the earlier Task 4
+  // this store just no longer reads those two fields at all. Superseded the earlier
   // fold-expander mechanism (showFoldedClusters/foldedCount/toggleFoldedClusters) and the
   // pre-existing singleton toggle (PeopleFilter.showSingletons/setShowSingletons/
   // hiddenSingletonCount) — both deleted outright, not hidden behind a flag.
@@ -241,7 +241,7 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
   const namedCount = computed(() => named.value.length)
   // Sidebar/topbar count and grid must use the same calibration: unnamed count uses "visible" not all (Vue2 photos.js:344 comment emphasizes).
   const unnamedCount = computed(() => visibleUnnamed.value.length)
-  // Plan C Task 1: total open suggestion items across all groups (for a badge/count in the UI).
+  // Total open suggestion items across all groups (for a badge/count in the UI).
   const suggestionCount = computed(() => suggestionGroups.value.reduce((sum, g) => sum + g.suggestions.length, 0))
   // Merge-cards feature: total open merge questions.
   const mergeQuestionCount = computed(() => mergeQuestions.value.length)
@@ -285,7 +285,7 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
       people.value = (_purgeTimers.size || _pendingHides.size)
         ? mapped.filter((p) => !_purgeTimers.has(key(p.id)) && !_pendingHides.has(key(p.id)))
         : mapped
-      // Unregistered divergence (review required, add record): `!== undefined` here aligns with Vue2 **mutation**
+      // Divergence: `!== undefined` here aligns with Vue2 **mutation**
       // layer (:509) check, but Vue2 **action** layer (fetchPeople :1085) always passes
       // `data.facesIndexedUpTo || null` to mutation—success path is always "has value or null",
       // never undefined, so Vue2's actual behavior is "response missing this field resets local value to
@@ -299,7 +299,7 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
       }
       peopleLoaded.value = true
     } catch (e) {
-      // Divergence record: Vue2 (photos.js:1086-1089) clears list to [] here, a single network blip erases loaded data.
+      // Divergence: Vue2 (photos.js:1086-1089) clears list to [] here, a single network blip erases loaded data.
       // Here only log, keep previous data; peopleLoaded not set (first failure leaves false for retry).
       console.error('[photos-people] fetchPeople', e)
     }
@@ -308,7 +308,7 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
   // ── Write operations (optimistic strategy, verify each case separately, note each differs) ──
 
   // Optimistic patch; failure doesn't precisely rollback, instead fetchPeople corrects with server truth (follow Vue2 renameCluster :1100-1103).
-  // Throws: view layer must show failure toast and restore input (Vue2 swallows error = user sees no failure, similar divergence record type 1).
+  // Throws: view layer must show failure toast and restore input (Vue2 swallows error = user sees no failure, a similar divergence).
   async function renamePerson(id: string | number, name: string): Promise<void> {
     patchPerson(id, { name })
     try {
@@ -320,7 +320,7 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
     }
   }
 
-  // Divergence record 4: Vue2 (PhotosPersonDetail.vue:951-955) fire-and-forget and doesn't rollback detail page local value.
+  // Divergence: Vue2 (PhotosPersonDetail.vue:951-955) fire-and-forget and doesn't rollback detail page local value.
   // Here optimistic patch + precise failure rollback + rethrow, view layer catch → toast.
   async function setPersonRelation(id: string | number, relation: string): Promise<void> {
     const prev = personById(id)?.relation ?? ''
@@ -334,7 +334,7 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
     }
   }
 
-  // Divergence record 3: Vue2 (photos.js:1113-1120) returns if local list doesn't find the person, doesn't send any request
+  // Divergence: Vue2 (photos.js:1113-1120) returns if local list doesn't find the person, doesn't send any request
   // (deep link directly to detail page leaves people empty), while detail page unconditionally flips local favorite—UI says favorited, backend knows nothing.
   // Here not reliant on local hit: always call backend; only patch if hit; failure rollback + rethrow.
   async function setPersonFavorite(id: string | number, next: boolean): Promise<void> {
@@ -355,7 +355,7 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
   // which coerces "explicit null" and "field absent" to the same value, letting explicit-clear responses be misread as "field not included" thus
   // not write, leaving stale cover. By Vue2 source as authority, change to check original field with `!== undefined`.
   //
-  // T14 review required 1 (pure additive fix, changes no existing behavior): add `| undefined` to return type, **no longer** use
+  // A pure additive fix, changes no existing behavior: add `| undefined` to return type, **no longer** use
   // `?? null` to coerce "field absent" to null. That original `?? null` merged the two carefully-distinguished cases
   // again at the return value—call site (detail page container) getting null can't distinguish "backend says clear cover" from
   // "backend didn't mention cover at all", unconditional patch will have backend returning `200 {}` clear local coverFaceId to
@@ -378,7 +378,7 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
   }
 
   // Non-optimistic (follow Vue2 :1133-1142). Passing null for assetId = fallback to face thumbnail, send empty string to backend field.
-  // Unregistered divergence (review required, add record): Vue2 :1136-1137 uses `assetId || ''` (send to backend) and
+  // Divergence: Vue2 :1136-1137 uses `assetId || ''` (send to backend) and
   // `assetId || null` (write locally)—falsy check, if assetId is exactly number `0` or empty string `''`, these kinds of
   // "legitimate but falsy" values get misidentified as "clear". Here change to `?? ''` only handle null/undefined, and
   // write local patch directly as original assetId (no `|| null` coercion)—behavior forks from Vue2 when assetId is `0`/`''`:
@@ -415,7 +415,7 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
   function purgePersonWithUndo(id: string | number): () => void {
     const k = key(id)
     const existing = _purgeTimers.get(k)
-    // Fix 2 (Vue2 :1178-1180): when same id triggered again within window, Vue2 recalculates idx using "list already removed once",
+    // (Vue2 :1178-1180): when same id triggered again within window, Vue2 recalculates idx using "list already removed once",
     // position when undo inserts back is no longer original position. Here reuse first snapshot and idx.
     const idx = existing ? existing.idx : people.value.findIndex((p) => key(p.id) === k)
     const snapshot = existing ? existing.snapshot : (idx >= 0 ? { ...people.value[idx] } : null)
@@ -423,7 +423,7 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
 
     removePerson(id)
 
-    // Review fix (required): entry is identity token for this purge. When same id triggered again during committed
+    // Entry is identity token for this purge. When same id triggered again during committed
     // (DELETE sent, request in flight) is a legal scenario (existing branch above handles), swaps in new
     // entry; old entry's timer callback and undo closure must be able to detect "I've been replaced",
     // can't just check key still in map and wrongly delete/insert new entry state—always use `_purgeTimers.get(k) === entry`
@@ -447,10 +447,10 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
 
     entry.timer = setTimeout(() => {
       if (_purgeTimers.get(k) !== entry) return    // Already spammed-undone, or replaced by new purge
-      // Fix 1 (Vue2 :1198 before :1201): Vue2 removes entry **before** sending request, during network flight window
+      // (Vue2 :1198 before :1201): Vue2 removes entry **before** sending request, during network flight window
       // if one fetchPeople occurs, deleted person will "zombie" resurface. Here change to: mark committed first (make undo ineffective,
       // preserve "expired not reversible" semantics), keep entry until request settles then remove in finally, filter window thus has no gap.
-      // Regression test see people.test.ts "committed but purgePerson still in flight" two cases (review required).
+      // Regression test see people.test.ts "committed but purgePerson still in flight" two cases.
       entry.committed = true
       void service.photos
         .purgePerson(id)
@@ -461,7 +461,7 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
           if (entry.snapshot) insertPersonAt(entry.snapshot, entry.idx)
         })
         .finally(() => {
-          // Review fix (required): confirm map still has this one before deleting, can't just delete(k) blindly.
+          // Confirm map still has this one before deleting, can't just delete(k) blindly.
           // Scenario: after committed (DELETE request in flight) same id triggered again, old entry swapped for new
           // entry2; if unconditional delete(k) here, request 1 settle will delete entry2 too—entry2's
           // timer2 fires sees `get(k) === undefined` returns directly, second purge never sends,
@@ -474,7 +474,7 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
     return undo
   }
 
-  // ── Hide person (Task 7, Plan D). Mirrors Vue2's hidePersonAction/fetchHiddenPeople/
+  // ── Hide person. Mirrors Vue2's hidePersonAction/fetchHiddenPeople/
   // unhidePerson (photos.js:1585-1633) — the three actions map to Vue2's own one-for-one, not
   // merged together.
 
@@ -536,7 +536,7 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
     }
   }
 
-  // ── Person suggestions (Plan C Task 1, suggestion-confirmation UI). Called on People mount.
+  // ── Person suggestions (suggestion-confirmation UI). Called on People mount.
   // Feature detection mirrors fetchHiddenPeople above (isNotFound → not an error, no console.error).
 
   // Fetches the open suggestion groups. On a legacy backend without this endpoint, 404 flips
@@ -609,7 +609,7 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
   // the batch endpoint ALWAYS answers 200 with a per-id {results:{id:{status,error?}}} map, so a
   // partial failure inside the group must not be silently reported as a full success.
   //
-  // Fix round 1 (review Medium finding, 2026-08-20): the previous version only checked whether
+  // A review finding: the previous version only checked whether
   // the HTTP call itself threw, ignoring the per-id results map entirely — a failed id stayed
   // optimistically removed and was misrepresented as resolved. Now:
   //   - the results map is parsed defensively: missing/malformed → every id counts as failed,
@@ -620,7 +620,7 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
   //     (must run after _pendingSuggestionIds is cleared for these ids, otherwise fetchSuggestions
   //     would filter the just-restored items right back out);
   //   - fetchPeople() on the accept side only fires if at least one id actually succeeded;
-  //   - the promise resolves with `{ failed }` (0 on full success) instead of throwing, so Task 2
+  //   - the promise resolves with `{ failed }` (0 on full success) instead of throwing, so the UI
   //     can render a partial-failure toast from the count rather than a try/catch.
   async function decideGroup(personId: string | number, accept: boolean): Promise<{ failed: number }> {
     const pk = key(personId)

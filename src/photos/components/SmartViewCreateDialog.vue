@@ -1,30 +1,30 @@
 <script setup lang="ts">
-// SP7-P7a-T5: SmartViewCreateDialog.vue — Smart view creation dialog (largest single
-// component this sprint).
+// SmartViewCreateDialog.vue — Smart view creation dialog (the largest single component in
+// this line of work).
 // Ported section-by-section from the Vue 2 panel's src/views/Photos/PhotosSmartViewsView.vue:42-182
-// (template), :359-436 (methods, SV_QUICK_TEMPLATES/inferChips moved to smartViewSuggest.ts in T1),
-// photos-smartview.scss:659-1013 + 574-605 (.sv-toggle-row/.sv-switch, brief didn't cover
-// these ranges, went back to source to read actual definitions). Host mount point:
-// PhotosSmartViews.vue (T4).
+// (template), :359-436 (methods, SV_QUICK_TEMPLATES/inferChips moved to smartViewSuggest.ts),
+// photos-smartview.scss:659-1013 + 574-605 (.sv-toggle-row/.sv-switch, the initial notes didn't
+// cover these ranges, went back to source to read actual definitions). Host mount point:
+// PhotosSmartViews.vue.
 //
 // Persistent mount + prop-driven visibility (component never unmounts/remounts due to v-if),
 // so all "reset/sync on open" logic must live in `watch(() => props.open)`, not onMounted
-// (third same-pattern trap in this section—first two: P2's isMoving self-hide and video
-// startMs anchor).
+// (this is the third time this same-shaped trap has come up in this area of the codebase —
+// the first two: an isMoving self-hide elsewhere and a video startMs anchor).
 //
-// ── Source verification and deviation entries (full details in task-5-report.md,
-//    keeping only entries that must be visible near code here) ──
+// ── Source verification and deviation entries (keeping only entries that must be visible
+//    near code here) ──
 //
-// 1) `.sv-modal-icon` size: brief spec clause 2 says "28×28", source scss:690-691 actually
-//    32×32—source is authoritative, brief got this one wrong.
+// 1) `.sv-modal-icon` size: an earlier note said "28×28", source scss:690-691 actually says
+//    32×32—the source is authoritative, that earlier note got this one wrong.
 // 2) `.sv-modal-icon` background changed from Vue2's hard-coded purple gradient
 //    (linear-gradient(135deg, var(--accent), var(--accent-hi))) to var(--accent) solid,
 //    foreground now meets precondition "background is --accent solid saturated", can legally
-//    use --on-accent (brief controller addendum point 2).
-// 3) `--on-accent` actually legal in two more places, not just brief's "only one"
-//    (fix round 1 · I3 review verified each location, no code change, only reasoning—original
-//    comment mistakenly cited non-existent file in this branch):
-//    a) [Fix-5, reverted 2026-08-14] the --on-accent usage at
+//    use --on-accent.
+// 3) `--on-accent` actually legal in two more places, not just the one place noted earlier
+//    (verified each location during review, no code change, only reasoning — an original
+//    comment mistakenly cited a nonexistent file in this branch):
+//    a) [Reverted 2026-08-14] the --on-accent usage at
 //       `.sv-switch[data-on="true"]::after` has been reverted — see that rule's own comment
 //       in the style block. Parity's own switch knob is one colour in both states
 //       (photos-smartview.scss:786-789 only moves it, never touches the background); the
@@ -35,34 +35,34 @@
 //    b) `.sv-btn-primary` (background: var(--accent); color: var(--on-accent))—structurally
 //       matches existing primary button precedent in this repo: ClusterActionDialog.vue:320,
 //       MergeReviewDialog.vue:262 (both files exist and verified in this branch).
-//    Brief Step1's phrase "no other elements layered over photos" actually means "no other
+//    An earlier note's phrase "no other elements layered over photos" actually means "no other
 //    elements stacked over photos/gradients needing theme-exception pinned light foreground"—
 //    component indeed has no elements stacked over photos (only `.sv-preview-grid img` is bare
 //    image, no overlay text) or gradients, that part checks out; reading it as "only one
 //    --on-accent allowed in whole component" is too narrow, not a strict contradiction, just
-//    incomplete enumeration. Logged this deviation from brief in the report.
-// 4) Narrow screen breakpoint: brief says "Vue2 zero @media, ≤768px is deviation/new"—source
-//    scss:1018-1022 already has `@media (max-width: 760px)` (changes grid-template-columns:1fr +
-//    .sv-modal-side border-left→border-top), brief got this wrong too (not deviation, straight
-//    port; only the breakpoint number differs—768 aligns with other similar files in this repo
-//    like PhotosSmartViews.vue vs Vue2 literal 760, that difference is real deviation, logged).
-//    Brief's suggested extra `.sv-modal` width min(100% - 24px, …) override is redundant—Vue2's
-//    max-width:100% + outer scrim 40px/24px padding already shrink dialog naturally on narrow
-//    screens, no extra override needed, not added.
-// 5) `--text-1/2/3/4` four-tier mapping (brief token map only gave --surface/--line/scrim/shadow,
-//    didn't mention text tiers): using --fg / --fg-muted / --fg-faint / --fg-subtle (ordered by
-//    dark theme opacity high-to-low, --fg-faint already has precedent PersonPlacesTab.vue:201
-//    etc), text-1→fg, text-2→fg-muted, text-3→fg-faint, text-4→fg-subtle.
+//    incomplete enumeration. Logged this deviation from that earlier note.
+// 4) Narrow screen breakpoint: an earlier note said "Vue2 zero @media, ≤768px is
+//    deviation/new"—source scss:1018-1022 already has `@media (max-width: 760px)` (changes
+//    grid-template-columns:1fr + .sv-modal-side border-left→border-top), that note got this
+//    wrong too (not a deviation, a straight port; only the breakpoint number differs—768
+//    aligns with other similar files in this repo like PhotosSmartViews.vue vs Vue2 literal
+//    760, that difference is a real deviation, logged).
+//    An earlier note's suggested extra `.sv-modal` width min(100% - 24px, …) override is
+//    redundant—Vue2's max-width:100% + outer scrim 40px/24px padding already shrink dialog
+//    naturally on narrow screens, no extra override needed, not added.
+// 5) `--text-1/2/3/4` four-tier mapping (an earlier token map only gave
+//    --surface/--line/scrim/shadow, didn't mention text tiers): using --fg / --fg-muted /
+//    --fg-faint / --fg-subtle (ordered by dark theme opacity high-to-low, --fg-faint already
+//    has precedent PersonPlacesTab.vue:201 etc), text-1→fg, text-2→fg-muted, text-3→fg-faint,
+//    text-4→fg-subtle.
 // 6) `--font-display` (Vue2 used for preview count large font) no equivalent token in this repo,
 //    pure typography choice not color, just omitted, inherits --font, no new token added.
-// 7) fix round 1 · M1 (previously undeclared deviation, retroactively logged): **Escape closes
+// 7) A correction (a previously undeclared deviation, retroactively logged): **Escape closes
 //    this overlay is net-new**—Vue2's dialog has zero Escape handling. Document-level listener +
 //    watch(open) attach/detach follows AlbumPickerDialog.vue (exists in this branch) pattern,
 //    but adding Escape to this dialog itself is not ported from Vue2, proactively added as
-//    overlay usability baseline (per Global Constraints "overlay Escape always via document
-//    listener"), not a straight port, added test case to pin it down.
-//
-// Full node inventory + deleted-code verification + i18n source conclusions in task-5-report.md.
+//    overlay usability baseline (per this repo's convention that overlay Escape always goes
+//    through a document listener), not a straight port, added test case to pin it down.
 import { computed, nextTick, onUnmounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
@@ -73,7 +73,7 @@ import PhotosThreshSlider from './PhotosThreshSlider.vue'
 
 const props = withDefaults(defineProps<{
   open: boolean
-  // SP15-P2b Task 4 (Vue2 939a7d3a:PhotosSmartAlbumCreate.vue:232-240). Embedded mode is
+  // Vue2 939a7d3a:PhotosSmartAlbumCreate.vue:232-240. Embedded mode is
   // what the Albums page's "Let Nimo draft it" fill option renders in place of its own
   // footer -- the panel body *is* the smart form, instead of opening a second modal.
   embedded?: boolean
@@ -115,7 +115,7 @@ function emptyDraft(): Draft {
 
 const draft = reactive<Draft>(emptyDraft())
 const nameInputRef = ref<HTMLInputElement | null>(null)
-// SP15-P2b final fix wave: in embedded mode the name field does not exist (`v-if="!embedded"`
+// In embedded mode the name field does not exist (`v-if="!embedded"`
 // -- the host panel owns the name), so focusing nameInputRef focused nothing at all and the
 // fused create panel opened with no cursor anywhere. The description is the first field the
 // user actually fills in there, so it takes the focus instead.
@@ -132,13 +132,13 @@ const threshMuted = computed(
   () => !store.preview.thresholdActive && (draft.chips.length > 0 || draft.desc.trim().length > 0),
 )
 
-// SP15-P2b Task 4 (Vue2 PhotosSmartAlbumCreate.vue :271-273): embedded mode reads the
+// Vue2 PhotosSmartAlbumCreate.vue :271-273: embedded mode reads the
 // host's Album name field live rather than copying it into the draft on open. Vue2
 // :237-239 explains why -- a one-time seed leaves the user stuck if they pick the nimo
 // option before typing a name: the host field keeps being the single source of truth.
 const effectiveName = computed(() => (props.embedded ? props.initialName : draft.name).trim())
 
-// Per Vue2 canSubmit computed :319-322, name criterion changed to effectiveName (Task 4).
+// Per Vue2 canSubmit computed :319-322, name criterion changed to effectiveName.
 const canSubmit = computed(
   () => effectiveName.value.length > 0 && (draft.chips.length > 0 || draft.desc.trim().length > 0),
 )
@@ -154,7 +154,7 @@ function triggerPreview(): void {
   })
 }
 
-// SP15-P2b Task 4 review fix round 1 · Important: this was a single embedded/standalone
+// A correction: this was a single embedded/standalone
 // branch duplicated in two places (here and inline in confirm()'s success handler). The
 // duplication is what let the Cancel path go untested -- the two copies could drift
 // independently, and one review pass only exercised confirm()'s copy. One function, both
@@ -172,25 +172,25 @@ function dismiss(): void {
   }
 }
 
-// SP15-P2b Task 4: the host panel owns the scrim in embedded mode (it has no scrim of
+// The host panel owns the scrim in embedded mode (it has no scrim of
 // its own to click through to), so a self-click on this component's own root must be a
 // no-op there. Standalone mode is unchanged: click.self on the scrim closes as before.
 function onRootClick(): void {
   if (!props.embedded) dismiss()
 }
 
-// Overlay Escape via document-level listener + watch(open) attach/detach (P4 hard-learned,
-// AlbumPickerDialog.vue existing pattern). This component has one overlay only, no
+// Overlay Escape via document-level listener + watch(open) attach/detach (a lesson learned the
+// hard way earlier, AlbumPickerDialog.vue existing pattern). This component has one overlay only, no
 // "multiple overlays open" early-return concern.
 function onDocumentKeydown(e: KeyboardEvent): void {
   if (e.key !== 'Escape') return
   dismiss()
 }
 
-// Controller addendum 1 core: on open→true, reset draft + focus + refreshPreview, must live
+// On open→true, reset draft + focus + refreshPreview, must live
 // in watch(() => props.open) not onMounted—component persistent mount via v-if visibility,
 // onMounted runs once at creation, second open won't retrigger.
-// On close (controller addendum 3 path ①, store already added cancelPreview): clear any
+// On close (the store already has a cancelPreview for this): clear any
 // pending debounce timer + invalidate in-flight responses, prevent late-arriving response
 // overwriting next open's preview.
 watch(
@@ -198,7 +198,7 @@ watch(
   (isOpen) => {
     if (isOpen) {
       Object.assign(draft, emptyDraft())
-      // SP15-P2b Task 4: Escape belongs to the host in embedded mode -- the host's own
+      // Escape belongs to the host in embedded mode -- the host's own
       // document keydown handler (PhotosAlbums.vue) closes the whole panel. Attaching this
       // listener too would fire twice / race which one wins. The unconditional
       // removeEventListener calls below and in onUnmounted stay unconditional on purpose
@@ -215,7 +215,7 @@ watch(
   },
   { immediate: true },
 )
-// fix round 1 · M7: when component truly unmounts (e.g., leaving route, host v-if removes
+// A correction: when component truly unmounts (e.g., leaving route, host v-if removes
 // whole page), if dialog still open and queued 300ms debounce preview request hasn't fired/
 // in-flight, not clearing it creates orphan request that fires anyway (Vue2 relied on
 // clearTimeout in page-level beforeDestroy, New-UI adds equivalent here).
@@ -256,7 +256,7 @@ function onChipKey(e: KeyboardEvent): void {
   }
 }
 
-// fix round 1 · I1: threshold slider extracted to PhotosThreshSlider.vue (shared by T8/T14),
+// Threshold slider extracted to PhotosThreshSlider.vue (shared by other sibling components),
 // it emits already-converted number value, don't extract target.value from Event here.
 function onThreshInput(v: number): void {
   draft.thresh = v
@@ -275,9 +275,9 @@ function toggleIncludeVideos(): void {
   triggerPreview()
 }
 
-// Per Vue2 useTemplate :413-419, but desc inference changed to use T1's descEn
+// Per Vue2 useTemplate :413-419, but desc inference changed to use descEn
 // (English original text) instead of descKey (i18n key)—POOL keywords are English, matching
-// against key/Chinese translation always fails, verified key contract from T1, not arbitrary.
+// against key/Chinese translation always fails, verified against the actual key contract, not arbitrary.
 function useTemplate(row: QuickTemplate): void {
   draft.name = t(row.labelKey)
   draft.desc = t(row.descKey)
@@ -287,7 +287,7 @@ function useTemplate(row: QuickTemplate): void {
 }
 
 // Per Vue2 confirmCreate :420-436, but intentionally not ported in two places (both logged):
-//  1) id generation/passing sunk into store.createSmartView (T2 fix round 1 · C1), don't
+//  1) id generation/passing sunk into store.createSmartView, don't
 //     self-concatenate 'sv-' + Date.now().toString(36).
 //  2) on failure Vue2 leaves rejection unhandled (dialog closes, UI silent); here catch → toast
 //     and keep dialog open, user sees failure and can retry (same principle as
@@ -313,7 +313,7 @@ async function confirm(): Promise<void> {
     }
   } catch (e) {
     console.error('[smart-view-create-dialog] confirm', e)
-    // Reuse existing generic key, don't add new i18n key (brief hard requirement).
+    // Reuse existing generic key, don't add new i18n key.
     toast.show(t('photosAlbumCreateFailed'))
   }
 }
@@ -510,14 +510,13 @@ function thumbUrl(seed: string): string {
 </template>
 
 <style scoped>
-/* Token mapping (brief spec clause 7 + component's own --text-N four-tier, rationale in
-   file header comment 5): --surface-1→--popup-bg / --surface-2→--chip-bg / --surface-3→
-   --chip-bg-hi; --line→--card-border; --text-1→--fg / --text-2→--fg-muted / --text-3→
-   --fg-faint / --text-4→--fg-subtle; --accent-hi (text/icon color)→--accent-text; scrim
-   uses Dialog.vue's --overlay-bg/--overlay-blur; shadows all --card-shadow-hi; Vue2's
-   semi-transparent accent border/background (this repo no alpha channel token, Global
-   Constraints §33) use three-tier accent-soft family (low→--accent-soft, mid→--accent-soft-2,
-   high→--accent-soft-bd). */
+/* Token mapping (rationale in file header comment 5): --surface-1→--popup-bg /
+   --surface-2→--chip-bg / --surface-3→--chip-bg-hi; --line→--card-border; --text-1→--fg /
+   --text-2→--fg-muted / --text-3→--fg-faint / --text-4→--fg-subtle; --accent-hi
+   (text/icon color)→--accent-text; scrim uses Dialog.vue's --overlay-bg/--overlay-blur;
+   shadows all --card-shadow-hi; Vue2's semi-transparent accent border/background (this repo
+   has no alpha channel token) use the three-tier accent-soft family (low→--accent-soft,
+   mid→--accent-soft-2, high→--accent-soft-bd). */
 .sv-modal-scrim {
   position: fixed;
   inset: 0;
@@ -542,7 +541,7 @@ function thumbUrl(seed: string): string {
   flex-direction: column;
   overflow: hidden;
 }
-/* SP15-P2b Task 4 embedded mode (Vue2 photos-smartview.scss's `.sv-modal-embed-host` /
+/* Embedded mode (Vue2 photos-smartview.scss's `.sv-modal-embed-host` /
    `.sv-modal.sv-modal-embedded` -- this file names wrapper class `.sv-embed-host`
    instead, cosmetic naming difference registered here, not structural; modifier class on
    .sv-modal itself keeps Vue2's literal name).
@@ -572,8 +571,8 @@ function thumbUrl(seed: string): string {
   padding: 18px 20px 16px;
   border-bottom: 1px solid var(--line);
 }
-/* Deviation entry (file header comment 1): Vue2 scss:690-691 is 32×32, not brief's 28×28—
-   source is authoritative. */
+/* Deviation entry (file header comment 1): Vue2 scss:690-691 is 32×32, not the earlier note's
+   28×28—source is authoritative. */
 .sv-modal-icon {
   width: 32px;
   height: 32px;
@@ -741,7 +740,7 @@ function thumbUrl(seed: string): string {
 }
 
 .sv-thresh-val { margin-left: auto; color: var(--accent-hi); font-weight: 600; font-variant-numeric: tabular-nums; font-size: 13px; }
-/* fix round 1 · I1: .sv-slider/.sv-slider-marks actual styles sunk to PhotosThreshSlider.vue
+/* .sv-slider/.sv-slider-marks actual styles sunk to PhotosThreshSlider.vue
    (scoped but act on elements it renders, no need to repeat here). */
 
 .sv-toggles { background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 2px 12px; }
@@ -758,8 +757,7 @@ function thumbUrl(seed: string): string {
 .sv-toggle-row .label { flex: 1; color: var(--text-1); }
 .sv-toggle-row .desc { font-size: 11px; color: var(--text-3); margin-top: 2px; }
 .sv-toggle-clickable { cursor: pointer; user-select: none; }
-/* fix round 1 · M1 (SmartViewSidePanel.vue task-8 review same batch finding, controller
-   approved adding to this file too): Vue2's `.sv-switch` has two rule layers stacking—range
+/* Found during review of SmartViewSidePanel.vue and applied here too: Vue2's `.sv-switch` has two rule layers stacking—range
    in this scss didn't cover `photos.scss:2819-2820` low-priority bare `.sv-switch` declaring
    `transition: background 0.15s` and `::after` shadow, not overridden by high-priority
    `photos-smartview.scss:584-600`, still merges in. Adding both to stay consistent with
@@ -774,11 +772,12 @@ function thumbUrl(seed: string): string {
   flex-shrink: 0;
   transition: background 0.15s;
 }
-/* Fix-6 (owner decision, 2026-08-14): the knob is literal white in EVERY theme and BOTH on/off
-   states -- overrides whatever Vue2's own (non-existent) light theme would have done, explicit
-   owner requirement. Fix-5's `var(--text-1)` got dark-mode legibility right but was still a
-   theme-flipping token, going near-black under `.photos-root.is-light` -- legible, but not
-   white, which is what the owner wants. `--text-1` is deliberately no longer used for the knob.
+/* An owner decision (2026-08-14): the knob is literal white in EVERY theme and BOTH on/off
+   states -- overrides whatever Vue2's own (non-existent) light theme would have done, an
+   explicit owner requirement. An earlier version's `var(--text-1)` got dark-mode legibility
+   right but was still a theme-flipping token, going near-black under `.photos-root.is-light`
+   -- legible, but not white, which is what the owner wants. `--text-1` is deliberately no
+   longer used for the knob.
    Literal white, same theme-exception convention as PhotosToastHost.vue's `.photos-toast`
    background / this repo's other theme-invariant surfaces. The light-mode border + shadow below
    is a matched pair with this rule, not an independent choice -- see its own comment. */
@@ -801,7 +800,7 @@ function thumbUrl(seed: string): string {
    a subtle parity-token border plus a lighter drop shadow (dark mode's 30%-black shadow reads as
    depth on a dark track; at that strength on a light one it looks like a smudge, hence the lower
    alpha) -- values chosen to read as a native light-theme toggle. Applies to both on/off states
-   (neither modifies border/box-shadow), matching the owner's state-invariant requirement. */
+   (neither modifies border/box-shadow), matching the required state-invariant behavior. */
 .photos-root.is-light .sv-switch::after {
   border: 1px solid var(--line-strong);
   box-shadow: 0 1px 2px color-mix(in srgb, black 12%, transparent);
@@ -813,11 +812,12 @@ function thumbUrl(seed: string): string {
    same colour in both states. The `--on-accent` override this rule used to carry (justified at
    the time as "legal atop a solid --accent fill", same
    reasoning as `.sv-btn-primary`) was wrong for this element specifically: it made the knob track
-   the on/off *state* instead of staying constant like Vue2's -- the owner's screenshot ("Keep it
+   the on/off *state* instead of staying constant like Vue2's -- the reference screenshot ("Keep it
    live" toggled on) is exactly that dark-navy-on-purple knob. Deleted; the knob now always uses
-   the base rule's background above (Fix-6: literal white, see that rule's own comment), in both
-   states, matching Vue2's own single-value knob. File header comment 3a above is superseded by
-   this note; "legal use b" (`.sv-btn-primary`) is unaffected and still correct. */
+   the base rule's background above (the literal white value established above, see that
+   rule's own comment), in both states, matching Vue2's own single-value knob. File header
+   comment 3a above is superseded by this note; "legal use b" (`.sv-btn-primary`) is unaffected
+   and still correct. */
 .sv-switch[data-on="true"]::after { left: 16px; }
 
 .sv-preview-head {
@@ -879,7 +879,7 @@ function thumbUrl(seed: string): string {
   transition: all 0.12s;
 }
 .sv-template-row:hover { border-color: var(--accent); background: var(--accent-soft); }
-/* fix round 1 · I2: Vue2 :164 explicitly passes color="var(--accent-hi)" to these 5 template
+/* Vue2 :164 explicitly passes color="var(--accent-hi)" to these 5 template
    rows' sparkles icons (Vue2 PhotosIcon.vue maps color prop to :stroke)—is accent color, not
    inherited from .sv-template-row's own color:var(--text-1) (foreground light/dark). Earlier
    mistakenly used stroke="currentColor" making icon inherit container foreground instead of
@@ -946,7 +946,7 @@ function thumbUrl(seed: string): string {
 .sv-modal-enter-from .sv-modal, .sv-modal-leave-to .sv-modal { transform: translateY(8px) scale(0.98); opacity: 0; }
 
 /* Narrow screen (file header comment 4): Vue2 already has @media (max-width: 760px)
-   (scss:1018-1022, not brief's "zero @media"), here straight-port two real changes (single
+   (scss:1018-1022, not an earlier note's "zero @media"), here straight-port two real changes (single
    column + side border flip), breakpoint number aligns with this repo's other similar files
    PhotosSmartViews.vue already at 768 (deviation from Vue2 literal 760 logged). */
 @media (max-width: 768px) {

@@ -1,9 +1,9 @@
-// Task 5 (SP7-P5 people): PersonAvatar.vue — shared person avatar, used by T6/T7/T8/T10/T13.
+// PersonAvatar.vue — shared person avatar, used across the People detail page components.
 // Three-level fallback: ① personId exists and not failed → real image; ② otherwise personInitial(name)
 // non-empty → initial letter; ③ otherwise → person icon. All three use mocked
 // service.photos.personFaceThumbnailUrl, don't construct URL manually.
 //
-// Key regression (brief deviation logged): Vue2 stores failed state in parent dict and never clears for
+// Key regression: Vue2 stores failed state in parent dict and never clears for
 // the entire session, doesn't retry when changing avatar (PhotosPeopleView.vue:474,566-571). This
 // component stores failed state in its own ref, watches [personId, ver] to reset on change — "after
 // failure, changing ver must allow retry" is the core assertion of this test file and cannot be missed.

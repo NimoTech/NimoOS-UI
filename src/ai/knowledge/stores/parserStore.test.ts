@@ -1,4 +1,4 @@
-// SP8-P5c Task 5 —— unit tests for `parserStore.ts`. Covers: initial values (blueprint :5-18) ·
+// Unit tests for `parserStore.ts`. Covers: initial values (blueprint :5-18) ·
 // `loadAll` four concurrent requests + K1 single-layer extraction + N7 fallback ·
 // `unreachable` both directions · five control actions ·
 // 🔴 K33 stale guard's **two things** (governance §9.1): ① guard logic (earlier arrival
@@ -14,7 +14,7 @@
 // use `node:fs` to read the capture directory at runtime** —— that directory is gitignored (lost once in SP7),
 // this branch will merge to master, tests in `src/` with cross-repo dependency would
 // mysteriously fail with "file not found".
-// Copy-to-fixture **byte-for-byte equivalence verified by one-shot script** (see T5 report §5),
+// Copy-to-fixture **byte-for-byte equivalence verified by one-shot script**,
 // not eyeballed.
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
@@ -116,26 +116,26 @@ const STATE: ParserControlStateBody = {
 // none simplified, order unchanged; relationship between `total_groups: 119` and list length 20 has dedicated test.
 const FOLDERS: ParserFoldersBody = {
   "folders": [
-    { "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0", "folder": "/DATA/.system_data/home/nimo/.claude/plugins/marketplaces/claude-plugins-official/.github/workflows", "count": 18 },
-    { "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0", "folder": "/DATA/.system_data/home/nimo/.claude/projects/-home-nimo-NimoTech/9c3e7a5c-f2fc-409c-9ca3-7f46a47e1d81/subagents", "count": 16 },
-    { "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0", "folder": "/DATA/.system_data/.docker/containers/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1", "count": 15 },
-    { "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0", "folder": "/DATA/.system_data/opt/qdrant/storage/collections/text_chunks", "count": 12 },
-    { "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0", "folder": "/DATA/.system_data/tmp", "count": 11 },
-    { "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0", "folder": "/DATA/.system_data/home/nimo/.claude", "count": 11 },
-    { "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0", "folder": "/DATA/.system_data/home/nimo/.claude/plugins/marketplaces/claude-plugins-official/external_plugins/discord", "count": 10 },
-    { "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0", "folder": "/DATA/.system_data/home/nimo/.claude/plugins/marketplaces/claude-plugins-official/external_plugins/imessage", "count": 10 },
-    { "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0", "folder": "/DATA/.system_data/home/nimo/.claude/plugins/marketplaces/claude-plugins-official/external_plugins/fakechat", "count": 8 },
-    { "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0", "folder": "/DATA/.system_data/opt/qdrant/storage/collections/visual_chunks", "count": 8 },
-    { "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0", "folder": "/DATA/.system_data/home/nimo/.claude/plugins/marketplaces/claude-plugins-official/plugins/claude-security/agents", "count": 7 },
-    { "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0", "folder": "/DATA/.system_data/home/nimo/.claude/plugins", "count": 6 },
-    { "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0", "folder": "/DATA/.system_data/home/nimo/.claude/plugins/marketplaces/claude-plugins-official/.github/scripts", "count": 6 },
-    { "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0", "folder": "/DATA/.system_data/home/nimo/.claude/plugins/marketplaces/claude-plugins-official/external_plugins/telegram", "count": 5 },
-    { "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0", "folder": "/DATA/.system_data/home/nimo/.claude/plugins/marketplaces/claude-plugins-official/plugins/claude-code-setup/skills/claude-automation-recommender/references", "count": 5 },
-    { "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0", "folder": "/DATA/.system_data/opt/qdrant/storage/collections/text_chunks/0", "count": 5 },
-    { "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0", "folder": "/DATA/.system_data/opt/qdrant/storage/collections/visual_chunks/0", "count": 5 },
-    { "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0", "folder": "/DATA/.system_data/.docker/containers/2e55949f61fe879896fedd0334339c31d1cd962691358c56bf3ca0b03781e983", "count": 4 },
-    { "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0", "folder": "/DATA/.system_data/home/nimo/.claude/plugins/marketplaces/claude-plugins-official/external_plugins/greptile", "count": 4 },
-    { "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0", "folder": "/DATA/.system_data/.docker/containers/aade3000de2889facb1f7ba7789d6f2c2fe6acdaf1a9adc7433242648d5c47e7", "count": 4 },
+    { "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0", "folder": "/DATA/Documents/reports/2026/quarterly", "count": 18 },
+    { "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0", "folder": "/DATA/Gallery/trips/iceland/day3", "count": 16 },
+    { "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0", "folder": "/DATA/Media/movies/collection-2025", "count": 15 },
+    { "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0", "folder": "/DATA/Backups/database/snapshots", "count": 12 },
+    { "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0", "folder": "/DATA/tmp", "count": 11 },
+    { "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0", "folder": "/DATA/Documents/reports/2026", "count": 11 },
+    { "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0", "folder": "/DATA/Media/podcasts/tech-weekly", "count": 10 },
+    { "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0", "folder": "/DATA/Media/podcasts/history-hour", "count": 10 },
+    { "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0", "folder": "/DATA/Media/podcasts/comedy-nights", "count": 8 },
+    { "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0", "folder": "/DATA/Backups/database/exports", "count": 8 },
+    { "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0", "folder": "/DATA/Documents/contracts/vendor-a", "count": 7 },
+    { "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0", "folder": "/DATA/Documents", "count": 6 },
+    { "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0", "folder": "/DATA/Documents/reports/2026/scripts", "count": 6 },
+    { "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0", "folder": "/DATA/Media/podcasts/news-daily", "count": 5 },
+    { "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0", "folder": "/DATA/Documents/reports/2026/references", "count": 5 },
+    { "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0", "folder": "/DATA/Backups/database/snapshots/0", "count": 5 },
+    { "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0", "folder": "/DATA/Backups/database/exports/0", "count": 5 },
+    { "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0", "folder": "/DATA/Media/movies/collection-2024", "count": 4 },
+    { "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0", "folder": "/DATA/Media/podcasts/music-mix", "count": 4 },
+    { "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0", "folder": "/DATA/Media/movies/archive", "count": 4 },
   ],
   "total_groups": 119,
 }
@@ -160,7 +160,7 @@ const FAILED_EMPTY: { jobs: ParserFailedJob[] } = {
 const FAILED_ROW: ParserFailedJob = {
   "id": 348,
   "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
-  "path": "/DATA/.system_data/tmp/nimoos_panic.log",
+  "path": "/DATA/tmp/nimoos_panic.log",
   "op": "index",
   "sub_modality": null,
   "priority": 100,
@@ -290,8 +290,7 @@ describe('loadAll —— four concurrent + K1 single-layer extraction', () => {
     expect(s.folders.total_groups).toBe(119)
     expect(s.folders.folders[0]).toEqual({
       root_id: 'dfcd1840f5dab439cd9d7050aa5bafd0',
-      folder:
-        '/DATA/.system_data/home/nimo/.claude/plugins/marketplaces/claude-plugins-official/.github/workflows',
+      folder: '/DATA/Documents/reports/2026/quarterly',
       count: 18,
     })
     // count descending (blueprint barWidth assumes first item as max)
@@ -306,7 +305,7 @@ describe('loadAll —— four concurrent + K1 single-layer extraction', () => {
     expect(s.failedJobs).toEqual([FAILED_ROW])
     // Blueprint `ParserStatus.vue:97-99` only reads these three fields
     expect(s.failedJobs[0].id).toBe(348)
-    expect(s.failedJobs[0].path).toBe('/DATA/.system_data/tmp/nimoos_panic.log')
+    expect(s.failedJobs[0].path).toBe('/DATA/tmp/nimoos_panic.log')
     expect(s.failedJobs[0].last_error).toBe(null)
   })
 

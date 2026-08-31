@@ -1,5 +1,5 @@
 /* Data layer for folder-permissions — **explicitly a stub implementation for this
- * milestone (SP9-P4)**.
+ * milestone**.
  *
  * Why it's a stub: Vue2's folderPermissionsStore.js (132 lines) is a **six-way
  * aggregator**, depending on:
@@ -67,5 +67,5 @@ export async function fetchSnapshot(): Promise<FolderPermSnapshot> {
  *  it must be immediately visible in tests/console, not silently do nothing. */
 export async function execute(actions: FolderPermAction[]): Promise<void> {
   void actions
-  throw new Error('folder-permissions writes are not wired yet (SP9-P4, debt D11)')
+  throw new Error('folder-permissions writes are not wired yet (debt D11)')
 }

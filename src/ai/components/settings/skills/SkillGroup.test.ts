@@ -5,7 +5,7 @@ import zh from '../../../../i18n/zh_cn'
 import SkillGroup from './SkillGroup.vue'
 import type { Skill } from '../../../types/skill'
 
-// SP8-P3a Task 4 — aligned with Vue2 src/views/AI/Skills/SkillGroup.vue (64 lines).
+// Aligned with Vue2 src/views/AI/Skills/SkillGroup.vue (64 lines).
 // Shared constraint §9: always construct test data as multi-item arrays, avoiding weak
 // discriminating patterns like testing .some/.every on single-element arrays (with a single
 // item, "only it is active" and "the first item is active" can't be distinguished).

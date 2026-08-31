@@ -1,14 +1,14 @@
 <!--
-  SP7-P8a-T5: settings page container — wires T3 (storage card) and T4 (AI card)
+  Settings page container — wires the storage card and the AI card
   into one real routed page at `/photos/settings`. The shell originally copied the
   AreaShell/.photos-layout/.photos-main structure from PhotosAlbums.vue:184-276
   (that file's header comment already explains this layout is deliberately
   duplicated per-view rather than factored out — same choice here).
 
-  Plan H Task 11 (re-shell): the transitional AreaShell/.photos-layout shell has been
+  The transitional AreaShell/.photos-layout shell has been
   swapped for the shared `.app` CSS Grid (PhotosSidebar + main.main > PhotosTopbar +
   .photos-main), following every other re-shelled Photos view's own precedent
-  (PhotosFavorites.vue/PhotosTrash.vue's Task 1/8/9 comments). Per X-1/X-6 (see
+  (PhotosFavorites.vue/PhotosTrash.vue's own comments). Per X-1/X-6 (see
   askNimoHostMounted.test.ts's own negative case for this page), this page mounts no
   Ask Nimo chat-drawer host and its PhotosTopbar carries no Ask Nimo button — Vue2's
   own settings page has no Ask Nimo entry point in its topbar.
@@ -22,12 +22,12 @@
   1. Vue2 is a full-screen overlay (`position:fixed;inset:0;z-index:500`) that
      carries its own `<photos-sidebar>` and its own topbar, toggled via an
      `open` prop. New-UI uses a real route + the shared `.app` CSS Grid shell
-     (Plan H Task 11 re-shell, following every other re-shelled Photos view's
+     (following every other re-shelled Photos view's
      own precedent): this page mounts **one** PhotosSidebar + one
      PhotosTopbar inside `.app` — this is not "the shell auto-generating a
      sidebar", the dedup here means "exactly one PhotosSidebar copy on the
      whole page", not "mount none at all". See the guard test below.
-     Review fix (Plan H Task 11, controller ruling — Minor 5): with AreaShell gone, this
+     With AreaShell gone, this
      page's own exit path is the same as every other one of the 10 already-re-shelled
      Photos views — there is no dedicated "return to home" entry point on the page itself;
      navigation is handled entirely by the shared PhotosSidebar's own nav links (a
@@ -36,7 +36,7 @@
      relies on the browser back button, consistent with the rest of this
      area. Consequently there's also no global keydown listener equivalent to
      Vue2 :497-501/:527-528.
-  3. (Reverted, entry updated by Plan H Task 11) The Photos-private theme toggle's real,
+  3. (Reverted) The Photos-private theme toggle's real,
      pixel-accurate location is the sidebar icon button (PhotosSidebar.vue's toggleTheme),
      matching Vue2's own PhotosSidebar.vue:27-33. The stopgap segmented toggle this page used to
      mount predates that real sidebar button; that window has since closed, so this page no
@@ -47,19 +47,19 @@
      and redirects to `/logout`, which is inconsistent with New-UI's sign-out
      path.
 
-  Implementation note (not one of the four mandatory deviation entries, but
+  Implementation note (not one of the four mandatory divergence entries, but
   still a visible difference from the source, recorded for the record): the
   toast only keeps the text — it doesn't render Vue2's `photos-icon
   :name="toast.icon"` icon, because this repo's Photos area has no
   PhotosIcon.vue equivalent (confirmed zero hits via grep). T12
-  PhotosFilterChip.vue's header comment "deviation entry 1" reaches the same
+  PhotosFilterChip.vue's header comment "divergence entry 1" reaches the same
   conclusion (don't build a mini icon-mapping table if there's nothing to map
   to). This repo's global toast (AppToast.vue) is also a plain text pill with
   no icon, so the visuals here match this repo's existing toast rather than
   rebuilding Vue2's icon + purple color scheme.
 
   Data-fetch division of labor (an interface debt, already aligned with
-  T3/T4 — see both cards' header comments and task-5-report.md):
+  T3/T4 — see both cards' header comments):
   fetchStorage() is called by PhotosStorageCard itself in its own onMounted;
   this container **does not call it again**. This container's mounted hook
   only calls fetchAbout/fetchRetention/fetchScanInterval/fetchAiFeatures —
@@ -106,14 +106,14 @@ const pageRef = ref<HTMLElement | null>(null)
 // Vue2 :302 — fallback to 'NAS' before the about fetch resolves.
 const deviceName = computed(() => settings.about?.deviceName || 'NAS')
 
-// Vue2 :352-361, same deviation entry as T4's AI card header comment
-// "deviation entry 1" — without an explicit locale this would follow the
+// Vue2 :352-361, same divergence entry as T4's AI card header comment
+// "divergence entry 1" — without an explicit locale this would follow the
 // system language rather than the in-app selected language. Here we
 // explicitly apply the existing relTime.ts/PlacesRail.vue convention to
 // convert to BCP-47.
 // Unlike lastBuiltText (T4): Vue2 :359-361's catch branch here falls back to
 // an empty string rather than the raw iso (that's how the source itself
-// behaves — carried over as-is, not a deviation of this entry).
+// behaves — carried over as-is, not a divergence of this entry).
 const librarySinceText = computed(() => {
   const iso = settings.about?.librarySince
   if (!iso) return ''
@@ -227,17 +227,17 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-/* Plan H Task 11 (re-shell): the transitional AreaShell/.photos-layout shell + the pinned
+/* The transitional AreaShell/.photos-layout shell + the pinned
    `.sidebar` flex rule (both needed only while this page still used the old flex-row shell)
    are deleted -- the shared `.app` CSS Grid's own column track now owns the sidebar width and
    the height cap (same as every other re-shelled Photos view, e.g. PhotosFavorites.vue's own
-   Task 1 header comment). `.photos-main` has no parity counterpart (Vue2 has no such wrapper
+   header comment). `.photos-main` has no parity counterpart (Vue2 has no such wrapper
    div; a New-UI-only layout container, same as PhotosFavorites.vue/PhotosTrash.vue's identical
    survivor rule), so it stays as-is. */
 .photos-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; min-height: 0; }
 
-/* Review fix (Plan H Task 11, controller ruling — corrects a factually wrong claim this
-   comment used to make): parity photos.scss:3013-3248 DOES carry this page's anchors, under
+/* Corrects a factually wrong claim this
+   comment used to make: parity photos.scss:3013-3248 DOES carry this page's anchors, under
    Vue2's own original class names -- `.st-page`/`.st-hero`/`.st-quicknav`/`.st-footer*`/
    `.st-toast` (Vue2 PhotosSettings.vue's own `.st-*` prefix). This page's own classes below
    (`.ps-scroll`/`.ps-hero`/`.ps-quicknav`/`.ps-footer*`/`.ps-toast`) are NOT that parity
@@ -249,7 +249,7 @@ onUnmounted(() => {
    dedicated follow-up task to do that content re-skin. */
 .ps-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; padding: 4px 4px 24px; }
 
-/* Review fix (Plan H Task 11, controller ruling — Important 3): the `.app` shell above now
+/* The `.app` shell above now
    paints the photos-private dark `--bg`/`--text-1` pair unconditionally (see
    photos.scss:218-225's `.photos-root .app` rule) regardless of the *global* New-UI theme —
    these four text-color declarations used to read the *global* `--fg`/`--fg-muted` tokens,
@@ -282,7 +282,7 @@ onUnmounted(() => {
    "would sit above the global toast". This settings page's local toast only
    needs to cover **what this page itself renders**, which per §8's ladder
    falls into the "local fixed bar 60–150" tier; but this page also mounts a
-   PhotosSidebar (architectural deviation entry 1), whose narrow-screen
+   PhotosSidebar (architectural divergence entry 1), whose narrow-screen
    drawer `.photos-sidebar.is-drawer` is 151 (with the `side-scrim` overlay
    at 150) — already above that tier's nominal ceiling, which is a
    pre-existing repo fact, not something introduced here. 160 sits just above
@@ -303,7 +303,7 @@ onUnmounted(() => {
 .ps-toast-enter-active, .ps-toast-leave-active { transition: opacity 0.2s, transform 0.2s var(--ease, ease); }
 .ps-toast-enter-from, .ps-toast-leave-to { opacity: 0; transform: translate(-50%, 12px); }
 
-/* Plan H Task 11: mobile column-collapse, copied from PhotosFavorites.vue's own Task 1
+/* Mobile column-collapse, copied from PhotosFavorites.vue's own
    equivalent -- a New-UI-only mobile enhancement, no Vue2/parity source. */
 @media (max-width: 768px) {
   .app { grid-template-columns: 1fr; }

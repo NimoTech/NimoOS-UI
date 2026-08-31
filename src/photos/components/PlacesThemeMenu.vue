@@ -1,35 +1,43 @@
 <script setup lang="ts">
-// Task 10(SP7-P6a 地点·地图主视图):PlacesThemeMenu.vue —— 地图工具栏「地图主题」胶囊
-// 按钮 + 下拉弹层(4 预设 + 自定义两取色器)。逐段照 Vue2 src/views/Photos/
-// PhotosPlacesView.vue:907-947(模板)移植;色值/resolveMapTheme 语义已在同任务落到
-// src/photos/util/placesMapThemes.ts,本组件只消费 MAP_THEME_PRESETS + swatchColors,
-// 不重复定义色值、也不需要 resolveMapTheme/mapThemeStyleVars(那两个是 PlacesMap.vue 用
-// 来渲染地图本体的,本组件只画预览色块)。样式段照 photos-places.scss:964-1025。
+// PlacesThemeMenu.vue — the map toolbar's "Map theme" pill button + dropdown popover (4
+// presets + two custom color pickers). Ported section-by-section from Vue2 src/views/Photos/
+// PhotosPlacesView.vue:907-947 (template); the color values/resolveMapTheme semantics were
+// implemented alongside this component in src/photos/util/placesMapThemes.ts — this component
+// only consumes MAP_THEME_PRESETS + swatchColors, it doesn't redefine color values or need
+// resolveMapTheme/mapThemeStyleVars (those are for PlacesMap.vue to render the map itself;
+// this component only draws the preview swatches). Styles follow photos-places.scss:964-1025.
 //
-// 写口径(同 T9/T5/T8 既定):props.selection 不许就地改——一律 emit update:selection
-// 传整体替换后的新对象。选预设:emit 新 selection(仅 mapTheme 变)+ emit update:open(false)
-// 关闭弹层。取色器 @input:emit 新 selection(mapTheme 强制置 'custom' + 对应颜色字段更新,
-// 另一个颜色字段原样保留),不关闭弹层——照 Vue2 :940/:944 的 `@input="mapTheme = 'custom'"`,
-// 取色器本身没有伴随关闭动作。是否真的调用 store.setMapTheme/setCustomColors 落盘,
-// 由 T11 容器接住这两个 emit 后决定(brief 消歧义 1:读可直连 store、写走 emit)。
+// Write convention (matching the pattern already established elsewhere): props.selection must
+// never be mutated in place — always emit update:selection with a whole new replacement
+// object. Picking a preset: emit a new selection (only mapTheme changes) + emit
+// update:open(false) to close the popover. The color pickers' @input: emit a new selection
+// (mapTheme forced to 'custom' + the corresponding color field updated, the other color field
+// left as-is), without closing the popover — following Vue2's :940/:944
+// `@input="mapTheme = 'custom'"`, the color picker itself carries no accompanying close
+// action. Whether store.setMapTheme/setCustomColors are actually called to persist is decided
+// by the container once it receives these two emits (reads can connect directly to the store,
+// writes go through emit).
 //
-// Where `isLight` comes from: the caller (the T11 container) computes the boolean and passes it
+// Where `isLight` comes from: the caller (the container) computes the boolean and passes it
 // in — this component doesn't depend on any store/composable directly, staying a pure props/emit
-// presentational component. Task 6 (Plan E, 2026-08-15) changed the caller-side signal source
-// from the global `useThemeStore()` back to Photos' own private `usePhotosTheme()` (a D5 revert —
-// undoing T11's earlier decision to "read from global" — see PhotosPlaces.vue's `isLight`
-// computed and placesMapThemes.ts's own header comment's "D5" section for the full account); that
+// presentational component. A later pass changed the caller-side signal source
+// from the global `useThemeStore()` back to Photos' own private `usePhotosTheme()` (a deliberate
+// revert of an earlier decision to "read from global" — see PhotosPlaces.vue's `isLight`
+// computed and placesMapThemes.ts's own header comment for the full account); that
 // change only happens inside the caller, this component's own prop contract (`isLight: boolean`)
 // is completely unchanged and doesn't need to follow.
 //
-// 浮层规范(同 T9 PlacesFilterMenu.vue 的既定模式):open 为 prop,document 级
-// mousedown(容器外点击关闭)+ keydown(Esc 关闭),watch(open) 挂/摘监听,不用
-// stopImmediatePropagation。onDocKeydown 内唯一的早退是「非 Escape 键跳过」——本组件
-// 自己只管一个 open 状态,没有第二个分支可早退,不是 P5-T10 那种两弹层共享判定函数漏检
-// 第二个分支的早退 bug;那个场景要等 T11 把本组件与 PlacesFilterMenu 一起装进容器才会
-// 出现,集成断言归 T11。
+// Overlay convention (the same pattern already established for PlacesFilterMenu.vue): open is
+// a prop, with a document-level mousedown (closes on an outside click) + keydown (closes on
+// Escape), attached/detached by a watch(open), without using stopImmediatePropagation.
+// onDocKeydown's only early return is "skip non-Escape keys" — this component only manages a
+// single open state, so there's no second branch to early-return from; this isn't the
+// early-return bug seen elsewhere where two overlays sharing one predicate function miss
+// checking a second branch — that scenario only arises once this component and
+// PlacesFilterMenu are wired into the same container by later work, so the integration
+// assertion for it belongs there.
 //
-// Task 5 (Plan E #106 perf architecture port, 2026-08-15): the two `<input type="color">`s
+// A later perf pass: the two `<input type="color">`s
 // below are now UNCONTROLLED — no `:value` binding. Vue2's own fix (PR #106, git show
 // 78cf3335) made these same two inputs uncontrolled for the identical reason: a `:value`
 // binding ties the bound expression to this component's own render effect, so every `input`
@@ -46,7 +54,7 @@ import { MAP_THEME_PRESETS, swatchColors } from '../util/placesMapThemes'
 export interface MapThemeSelection {
   mapTheme: string // 'default' | 'ocean' | 'sand' | 'mono' | 'custom'
   customDotColor: string
-  // Task 6 (Plan E, 2026-08-15): renamed from customGridColor — same reason Vue2 PR #106
+  // Renamed from customGridColor — same reason Vue2 PR #106
   // sub-commit 3 renamed its own field of the same name (git show 78cf3335): this value feeds
   // the "City light color" picker below, which maps to the lit-city dot colour (`--map-dot`),
   // never a grid line. See placesMapThemes.ts's resolveMapTheme() for the mapping itself.
@@ -69,7 +77,7 @@ const rootRef = ref<HTMLElement | null>(null)
 const dotInputRef = ref<HTMLInputElement | null>(null)
 const gridInputRef = ref<HTMLInputElement | null>(null)
 // `gridInputRef`/`onGridInput` below are historic names, kept for continuity with Vue2's own
-// `customGridColor` field — Task 6 (Plan E, 2026-08-15) renamed the underlying data field to
+// `customGridColor` field — a later pass renamed the underlying data field to
 // `customCityColor` (this picker feeds the lit-city dot colour, never a grid line; see
 // `MapThemeSelection.customCityColor`'s own comment above), but the local ref/handler names here
 // were left as-is and have since semantically drifted from what they actually do.
@@ -96,14 +104,14 @@ function toggleOpen(): void {
   emit('update:open', !props.open)
 }
 
-// Vue2 :919 `@click="mapTheme = t.id; themeOpen = false"`。
+// Vue2 :919's `@click="mapTheme = t.id; themeOpen = false"`.
 function pickPreset(id: string): void {
   emit('update:selection', { ...props.selection, mapTheme: id })
   emit('update:open', false)
 }
 
-// Vue2 :940 `@input="mapTheme = 'custom'"`(v-model 已负责把 customDotColor 写成新值,
-// 这里两件事一起 emit 成一个整体替换对象)。
+// Vue2 :940's `@input="mapTheme = 'custom'"` (v-model already handles writing customDotColor
+// to its new value; here both things are emitted together as one whole replacement object).
 function onDotInput(e: Event): void {
   const value = (e.target as HTMLInputElement).value
   emit('update:selection', { ...props.selection, mapTheme: 'custom', customDotColor: value })
@@ -114,7 +122,8 @@ function onGridInput(e: Event): void {
   emit('update:selection', { ...props.selection, mapTheme: 'custom', customCityColor: value })
 }
 
-// ── 浮层规范:open 为真时挂 document 级 mousedown/keydown,watch(open) 挂/摘 ─────────
+// ── Overlay convention: attach document-level mousedown/keydown handlers while open is true,
+// attached/detached by a watch(open) ─────────
 function onDocMousedown(e: MouseEvent): void {
   const target = e.target as Node
   if (rootRef.value && !rootRef.value.contains(target)) emit('update:open', false)
@@ -170,7 +179,7 @@ onUnmounted(() => {
             <span class="mtp-name">{{ t(preset.nameKey) }}</span>
             <span class="mtp-desc">{{ t(preset.descKey) }}</span>
           </span>
-          <!-- Fix-1 item 6 (2026-08-16): `--accent-text` (global, theme.css) swapped for
+          <!-- `--accent-text` (global, theme.css) swapped for
                `--accent-hi` — Vue2's own exact value here (PhotosPlacesView.vue:1014,
                `<PhotosIcon ... color="var(--accent-hi)">`), and already Photos-local
                (photos.scss:31, theme-invariant — Photos' own accent family is intentionally
@@ -200,10 +209,10 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-/* Shadowing cleanup (Plan E Task 3, 2026-08-15): parity `photos-places.scss:964-1025`
+/* Shadowing cleanup: parity `photos-places.scss:964-1025`
    (`.map-theme-pop` family) now governs almost every rule this component used to duplicate,
-   for the same reason as PlacesFilterMenu.vue's identical cleanup this same task (see that
-   file's header comment for the full argument — same shadowing pattern, same D3 chrome
+   for the same reason as PlacesFilterMenu.vue's identical cleanup (see that
+   file's header comment for the full argument — same shadowing pattern, same chrome
    ruling, same hover-lock convention, not repeated verbatim here). Three things survive: */
 
 /* Non-color structural necessity, no parity counterpart (same category as
@@ -215,7 +224,7 @@ onUnmounted(() => {
    this repo (grep-confirmed against parity's own photos-places.scss, which only styles
    `.mtp-swatch` itself) — only its `background` was ever bound (`:style="{ background:
    swatchColors(...).dot }"` in the template above), so with no width/height/shape it rendered
-   as an invisible zero-size inline span: the owner's exact "preset swatches render as
+   as an invisible zero-size inline span: the reported "preset swatches render as
    near-empty dark squares (no visible dot)" report. Vue2 draws this same dot via an INLINE
    style object, not a CSS class at all (the Vue 2 panel's PhotosPlacesView.vue:1005, `<span :style="{
    position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width:
@@ -234,12 +243,12 @@ onUnmounted(() => {
   border-radius: 99px;
 }
 
-/* D3 surface-treatment ruling — REVERSED, same
+/* Surface-treatment ruling — REVERSED, same
    reversal as PlacesFilterMenu.vue's `.map-filter-pop` (see that file's full citation for the
    complete account): --popup-bg/--card-border/--card-shadow-hi are *global* New-UI tokens
    that only follow the app-wide `[data-theme]` attribute, never Photos' own private
    `.photos-root.is-light` toggle — this popover stayed dark under "Photos-light +
-   app-global-dark", the owner's reported "Map theme chips stay dark" defect. Restored to
+   app-global-dark", a reported "Map theme chips stay dark" defect. Restored to
    parity's own literal values: flat `--surface-2` + `--line` border + Vue2's own literal drop
    shadow (see that declaration's own theme-exception comment just below for the exact value,
    theme-invariant in Vue2 too so a plain literal is the precise parity value, not an
@@ -258,7 +267,7 @@ onUnmounted(() => {
    value copied from parity's own `.mtp-item.is-active` so hovering the active preset never
    flips its color. PlacesThemeMenu.test.ts's `winningHoverBackground` assertion pins this
    pair to this file's own `<style>` text (same convention as PlacesFilterMenu.test.ts), so
-   it stays local rather than moving to parity. Fix-1 item 6: `--chip-bg` (global) corrected
+   it stays local rather than moving to parity. `--chip-bg` (global) was corrected
    to local `--surface-2`, same is-light rationale as `.map-theme-pop` above. */
 .map-theme-pop .mtp-item:hover { background: var(--surface-2); }
 .map-theme-pop .mtp-item.is-active:hover {

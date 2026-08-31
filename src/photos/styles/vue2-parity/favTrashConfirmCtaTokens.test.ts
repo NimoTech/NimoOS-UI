@@ -1,4 +1,4 @@
-// Acceptance Fix-4 (owner ruling, screenshot-verified, Plans G+H):
+// Design decision (screenshot-verified):
 //
 // 1. Confirm CTAs are PURPLE in BOTH themes -- overrides Vue2's own literal colors:
 //    - Favorites "Save as Album" dialog's Create-album button (`.fav-btn-primary`) was Vue2's
@@ -28,7 +28,7 @@
 // that renders as a SIBLING of `.app` (not a descendant) -- `.fav-modal-scrim`/
 // `.trash-modal-scrim`/AlbumPickerDialog/the slideshow -- therefore inherited past `.photos-root`
 // to <body>'s GLOBAL app-wide theme color instead, which is white in the New-UI global-dark
-// default. In the owner's screenshot combo (Photos set to its own LIGHT theme, global New-UI
+// default. In the reported screenshot combo (Photos set to its own LIGHT theme, global New-UI
 // theme left on its dark default), that produced white titles on these overlays' near-white
 // `--surface-1` modal background -- exactly the reported bug, invisible to the grep-only sweep
 // above because no LITERAL was involved, only a missing declaration. Fixed by adding

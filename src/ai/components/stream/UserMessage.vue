@@ -25,7 +25,7 @@ function extOf(name?: string): string {
 const props = defineProps<{ msg: UserMsgLike }>()
 const { t } = useI18n()
 // Vue2 version gets session id via `inject: { agentStore: { default: null } }`;
-// Vue3 equivalent changed to useProvidedAgentStore() (SP8-P1b Task 11, debt③ settled) —
+// Vue3 equivalent changed to useProvidedAgentStore() —
 // when ancestor provideAgentStore exists (e.g. Photos restricted profile embed), resolves to that instance;
 // when used standalone (current AgentPage root), falls back to default 'general' store, no longer hardcoded.
 const store = useProvidedAgentStore()

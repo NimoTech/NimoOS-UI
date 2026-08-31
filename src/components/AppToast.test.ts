@@ -35,7 +35,7 @@ describe('AppToast', () => {
     expect(pills.map((p) => p.text())).toEqual(['first', 'second'])
   })
 
-  // Task 9 (SP7-P3 recycle-bin view): show()'s optional third argument `action` renders as a
+  // show()'s optional third argument `action` (used by the recycle-bin view) renders as a
   // clickable inline button (e.g. "Undo"); clicking fires the callback and removes that toast
   // from the stack immediately (without waiting for the auto-dismiss timer).
   it('When show() has an action, renders a clickable button, clicking triggers the callback and immediately removes that toast', async () => {
@@ -56,7 +56,7 @@ describe('AppToast', () => {
     expect(w.find('.toast').exists()).toBe(false)
   })
 
-  // SP8-P1c2 Task 6: three tiers (info/warning/danger), each rendering its
+  // Three tiers (info/warning/danger), each rendering its
   // own [data-tier] so AppToast.vue's CSS can style them from global theme
   // tokens (this component is outside .agent-app scope, see theme.css).
   it('a default show(text) call renders data-tier="info"', async () => {
@@ -90,7 +90,7 @@ describe('AppToast', () => {
   })
 })
 
-// [SP8-P2b acceptance round 3, user decision 2026-07-30] While the AI area is in the foreground,
+// Feedback from an earlier review: while the AI area is in the foreground,
 // the toast must follow the AI light/dark theme (otherwise white-on-white is invisible, see the
 // notes in aiTheme.test.ts). Leaving the AI area must restore everything exactly — the user
 // explicitly required "zero impact on the desktop", so "no extra class / data-theme outside the
@@ -138,7 +138,7 @@ describe('AppToast — AI area toast scoping', () => {
   })
 })
 
-// [SP8-P2b acceptance round 4, 2026-07-30] User observed on device: clicking copy inside a dialog,
+// A user observed on a real device: clicking copy inside a dialog,
 // "the toast is hidden". Evidence: `.toast-stack` was `z-index: 60`, while the `.sk-modal-bg`
 // scrim at `sk-shared.scss:102` is `1100`, and the AI area's SearchImageLightbox/SearchFileDrawer
 // are `10000`, SearchFullResults `9999` (the highest layers found by a repo-wide grep). The toast

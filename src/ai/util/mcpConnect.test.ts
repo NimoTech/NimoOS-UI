@@ -3,7 +3,7 @@ import {
   mcpEndpointUrl, buildMcpInstruction, buildMcpJson, formatEpochMs, MCP_PLACEHOLDER_TOKEN,
 } from './mcpConnect'
 
-// SP8-P2b Task 9 — Continuing from Vue2 __tests__/McpTokensSection.spec.js's 5 assertions:
+// Continuing from Vue2 __tests__/McpTokensSection.spec.js's 5 assertions:
 // 'endpointUrl uses window origin' / 'buildInstruction() inlines the endpoint URL
 // and the token' / 'buildJson() is valid MCP config JSON with url + bearer' /
 // 'fmtCreated() formats created_at as ms date-time (no x1000)' /

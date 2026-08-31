@@ -1,4 +1,4 @@
-// SP8-P3b Task 2 — Unify error keys for skill create/update + frontend pre-validation.
+// Unify error keys for skill create/update + frontend pre-validation.
 //
 // createSkillErrorKey's shape follows src/ai/util/channelsFormat.ts:65-76 (addBotErrorKey):
 // extract e.response.data.message ?? .detail ?? data, stringify then trim().toLowerCase(),

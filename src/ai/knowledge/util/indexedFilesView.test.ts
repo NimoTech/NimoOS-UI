@@ -1,4 +1,4 @@
-// SP8-P5b Task 7 — port from Vue2
+// Port from Vue2
 // `src/views/AI/Knowledge/IndexedFilesView.vue:396-444`(main@7a6ee6b7).
 // Each "copied weird behavior" has one dedicated case pinning return value with blueprint line number.
 //

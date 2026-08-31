@@ -9,7 +9,7 @@ import McpServerGroup from '../mcp/McpServerGroup.vue'
 import McpServerDetail from '../mcp/McpServerDetail.vue'
 import McpServerModal from '../mcp/McpServerModal.vue'
 
-// SP8-P4 Task 9 (wrap-up) — matches Vue2 src/views/AI/MCP/McpSection.vue (136 lines).
+// Matches Vue2 src/views/AI/MCP/McpSection.vue (136 lines).
 // The mock skeleton follows brief §Step1's "mock skeleton" section and public constraint
 // §9 verbatim (vi.hoisted avoids the ESM hoisting TDZ, precedent agentStore.test.ts:4-19).
 const h = vi.hoisted(() => ({

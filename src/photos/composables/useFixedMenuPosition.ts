@@ -1,15 +1,15 @@
-// SP15-P2c Task 1. Vue 3 port of Vue2's fixedMoreMenu.js mixin (33b05636:src/views/Photos/
+// Vue 3 port of Vue2's fixedMoreMenu.js mixin (33b05636:src/views/Photos/
 // fixedMoreMenu.js), shared by both detail pages' sidebar "..." menus.
 //
 // Why fixed at all: the menu is a position:absolute child of .sv-detail-side, which is
 // overflow-y:auto. Once the menu grew to five entries it no longer fit the sidebar's visible
-// box and got clipped -- the owner reported it as "the menu is pinned under something".
+// box and got clipped -- visible as the menu appearing pinned underneath something.
 // Switching to position:fixed and computing the coordinates from the trigger button's rect
 // takes it out of the scroll container's clipping entirely.
 //
-// Owner ruling 2026-08-10 (spec 3.4): share the LOGIC, not the view. The menu markup and its
-// CSS stay duplicated in each page -- P2b's keep-the-duplication ruling rests on scoped styles
-// not crossing SFC boundaries, which says nothing about plain TypeScript.
+// Decision: share the LOGIC, not the view. The menu markup and its
+// CSS stay duplicated in each page -- the earlier decision to keep that duplication rests on
+// scoped styles not crossing SFC boundaries, which says nothing about plain TypeScript.
 import { onBeforeUnmount, ref, watch, type Ref } from 'vue'
 
 // Height of a five-entry menu, used only to decide the flip. Vue2 used the same constant and

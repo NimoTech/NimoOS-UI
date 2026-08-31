@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// SP15-P1-T7/T8: PhotosMomentDetail.vue — the moment detail page (route /photos/moments/:id).
+// PhotosMomentDetail.vue — the moment detail page (route /photos/moments/:id).
 // Ported section by section from the Vue 2 panel's src/views/Photos/PhotosMomentDetail.vue
 // (template :1-121, computed :203-291, distStyle :418-421) and photos-smartview.scss.
 // It reuses the sv-detail-* two-column skeleton already established by
@@ -46,7 +46,7 @@
 //     see deviations 6-9 below. Add photos / Save as Album / the more menu / delete confirmation
 //     / library picker are still Tasks 9/10, so the document.mousedown listener stays deferred.]
 //
-// Fix round 1 added three more:
+// Three more were added afterward:
 // 10) The two asset requests fail independently (see load()). An earlier revision put them in
 //     one Promise.all under one catch, which discarded an already-resolved detail response
 //     whenever the all-assets one rejected. Vue 2 runs them as two separate statements with two
@@ -106,7 +106,7 @@
 // 18) The 409 (album name already in use) case on save-as-album gets its own wording
 //     (photosMoAlbumExists) rather than the generic photosMoAlbumFailed — the same branch
 //     Vue 2 :421-423 already has, kept.
-// 19) Six of the brief's thirteen proposed i18n keys turned out, once checked against this
+// 19) Six of the thirteen originally proposed i18n keys turned out, once checked against this
 //     task's own reuse rule (deviation 7: check for an existing key before adding one), to
 //     already exist under other names — every one an exact match of Vue 2's own zh_CN.json
 //     copy for this feature:
@@ -159,16 +159,15 @@
 //     been ported as a plain .sv-action-btn, reading as a third neutral chip next to
 //     "Add photos" and "Select"). Substitute rule and specificity note at the CSS.
 //
-// Plan C Task 2 (shared re-shell): the shell moves from AreaShell + a `.photos-layout` flex row
+// The shared re-shell moves the shell from AreaShell + a `.photos-layout` flex row
 // to Photos.vue's Vue2 structure `.photos-root[themeClass] > .app[data-collapsed] >
 // PhotosSidebar + main.main` — `collapsed` now comes from the shared composable
 // useSidebarCollapse(). The inner scroll chain is already complete (`.sv-detail-main` and
 // `.sv-detail-side` are two grid cells each with overflow-y:auto, reusing
-// PhotosSmartViewDetail.vue's skeleton, SP15-P1-T7), so the re-shell does not change scroll
+// PhotosSmartViewDetail.vue's skeleton), so the re-shell does not change scroll
 // behaviour. Known leftover (same as PhotosAlbums.vue's own re-shell comment, not repeated per
 // page): on narrow mobile viewports there is no AreaShell hamburger entry point to open the
-// sidebar drawer; the brief states this task must not overreach and fix it — see
-// task-2-report.md.
+// sidebar drawer; deliberately not fixed here (out of this task's scope).
 import '../photos/styles/vue2-parity'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -412,7 +411,7 @@ function backToAll(): void {
   void router.push('/photos/smart-views')
 }
 
-// ── SP15-P1-T8: selection state, consumed by Task 9's bulk removal ─────────────────────────
+// ── Selection state, consumed by the bulk-removal handling below ───────────────────────────
 // Ported from Vue2 :98/:112-121 (selecting/selectedIds + toggleSelecting/toggleSelect/
 // onTileClick). Photo.id is `string | number` (assetToPhoto.ts:268); selectedIds is kept as
 // string[] and every comparison goes through String() so a numeric id from an older backend
@@ -443,8 +442,8 @@ function onTileClick(p: Photo, list: Photo[]): void {
 // but never mounted a `<PhotoLightbox>` of its own -- `useLightbox` is a module-level singleton,
 // so the state flipped open (its network calls fired) with nothing on THIS page's own tree to
 // render it; the previous page's own mounted lightbox (if any) would pick up the stale `open`
-// state the next time it re-rendered, which is why the owner saw the photo appear only after
-// navigating back. Vue2's own PhotosMomentDetail component doesn't own a lightbox instance
+// state the next time it re-rendered, which is why the photo appeared only after
+// navigating back (the reported symptom). Vue2's own PhotosMomentDetail component doesn't own a lightbox instance
 // either (it `$emit('open-photo', p, list)`s up to its single-page parent, which owns the one
 // shared lightbox and all its wiring) -- New-UI's per-route architecture has no such parent to
 // hoist to, so this page (like PhotosAlbumDetail.vue, the pattern reference) now owns its own
@@ -472,7 +471,7 @@ function openAlbumPicker(ids: Array<string | number>): void {
 }
 function onAlbumPickerAdded(): void {}
 
-// ── SP15-P1-T9: add photos (pin) / remove photos (exclude) ────────────────────────────────
+// ── Add photos (pin) / remove photos (exclude) ─────────────────────────────────────────────
 // Ported from Vue2 :340-381. The two store calls throw where Vue 2's swallowed and toasted
 // internally (moments.ts file-header item 4), so the user-facing half lives here.
 const pickerOpen = ref(false)
@@ -504,7 +503,7 @@ async function onPickPhotos(ids: Array<string | number>): Promise<void> {
 
 // Re-entrance guard: Vue 2 has none (:361), and double-clicking the button there fires two
 // concurrent excludes for the same ids. Not copied — this repo already made the same correction
-// on PhotosAlbumDetail.vue's `removing` flag (its review finding "Minor 6"), and the port
+// on PhotosAlbumDetail.vue's `removing` flag, and the port
 // discipline is "the interface 1:1, the logic correct".
 const removing = ref(false)
 
@@ -528,7 +527,7 @@ async function removeSelected(): Promise<void> {
   }
 }
 
-// ── SP15-P1-T10: save as album (export) / delete moment ──────────────────────────────────
+// ── Save as album (export) / delete moment ─────────────────────────────────────────────────
 // Ported from Vue2 :20-22 (Save as Album button), :29-45 (more menu + its one item), :295-305
 // (document mousedown closes the more menu — the listener Task 7 deliberately deferred, see
 // file-header deviation 16), :138-152 (delete confirm dialog) and :406-436 (saveAsAlbum /
@@ -889,7 +888,7 @@ async function doDelete(): Promise<void> {
                `@add-to-album`, same shape as PhotosAlbumDetail.vue's own `AlbumPickerDialog`
                mount -- nested inside `.photos-root` (its own panel background is
                `var(--surface-2)`, a `.photos-root`-local token with no fallback, per the F1/F4
-               lesson class); the lightbox itself joins it there too as of Plan F Task 5. -->
+               lesson class); the lightbox itself joins it there too. -->
           <AlbumPickerDialog v-model:open="albumPickerOpen" :asset-ids="albumPickerIds" @added="onAlbumPickerAdded" />
 
           <!-- Delete confirmation (Vue 2 :127-141, class names verified against its real
@@ -951,7 +950,7 @@ async function doDelete(): Promise<void> {
 </template>
 
 <style scoped>
-/* Plan C Task 2: the flex-row shell + the transitional `.sidebar { flex... }` width pin are
+/* The flex-row shell + the transitional `.sidebar { flex... }` width pin are
    gone — the `.app` CSS Grid (parity scss photos.scss:116-129) now owns both the sidebar's
    width and the height cap, same as Photos.vue since its own Task 3 re-skin. This file's
    source no longer contains a `.photos-layout` rule — photosLayoutHeightCap.test.ts's
@@ -1042,7 +1041,7 @@ async function doDelete(): Promise<void> {
 .mo-week-badge { color: var(--success); }
 
 /* ── Action bar (scss:478-496, globally imported). Task 8 added the Select toggle; Task 10
-   added Save as Album, the more-menu icon button and its dropdown — see the deviation notes
+   added Save as Album, the more-menu icon button and its dropdown — see the divergence notes
    at the template.
    Task 6: `.sv-actions` and `.sv-action-btn`(base+:hover+[data-open]) deleted -- all duplicated
    parity's own rule bodies exactly (token names differ only; parity's global button reset,
@@ -1147,7 +1146,7 @@ async function doDelete(): Promise<void> {
    every other tile grid in the app. Deleting both restores the correct radius and the
    hover-zoom for the first time. */
 
-/* SP15-P2a task 4: carried-in defect fix, and still genuinely needed -- unlike the sibling
+/* A carried-in defect fix, and still genuinely needed -- unlike the sibling
    SmartViewDetail page's identical-looking copy of this rule (which T5 found the global
    `.photos-root .tile[data-selected]` rule already reaches and deleted), *this* file's own
    selection-highlight regression test

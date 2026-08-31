@@ -497,7 +497,7 @@ describe('convertFromAlbum', () => {
     expect(s.smartViews).toHaveLength(0)
   })
 
-  // Final fix wave, mirror of the albums store's own case: the backend deletes the source
+  // Mirror of the albums store's own case: the backend deletes the source
   // album, so it must leave the albums store too. Without this, albums.albumsLoaded stays true,
   // PhotosAlbumDetail.vue:442 skips its own fetch, and one browser Back press lands on a fully
   // interactive detail page for an album the server has already deleted.

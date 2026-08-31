@@ -3,7 +3,7 @@
 // (parseYearMonth + formatAlbumSpan), :359-370 (applySort), and
 // src/views/Photos/PhotosAlbumDetail.vue:224-242 (photos computed sort).
 //
-// SP15-P2b: sortAlbums was removed here -- the Albums page now renders a mixed
+// sortAlbums was removed here -- the Albums page now renders a mixed
 // manual/smart list and sorts it through util/mixedAlbums.ts, which is the single
 // remaining comparator implementation. albumToView / formatAlbumSpan / sortAlbumPhotos
 // are unaffected and still have callers.
@@ -16,8 +16,8 @@ export interface AlbumView {
   count: number
   dateRange: string
   createdAt: string | null
-  videoCount: number // P2b: the detail sidebar's Videos cell
-  dateStart: string | null // P2b: raw taken_at of the earliest member; drives the 'date' sort
+  videoCount: number // the detail sidebar's Videos cell
+  dateStart: string | null // raw taken_at of the earliest member; drives the 'date' sort
 }
 
 // Extract {year, month(1-12)} from a raw taken_at string ('2025-06-03',
@@ -49,8 +49,8 @@ export function formatAlbumSpan(startRaw: unknown, endRaw: unknown): string {
 // Verbatim port of PhotosAlbumsView.vue:216-224 (userAlbums computed), minus
 // the `kind: 'user'` field (shared-album section is out of scope, see brief)
 // and plus videoCount / dateStart (see the AlbumView doc comment above).
-// SP15-P2b final fix wave: the P4-era `dateEnd` field is gone. Its only consumer was
-// sortAlbums('date'), deleted this phase in favour of util/mixedAlbums.ts (which reads
+// The `dateEnd` field that used to live on the view object is gone. Its only consumer was
+// sortAlbums('date'), deleted in favour of util/mixedAlbums.ts (which reads
 // dateStart, matching Vue2's dateTakenMs). `a.dateEnd` is still read below -- but straight off
 // the raw backend record, to render the span; nothing needed it on the view object.
 export function albumToView(a: Record<string, unknown>, untitled: string): AlbumView {

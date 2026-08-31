@@ -1,4 +1,4 @@
-// SP8-P5c Task 3(half two) — `FolderBrowser.vue` component test.
+// `FolderBrowser.vue` component test.
 // Blueprint: the Vue 2 panel's `src/components/common/FolderBrowser.vue` (143 lines).
 //
 // 🔴 【mock layering — governance §4.1 five-row table, easiest place to crash in this task】

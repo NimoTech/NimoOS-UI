@@ -1,4 +1,4 @@
-// P6b-T4: PlaceSpotDialog.vue — Place detail shooting spot dialog (embedded card, not floating layer).
+// PlaceSpotDialog.vue — Place detail shooting spot dialog (embedded card, not floating layer).
 // Corresponds item-by-item to the required test checklist. Pure display + emit, does not touch store — only mocks
 // thumbnailUrl from @nimotech/nimoos-service (following existing mock technique from PlacesRail.test.ts / PersonHero.test.ts).
 import { describe, it, expect, vi, beforeEach } from 'vitest'

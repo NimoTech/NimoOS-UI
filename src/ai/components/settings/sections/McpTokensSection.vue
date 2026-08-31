@@ -1,5 +1,5 @@
 <!--
-  SP8-P2b Task 10 — 1:1 ported from Vue2 src/views/AI/Settings/sections/McpTokensSection.vue (247 lines).
+  1:1 ported from Vue2 src/views/AI/Settings/sections/McpTokensSection.vue (247 lines).
   Pure functions (endpointUrl computed / buildInstruction / buildJson / fmtCreated and fmtLastUsed
   “format milliseconds” core) extracted to ../../../util/mcpConnect.ts in Task 9;
   this component retains only component-scoped state and i18n concatenation.
@@ -182,7 +182,7 @@ function fmtLastUsed(tk: McpToken): string {
   return `${t('aiCfgLastUsed')}: ${formatEpochMs(tk.last_used_at)}`
 }
 
-// SP8-P2b acceptance round 5: copy feedback (toast + "copied" checkmark state) unified via useCopyFeedback,
+// Copy feedback (toast + "copied" checkmark state) unified via useCopyFeedback,
 // with only one button showing checkmark, copying something else auto-resets.
 // Requirements and design rationale in file header.
 </script>

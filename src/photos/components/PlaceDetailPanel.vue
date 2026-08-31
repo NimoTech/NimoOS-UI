@@ -1,42 +1,52 @@
 <script setup lang="ts">
-// P6b-T3: PlaceDetailPanel.vue —— 地点详情面板外壳 + hero + 三统计 + 两动作。
-// 逐段照 Vue2 src/views/Photos/PhotosPlacesView.vue:1058-1107(模板,
-// v-if="activePlace" 的 .map-detail 整块)+ :1246-1249(相邻收尾),computed
-// activePlace/activeIsCurrentTrip/currentHero :204-212/:284-289;样式照
-// photos-places.scss:478-598(跳过 :491-494 的 `.map-detail.is-entering` 死 CSS——
-// 没有任何地方切换这个 class,纯遗留)。
+// PlaceDetailPanel.vue — the place detail panel's shell + hero + three stats + two actions.
+// Ported section-by-section from Vue2 src/views/Photos/PhotosPlacesView.vue:1058-1107
+// (template, the whole `.map-detail` block under v-if="activePlace") + :1246-1249 (its
+// adjacent closing tags), computed activePlace/activeIsCurrentTrip/currentHero
+// :204-212/:284-289; styles follow photos-places.scss:478-598 (skipping the dead
+// `.map-detail.is-entering` CSS at :491-494 — nothing anywhere toggles that class, it's pure
+// leftover).
 //
-// 分工:纯展示 + emit,不碰 store、不发请求——容器(未来任务)负责 v-model activeId、
-// 拉取 detail、接住 emit 后调用 store 方法。`place`/`detail`/`detailLoading` 三个 prop
-// 全部由容器传入;容器只在 id 与 activeId 匹配时才传 `detail`(偏离登记 4,brief 原文)。
+// Division of responsibility: pure presentation + emit, doesn't touch the store or make
+// requests — a container built separately owns v-model activeId, fetches detail, and calls
+// store methods when it receives emits. All three props (`place`/`detail`/`detailLoading`) are
+// passed in by the container; the container only passes `detail` once its id matches activeId.
 //
-// 本任务只负责 .detail-body 内的一个骨架块(New-UI 新增,Vue2 无加载态);spots/insights/
-// 最近照片/到访记录四段由 T4/T5/T6 继续往 .detail-body 里加,外壳与派生量命名保持稳定
-// 不再改动(brief 明确要求)。
+// This pass only covers a skeleton block inside .detail-body (a New-UI addition; Vue2 has no
+// loading state); the spots/insights/recent-photos/visit-history sections are added into
+// .detail-body by later work, with the shell and derived-value naming kept stable and not
+// touched further.
 //
-// 偏离登记(brief 已批准/明确要求的几条,集中列在这里,不逐处重复):
-//  1. currentHero 补了列表项兜底:Vue2 :284-289 的 currentHero 只看 activeDetail,详情
-//     还没回来时 hero 是空图;这里在 detail 的两级兜底之后再加 place 的两级兜底
-//     (coverAssetId → thumbs[0]),面板一打开就能出图,不必等详情请求落地。
-//  2. 「本次旅行」判据的同名字段陷阱:Vue2 :204-212 已经在注释里点破——activeDetail.recent
-//     是"最近照片数组"(任何有照片的地点都真值),与列表项的布尔 recent 是同名不同物。
-//     这里直接读 props.place?.recent === true,不落回 detail,避免同名字段互相污染。
-//  3. 设置封面按钮:Vue2 :1065-1071 是一大串内联 style(无法过 color-guard,也不该照搬),
-//     这里改成 .hero-cover-btn 类,几何/配色与 .close 对称复用。
-//  4. z-index 6 是 P6a 定的层叠梯度里的固定值(地图家具 4 < .map-tip 5 < 详情面板 6 <
-//     工具栏及其弹层 7)——已用 P6a 容器 PhotosPlaces.vue 的 .map-toolbar(z-index:7,
-//     :384)/.map-tip(z-index:5,:418)回源核对,与 brief 描述一致,未发现出入。
-//  5. 窄屏 `@media (max-width: 768px)` 规则是 New-UI 新增(偏离登记 13,brief 原文
-//     "本仓 New-UI 新增"),Vue2 该视图本身不做响应式布局。
-//  6. 评审 M1(补登):第三统计格(旅行数)的单复数——Vue2 PhotosPlacesView.vue:1097
-//     那一格写死复数 `$t('trips')`,只有 :1085 的 `ttl-sub` 才是条件化
-//     (`trips === 1 ? $t('trip') : $t('trips')`)。这里把第三统计格也改成用
-//     tripUnitKey 条件化(是相对 Vue2 的改进,不是照搬),此前漏登记这条偏离。
+// Deviations from Vue2 (a few approved ones, gathered here rather than repeated at each site):
+//  1. currentHero adds a fallback onto the list item: Vue2's currentHero (:284-289) only looks
+//     at activeDetail, so the hero is a blank image until detail arrives; here, after detail's
+//     own two-level fallback, a second two-level fallback onto place is added
+//     (coverAssetId -> thumbs[0]), so the panel can show an image the moment it opens, without
+//     waiting for the detail request to land.
+//  2. The "current trip" predicate's same-name-field trap: Vue2's own comment at :204-212
+//     already calls this out — activeDetail.recent is "the recent-photos array" (truthy for
+//     any place with photos at all), a different thing from the list item's boolean recent
+//     field despite sharing the name. Here we read props.place?.recent === true directly and
+//     never fall back to detail, to avoid the two same-named fields contaminating each other.
+//  3. The set-cover button: Vue2's version (:1065-1071) is a long run of inline styles (can't
+//     pass the color-guard check, and shouldn't be copied verbatim anyway); here it's turned
+//     into a `.hero-cover-btn` class, reusing `.close`'s geometry/coloring symmetrically.
+//  4. z-index 6 is a fixed value in this map view's stacking order (map furniture 4 <
+//     .map-tip 5 < detail panel 6 < toolbar and its overlays 7) — cross-checked against the
+//     container PhotosPlaces.vue's own .map-toolbar (z-index:7, :384)/.map-tip (z-index:5,
+//     :418), matches, no discrepancy found.
+//  5. The narrow-screen `@media (max-width: 768px)` rule is a New-UI addition; Vue2's own view
+//     isn't responsive at all here.
+//  6. Singular/plural for the third stat cell (trip count): Vue2's PhotosPlacesView.vue:1097
+//     hardcodes the plural `$t('trips')` there; only `ttl-sub` at :1085 is conditional
+//     (`trips === 1 ? $t('trip') : $t('trips')`). Here the third stat cell is also made
+//     conditional via tripUnitKey (an improvement over Vue2, not a straight port) — this
+//     deviation wasn't recorded earlier.
 //
-// [Plan E Task 4 shadowing-cleanup correction, 2026-08-15] The token-mapping table above this
+// [Shadowing-cleanup correction] The token-mapping table above this
 // note is retired — it recorded the very idea ("translate Vue2's local tokens into this repo's
 // global tokens") that turned out to be the root cause of this batch's shadowing bug (same
-// lesson as PlacesZoomBar.vue and the other T3 components). Parity's `photos-places.scss` now
+// lesson as PlacesZoomBar.vue and the other components ported in the same batch). Parity's `photos-places.scss` now
 // reproduces Vue2's exact pixel values using its *own* local tokens (--text-1/2/3,
 // --surface-1/2/3, --line/--line-strong, --r-sm, --font-display, --accent-rgb, --accent-hi,
 // etc., all defined in photos.scss's `.photos-root {...}` local scope) — this component no
@@ -48,13 +58,13 @@
 // pin down as required to live in this file's own raw text (.map-detail's z-index/background/
 // transition, the hardcoded light-color literals on .close/.ttl-region/.ttl-name, the
 // .btn.btn-primary:hover compound selector, the three hover-locks — .spot-row:hover /
-// .detail-grid .ph.more:hover and their winningHoverBackground assertions), and one D3-ruled
+// .detail-grid .ph.more:hover and their winningHoverBackground assertions), and one deliberately-ruled
 // surface treatment (.spot-row .thumb's background). The reasoning for each individual rule now
 // lives next to that rule's own comment, instead of one aggregate (and by now stale) mapping
 // table.
 //
-// Hero-foreground color redline (the highest-risk item in this task's brief, conclusion
-// unchanged, only how it's implemented has changed — see previous paragraph): every foreground
+// Hero-foreground color redline (the highest-risk item identified for this component,
+// conclusion unchanged, only how it's implemented has changed — see previous paragraph): every foreground
 // element sitting over the hero's darkened cover photo (.close / the set-cover button's icon
 // color, .ttl-region/.ttl-name/.ttl-badge-trip/.ttl-badge-home text colors, the ::after darkening
 // gradient itself) is **hardcoded light + theme-exception** (`.ttl-sub` / `.detail-hero::after`
@@ -65,12 +75,12 @@
 // is a fixed purple that never follows the app theme — the two contexts don't match, so
 // --on-accent has been removed everywhere in this file, including the one that used to sit on
 // .btn-primary — see that rule's own comment for the full account). The "current trip" green
-// uses the already-established --place-current-trip; the "home base" purple is this task's new
-// --place-home-base (see theme.css's own token comment and the task report for how its value was
-// derived).
+// uses the already-established --place-current-trip; the "home base" purple is this component's
+// new --place-home-base (see theme.css's own token comment for how its value was derived).
 //
-// 铁律:按 id 比较一律 String(a) === String(b)（本组件不做 id 比较，place.id 未被读取，
-// 仅供容器/未来任务使用，此处无需归一）。
+// Hard rule: id comparisons always use String(a) === String(b) (this component doesn't do id
+// comparisons itself; place.id is never read here, it's only for the container/future work to
+// use, so no normalization is needed in this file).
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
@@ -84,9 +94,10 @@ const props = defineProps<{
   place: Place | null
   detail: PlaceDetail | null
   detailLoading: boolean
-  // P6b-T4:容器持有"当前打开的 spot key"(深链/未来路由可能只知道 key,不持整个
-  // PlaceSpot 对象),面板据此在 spots 里找命中项渲染弹窗——找不到(如详情刷新后这个
-  // spot 已不存在)就不渲染,不报错。
+  // The container holds "the currently open spot's key" (a deep link/future route may only
+  // know the key, not the whole PlaceSpot object); the panel uses it to find the matching item
+  // in spots and render the dialog for it — if no match is found (e.g. the spot no longer
+  // exists after a detail refresh), nothing is rendered and no error is raised.
   activeSpotKey: string | null
   spotBusy: boolean
 }>()
@@ -97,45 +108,50 @@ const emit = defineEmits<{
   (e: 'open-library'): void
   (e: 'save-album'): void
   (e: 'open-photo', assetId: string, list: string[]): void
-  // P6b-T4:spots 列表行点击。
+  // A spots-list row click.
   (e: 'pick-spot', spot: PlaceSpot): void
-  // P6b-T4:PlaceSpotDialog 的其余四个 emit 原样透传——close/open-library 特意改名
-  // (close-spot/open-spot-library),避免与面板自己已有的同名 close/open-library 撞车。
+  // The remaining four PlaceSpotDialog emits are forwarded as-is — close/open-library are
+  // deliberately renamed (close-spot/open-spot-library) to avoid colliding with the panel's
+  // own existing close/open-library of the same name.
   (e: 'rename', name: string): void
   (e: 'reset-name'): void
   (e: 'close-spot'): void
   (e: 'open-spot-library'): void
-  // P6b-T6:PlaceVisitHistory 的 save-trip 原样透传给容器(open-photo 复用面板既有的
-  // 同名 emit,不新增)。
+  // PlaceVisitHistory's save-trip is forwarded to the container as-is (open-photo reuses the
+  // panel's existing emit of the same name rather than adding a new one).
   (e: 'save-trip', visit: PlaceVisit): void
 }>()
 
 const { t, locale } = useI18n()
 
-// ── 派生量(名字对 T4-T6 稳定)────────────────────────────────────────────
+// ── Derived values (names kept stable for later work to build on) ─────────────────────
 const city = computed(() => props.detail?.city ?? props.place?.city ?? '')
 const country = computed(() => props.detail?.country ?? props.place?.country ?? '')
 const count = computed(() => props.detail?.count ?? props.place?.count ?? 0)
 const trips = computed(() => props.detail?.trips ?? props.place?.trips ?? 0)
 
-// 偏离登记 1(见文件头):detail 两级优先,再落回 place 两级——不是照抄 Vue2 :284-289。
+// Deviation 1 (see file header): detail's two-level fallback takes priority, then falls back
+// to place's two-level fallback — not a straight copy of Vue2 :284-289.
 const currentHero = computed(() =>
   props.detail?.coverAssetId || props.detail?.thumbs[0] || props.place?.coverAssetId || props.place?.thumbs[0] || '',
 )
 const heroSrc = computed(() => (currentHero.value ? service.photos.thumbnailUrl(currentHero.value, 'large') : ''))
 
-// 偏离登记 2(见文件头):严格读列表项布尔字段,不落回 detail.recent(同名不同物陷阱)。
+// Deviation 2 (see file header): strictly reads the list item's boolean field, never falls
+// back to detail.recent (the same-name-different-thing trap).
 const isCurrentTrip = computed(() => props.place?.recent === true)
-// 「常驻地」两侧都可能是真值来源(列表项/详情载荷各自独立到货),任一为真即显示。
+// Either side (list item or detail payload) can be the source of truth for "home base",
+// since they arrive independently — show it if either is true.
 const isHomeBase = computed(() => Boolean(props.place?.home || props.detail?.home))
 
-// Vue2 :1094 的 `|| '—'` 原样照搬:0 或详情未到时显示破折号。
+// Vue2's `|| '—'` at :1094, copied verbatim: shows a dash when 0 or detail hasn't arrived yet.
 const spotsLabel = computed<number | string>(() => props.detail?.spots.length || '—')
 
 const tripUnitKey = computed(() => (trips.value === 1 ? 'photosPlacesTrip' : 'photosPlacesTrips'))
 
-// 偏离登记(同 PlacesRail.vue formatLast / PersonHero.vue firstMonthShort 的既有先例):
-// 日期本地化跟随 i18n locale,lastDate 为 null 时回落后端原始英文显示串。
+// Deviation (same precedent as PlacesRail.vue's formatLast / PersonHero.vue's
+// firstMonthShort): date localization follows the i18n locale, falling back to the backend's
+// raw English display string when lastDate is null.
 const lastVisited = computed(() => {
   const d = props.place?.lastDate
   if (!d) return props.place?.last ?? ''
@@ -148,28 +164,31 @@ function onHeroClick(): void {
   emit('open-photo', currentHero.value, [currentHero.value])
 }
 
-// ── P6b-T4: spots 列表段 + spot 弹窗挂载点 ──────────────────────────────
+// ── The spots list section + the spot dialog's mount point ─────────────────────────────
 const spots = computed(() => props.detail?.spots ?? [])
 
-// ── P6b-T5: insights 段(渲染委托给 PlaceInsights.vue,这里只做兜底取值)+
-// 最近的照片段(照 Vue2 :1186-1202)。────────────────────────────────────
+// ── The insights section (rendering is delegated to PlaceInsights.vue; this just does the
+// fallback value lookup) + the recent-photos section (follows Vue2 :1186-1202). ──────────
 const insights = computed<PlaceInsight[]>(() => props.detail?.insights ?? [])
-// 照 Vue2 recentPhotos :283(`this.activeDetail ? (this.activeDetail.recent || []) : []`)。
+// Follows Vue2's recentPhotos :283 (`this.activeDetail ? (this.activeDetail.recent || []) : []`).
 const recent = computed(() => props.detail?.recent ?? [])
 
-// ── P6b-T6: 到访记录段(照 Vue2 :1204-1245,渲染委托给 PlaceVisitHistory.vue)。────
+// ── The visit-history section (follows Vue2 :1204-1245, rendering delegated to
+// PlaceVisitHistory.vue). ──────────────────────────────────────────────────────────────
 const visits = computed<PlaceVisit[]>(() => props.detail?.visits ?? [])
 
-// 铁律:id/key 比较一律 String() 归一——activeSpotKey 来自容器(可能来自路由/深链,
-// 类型未必与 PlaceSpot.key 的运行时值完全一致)。
+// Hard rule: id/key comparisons always normalize with String() — activeSpotKey comes from the
+// container (possibly from a route/deep link, whose type may not exactly match PlaceSpot.key's
+// runtime value).
 const activeSpot = computed<PlaceSpot | null>(() => {
   if (props.activeSpotKey === null) return null
   return spots.value.find(s => String(s.key) === String(props.activeSpotKey)) ?? null
 })
 
-// PlaceSpotDialog 的 open-photo 只带 assetId(单张),这里透传到面板既有的
-// open-photo(assetId, list) 签名——不改 T3 已定的 emit 形状,list 落成单元素数组
-// (同 onHeroClick 的既定处置)。
+// PlaceSpotDialog's open-photo only carries an assetId (a single photo); here it's forwarded
+// to the panel's existing open-photo(assetId, list) signature — the already-established emit
+// shape isn't changed, list just becomes a single-element array (the same handling as
+// onHeroClick).
 function onSpotOpenPhoto(assetId: string): void {
   emit('open-photo', assetId, [assetId])
 }
@@ -235,11 +254,13 @@ function onSpotOpenPhoto(assetId: string): void {
     </div>
 
     <div class="detail-body">
-      <!-- New-UI 新增(Vue2 无加载态):详情未到时给一个骨架块。insights/最近照片/
-           到访记录三段由 T5/T6 继续加在这个骨架块之后。 -->
+      <!-- New-UI addition (Vue2 has no loading state): shows a skeleton block while detail
+           hasn't arrived yet. The insights/recent-photos/visit-history sections are added
+           after this skeleton block by later work. -->
       <div v-if="detailLoading && !detail" class="detail-body-skeleton" data-test="detail-body-skeleton" />
 
-      <!-- P6b-T4: spot 弹窗(照 Vue2 :1109-1150,不是浮层,是本区顶部一张内嵌卡片)。 -->
+      <!-- The spot dialog (follows Vue2 :1109-1150; not an overlay, an inline card embedded at
+           the top of this section). -->
       <PlaceSpotDialog
         v-if="activeSpot"
         :spot="activeSpot"
@@ -251,14 +272,16 @@ function onSpotOpenPhoto(assetId: string): void {
         @open-photo="onSpotOpenPhoto"
       />
 
-      <!-- P6b-T4: spots 列表段(照 Vue2 :1152-1172)。 -->
+      <!-- The spots-list section (follows Vue2 :1152-1172). -->
       <div v-if="spots.length > 0" class="detail-section">
         <h4>
           {{ t('photosPlacesSpotsInCity', { city }) }}
-          <!-- spec §7c-9:Vue2 :1153 的 .more 没有任何 @click——静态文本装饰,不擅自接
-               功能、不加 cursor:pointer。T5「查看全部 N 张」若要做成真正可点,请给它
-               另加一个修饰类(如 .more.is-clickable)单独声明 cursor:pointer,不要往
-               这个共享基类 `.detail-section h4 .more` 里加(见下方样式块同名注释)。 -->
+          <!-- Vue2's .more at :1153 has no @click at all — it's purely decorative static text,
+               so no click behavior or cursor:pointer should be added here without reason. If
+               the "view all N photos" section elsewhere needs to become genuinely clickable,
+               give it its own modifier class (e.g. .more.is-clickable) declaring cursor:pointer
+               separately, rather than adding it to this shared base class
+               `.detail-section h4 .more` (see the matching comment in the style block below). -->
           <span class="more">{{ t('photosPlacesViewAll') }}</span>
         </h4>
         <div class="spot-list">
@@ -284,19 +307,21 @@ function onSpotOpenPhoto(assetId: string): void {
         </div>
       </div>
 
-      <!-- P6b-T5: insights 段,渲染完全委托给 PlaceInsights.vue(见该组件文件头
-           关于零 v-html / <i18n-t> 具名插槽的说明)。 -->
+      <!-- The insights section; rendering is delegated entirely to PlaceInsights.vue (see that
+           component's own file header for the note about zero v-html / <i18n-t> named slots). -->
       <PlaceInsights :insights="insights" />
 
-      <!-- P6b-T5: 最近的照片段(照 Vue2 :1186-1202)。段落恒渲染——Vue2 这个
-           .detail-section 没有 v-if,recent 为空时只剩标题 + 可能的 +N 格。 -->
+      <!-- The recent-photos section (follows Vue2 :1186-1202). This section always renders —
+           Vue2's own .detail-section here has no v-if; when recent is empty it just leaves the
+           title plus a possible +N cell. -->
       <div class="detail-section">
         <h4>
           {{ t('photosPlacesRecentPhotos') }}
-          <!-- 与 spots 段的静态 .more(spec §7c-9)不同,这个「查看全部」是真可点的——
-               自己叠一个 .more.is-clickable 修饰类补手型,不改共享基类
-               `.detail-section h4 .more`(改了会把 spots 段那个不可点的 .more 带成
-               手型,弄红 T4 的程序化断言)。 -->
+          <!-- Unlike the spots section's static, non-clickable .more, this "view all" is
+               genuinely clickable — an extra .more.is-clickable modifier class restores the
+               pointer cursor here, without touching the shared base class
+               `.detail-section h4 .more` (touching it would make the spots section's
+               non-clickable .more show a pointer cursor too, breaking its own assertions). -->
           <span class="more is-clickable" @click="emit('open-library')">{{ t('photosPlacesSeeAll', { n: count }) }}</span>
         </h4>
         <div class="detail-grid">
@@ -312,7 +337,8 @@ function onSpotOpenPhoto(assetId: string): void {
         </div>
       </div>
 
-      <!-- P6b-T6: 到访记录段(照 Vue2 :1204-1245,渲染委托给 PlaceVisitHistory.vue)。 -->
+      <!-- The visit-history section (follows Vue2 :1204-1245, rendering delegated to
+           PlaceVisitHistory.vue). -->
       <PlaceVisitHistory
         :visits="visits" :trips="trips"
         @save-trip="(v) => emit('save-trip', v)"
@@ -323,7 +349,7 @@ function onSpotOpenPhoto(assetId: string): void {
 </template>
 
 <style scoped>
-/* Shadowing cleanup (Plan E Task 4, 2026-08-15): this rule used to carry the full geometry
+/* Shadowing cleanup: this rule used to carry the full geometry
    (position/top/right/bottom/width/display/flex-direction/border-left/box-shadow/opacity/
    transform) duplicated from `photos-places.scss:497-509` — all deleted below since parity's
    values are byte-identical (or, for `border-left`/`box-shadow`, *corrected*: this rule used
@@ -332,13 +358,14 @@ function onSpotOpenPhoto(assetId: string): void {
    exact offset/blur/alpha) — same shadowing pattern as PlacesZoomBar.vue's 2026-08-15 fix).
    What survives is exactly what
    PlaceDetailPanel.test.ts pins to this file's own raw `<style>` text: the z-index invariant
-   (`z-index 不变量` describe block) and the entrance transition (`.map-detail 进场 transition`).
+   (the "z-index invariant" describe block) and the entrance transition (the ".map-detail enter
+   transition" describe block).
 
    Correction: the opaque-panel background token
    this rule used to pin (`--panel-bg-solid`, a *global* New-UI token, src/styles/theme.css) is
    retired here. Its whole reason to exist — "the map-detail panel needs a fully OPAQUE
    background because `--panel-bg`/`--surface-1` are translucent glass and the map's grid dots
-   would bleed through" (SP8-P6 T10 history) — turned out to be a stale premise: this file's
+   would bleed through" — turned out to be a stale premise: this file's
    own Photos-local `--surface-1` (photos.scss:16/102) is a flat, fully opaque color in BOTH of
    Photos' own themes (see that file's own dark and is-light blocks for the exact values) — no
    alpha channel at all, so it was never actually translucent, and parity's own `.map-detail` rule
@@ -388,8 +415,9 @@ function onSpotOpenPhoto(assetId: string): void {
   display: inline-flex; align-items: center; justify-content: center;
   /* theme-exception: same as .close — hero chrome button, fixed dark background */
   background: rgba(0, 0, 0, 0.6);
-  /* 评审 I1:精确复刻 Vue2 内联样式 backdropFilter:'blur(8px)'(PhotosPlacesView.vue:1068)——
-     此前漏迁,补回毛玻璃;非颜色属性,不涉及 color-guard。 */
+  /* Precisely replicates Vue2's inline style backdropFilter: 'blur(8px)'
+     (PhotosPlacesView.vue:1068) — this frosted-glass effect was missed in an earlier port and
+     is restored here; it's not a color property, so it doesn't involve the color-guard. */
   backdrop-filter: blur(8px);
   border: none;
   border-radius: 50%;
@@ -416,7 +444,7 @@ function onSpotOpenPhoto(assetId: string): void {
 }
 
 /* New-UI addition, no Vue2/parity counterpart at all (Vue2 has no loading-skeleton concept
-   in this view) — stays local, single owner. Fix-1 item 6 (2026-08-16): `background` corrected
+   in this view) — stays local, single owner. `background` was corrected
    from the global `--skeleton-bg` (only follows the app-wide `[data-theme]` attribute) to local
    `--surface-2` (photos.scss, correctly shadowed under `.photos-root.is-light`) — same bug
    class as `.map-detail`'s own fix above. `border-radius` is unrelated (structural, not color;
@@ -426,8 +454,8 @@ function onSpotOpenPhoto(assetId: string): void {
   border-radius: var(--radius-sm);
   background: var(--surface-2);
 }
-/* .btn.btn-primary:hover survives because PlaceDetailPanel.test.ts's `hover 态背景不被基类
-   规则夺走` block regex-matches this exact compound-selector text
+/* .btn.btn-primary:hover survives because PlaceDetailPanel.test.ts's "hover-state background is
+   not stolen by the base-class rule" block regex-matches this exact compound-selector text
    (`.btn.btn-primary:hover { … background …}`) directly against this file's own raw `<style>`
    source — parity's equivalent selector (a descendant form) doesn't satisfy that regex, so
    this rule cannot be deleted even though parity also declares the same state. Value
@@ -449,7 +477,7 @@ function onSpotOpenPhoto(assetId: string): void {
    text-transform/color/margin/line-height/display/align-items/justify-content) is deleted —
    it duplicated `photos-places.scss:675-682` using global `--fg-subtle` in place of
    Photos-local `--text-3`. `.detail-section h4 .more` survives *only* for its `cursor`
-   override: spec §7c-9 wants the spots-section `.more` non-clickable, but parity's own
+   override: the spots-section `.more` is meant to stay non-clickable, but parity's own
    `.detail-section h4 .more` (:683-687) sets `cursor: pointer` — a rule that reaches every
    `.more` on the page (not scoped-blocked), so an explicit override is required here, not
    optional, to actually cancel it (font-size/color/font-weight/text-transform/letter-spacing
@@ -470,7 +498,7 @@ function onSpotOpenPhoto(assetId: string): void {
 .detail-grid .ph.more:hover { background: var(--surface-3, #22222A); color: var(--text-1); }
 
 /* .spot-row:hover survives only for its own hover-lock pin (winningHoverBackground(['spot-row'])).
-   .spot-row .thumb survives only for its `background` — D3 ruling (same precedent as
+   .spot-row .thumb survives only for its `background` — a deliberate ruling (same precedent as
    PlacesRail.vue's `.rail-place .thumb`): Vue2 hardcodes this placeholder to solid black
    (theme-invariant), New-UI deliberately reshapes it to a theme-following surface instead of
    porting the literal. Everything else in the old `.spot-list`/`.spot-row`/`.thumb`/`.name`/
@@ -478,8 +506,8 @@ function onSpotOpenPhoto(assetId: string): void {
    tokens (`--chip-bg`/`--fg`/`--fg-subtle`/`--fg-muted`/`--num-font`) for Photos-local ones
    (`--surface-2`/`--text-1`/`--text-3`/`--text-2`, and Vue2's own `ui-monospace, monospace`
    font stack) that parity already gets right.
-   Fix-1 item 6 (2026-08-16): `.spot-row .thumb`'s `background` corrected from the global
-   `--chip-bg` to local `--surface-2` — same D3 "surface treatment is New-UI's to reshape"
+   `.spot-row .thumb`'s `background` was corrected from the global
+   `--chip-bg` to local `--surface-2` — same "surface treatment is New-UI's to reshape"
    ruling as before, but the reshape must land on a Photos-local, is-light-aware token, not a
    global one that only follows the app-wide theme. */
 .spot-row:hover { background: var(--surface-2); }

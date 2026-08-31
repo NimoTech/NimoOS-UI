@@ -1,4 +1,4 @@
-// Ported verbatim from the Vue 2 panel's src/utils/raidUtils.js (P4); the failure simulator survival()/rebuildable() is deferred.
+// Ported verbatim from the Vue 2 panel's src/utils/raidUtils.js; the failure simulator survival()/rebuildable() is deferred.
 // Migration scope: RAID_LEVELS (min/tolerance/read/write/cost/desc/usecase/capacity()/layout(), raidUtils.js:1-76),
 // recommendRaidLevel (raidUtils.js:158-166), isDiskAtRisk (raidUtils.js:108-110).
 // Mixed-spec group coloring (groupDisksBySpec L148-156 + assignGroupColors/GROUP_COLOR_COUNT L168-178) is reworked into

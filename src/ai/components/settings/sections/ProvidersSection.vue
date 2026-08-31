@@ -1,5 +1,5 @@
 <!--
-  SP8-P2a Task 10 — Port 1:1 from Vue2
+  Port 1:1 from Vue2
   `src/views/AI/Settings/sections/ProvidersSection.vue` (249 lines). Largest this sprint,
   three sections:
 

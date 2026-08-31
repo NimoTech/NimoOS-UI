@@ -1,4 +1,4 @@
-// 1:1 port from Vue2 src/views/AI/Agent/tabs/SystemTab.vue (56 lines). SP8-P1c2 Task 11.
+// 1:1 port from Vue2 src/views/AI/Agent/tabs/SystemTab.vue (56 lines).
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'

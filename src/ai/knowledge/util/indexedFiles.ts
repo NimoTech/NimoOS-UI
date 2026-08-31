@@ -1,10 +1,10 @@
-// SP8-P5a Task 6 —— 1:1 ported from Vue2
+// 1:1 ported from Vue2
 // the Vue 2 panel's `src/views/AI/Knowledge/indexedFiles.js` (main@7a6ee6b7).
 //
 // Original file has 5 pure functions (`buildListParams`/`rowStatusLabel`/`formatSize`/
-// `anyIndexing`/`rootsFromFolderRules`); T6 brief only names `buildListParams` and
+// `anyIndexing`/`rootsFromFolderRules`); the task brief only names `buildListParams` and
 // `anyIndexing` to port (needed by `indexedFiles` data flow and poll guard); others are
-// IndexedFilesView display-layer helpers, left for consumer task (P5b) to bring together
+// IndexedFilesView display-layer helpers, left for a later consumer task to bring together
 // into this file —— this file path per design §5.1 is shared `util/indexedFiles.ts`.
 
 /** Original :5-14 —— copy filters, discard keys with '' / null / undefined values. */

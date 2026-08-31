@@ -6,7 +6,7 @@ import zh from '../../../../i18n/zh_cn'
 import McpServerModal from './McpServerModal.vue'
 import type { McpServer } from '../../../types/mcpServer'
 
-// SP8-P4 Task 8 —— Align with Vue2 src/views/AI/MCP/McpServerModal.vue (216 lines).
+// Align with Vue2 src/views/AI/MCP/McpServerModal.vue (216 lines).
 // Mount technique consistent with ../skills/AddSkillModal.test.ts (same SkModal shell):
 // SkModal's DialogPortal defaults to portal to '.set-app', target element must exist in DOM
 // before component mount; open state focus uses setTimeout(fn, 0) (macrotask), pure microtask-level flush()

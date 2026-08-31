@@ -1,5 +1,5 @@
 <!--
-  SP8-P5a Task 5 — Knowledge base placeholder page (deviation K7).
+  Knowledge base placeholder page (deviation K7).
 
   Of the 9 child routes in the blueprint (Vue2), this batch lands only dashboard,
   the other 8 (search/wiki/notes/indexed-files/queue/roots/allowlist/settings) and

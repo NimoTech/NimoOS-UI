@@ -1,6 +1,6 @@
-// Plan C Task 1 (2026-08-20 people-suggestions-ui): service wrappers + store state for the
-// suggestion-confirmation UI. Mirrors people.test.ts's mocking/isolation conventions rather than
-// duplicating them wholesale — only the service methods this file's cases touch are mocked here.
+// Service wrappers + store state for the suggestion-confirmation UI. Mirrors
+// people.test.ts's mocking/isolation conventions rather than duplicating them
+// wholesale — only the service methods this file's cases touch are mocked here.
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 
@@ -52,7 +52,7 @@ function rawGroup(personOver: Record<string, unknown> = {}, suggestions: Array<R
   return { person: rawPerson(personOver), suggestions }
 }
 
-describe('photosPeople store — suggestions (Plan C Task 1)', () => {
+describe('photosPeople store — suggestions', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()

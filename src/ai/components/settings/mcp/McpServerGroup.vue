@@ -1,6 +1,6 @@
 <!--
-  SP8-P4 Task 5 — 1:1 ported from the Vue 2 panel's `src/views/AI/MCP/McpServerGroup.vue` (47 lines).
-  Structural twin is `../skills/SkillGroup.vue` (109 lines, SP8-P3a Task 4, already reviewed) —
+  1:1 ported from the Vue 2 panel's `src/views/AI/MCP/McpServerGroup.vue` (47 lines).
+  Structural twin is `../skills/SkillGroup.vue` (109 lines, already reviewed) —
   this file's `<script setup>` syntax and `.sk-group-*`/`.sk-item*` wrapper usage copied from it, no third pattern introduced.
 
   【Deviation from D3 (public constraint §3 #3)】Vue2 `:29`/`:4` `SkillIcon` not ported, unified to use

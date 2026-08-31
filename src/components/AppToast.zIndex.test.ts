@@ -16,7 +16,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { resolve, dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-// [SP8-P6-T3 merge] Stylesheet reads switched from `import.meta.glob(...'?raw')` to node:fs, and
+// Stylesheet reads switched from `import.meta.glob(...'?raw')` to node:fs, and
 // `.scss` was added.
 //
 // 🔴 Why the read method changed (worse than just "missed .scss"): vitest's CSSEnablerPlugin
@@ -83,7 +83,7 @@ const toastRaw = Object.entries(files).find(([p]) => relOf(p) === TOAST)?.[1] ??
 const toastZ = Math.max(...zIndexes(styleText(TOAST, toastRaw)))
 
 describe('Convention guard (THEMING.md §8): toasts must be above all modal scrims', () => {
-  // 🔴 Data-validity gate (added in SP8-P6-T3): the repo-wide assertion above becomes **vacuously
+  // 🔴 Data-validity gate (added after a regression): the repo-wide assertion above becomes **vacuously
   // true** whenever it reads empty content. This repo already spun idle once because of that
   // (css/scss via `?raw` were all empty strings; the guard only saw .vue yet stayed green).
   // This test pins "stylesheets were actually read, and z-index can actually be scanned", so

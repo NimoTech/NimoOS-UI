@@ -40,7 +40,7 @@ const emit = defineEmits<{
 }>()
 const { t } = useI18n()
 
-// SP8-P1b Task 9 — this PALETTES array is a generative, seed-indexed placeholder
+// This PALETTES array is a generative, seed-indexed placeholder
 // mosaic (matches VideoCard/ImageGridCard's exception; see tokens.scss header).
 const PALETTES = [
   ['#FF9A8B', '#FF6A88'], ['#A1C4FD', '#C2E9FB'],

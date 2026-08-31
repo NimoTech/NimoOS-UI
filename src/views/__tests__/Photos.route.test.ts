@@ -77,7 +77,7 @@ describe('/photos route', () => {
   // spot "View in Library" jumps now land here with `?libraryPlace=<city>` — this file must
   // seed the existing `places` EXIF facet from it once on mount, then strip the query key so
   // a later bare reload doesn't silently resurrect a filter the user may have since cleared.
-  it('?libraryPlace=<city> → 一次性写入 PhotosFilterBar 的 places 筛选,并清掉该 query 键', async () => {
+  it('?libraryPlace=<city> writes the PhotosFilterBar places filter once and clears the query key', async () => {
     const router = makeRouter()
     router.push('/photos?libraryPlace=Las%20Vegas')
     await router.isReady()
@@ -91,7 +91,7 @@ describe('/photos route', () => {
     w.unmount()
   })
 
-  it('没有 ?libraryPlace= → places 筛选保持空(不无中生有)', async () => {
+  it('without ?libraryPlace=, the places filter stays empty', async () => {
     const router = makeRouter()
     router.push('/photos')
     await router.isReady()

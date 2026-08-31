@@ -1,5 +1,5 @@
-// 1:1 ported from Vue2 src/views/AI/Agent/shell/AgentRightPanel.vue (80 lines). SP8-P1c2
-// Task 10 built the shell, Task 13 replaced the SystemTab/ResourcesTab placeholder divs
+// 1:1 ported from Vue2 src/views/AI/Agent/shell/AgentRightPanel.vue (80 lines).
+// An earlier pass built the shell, a later one replaced the SystemTab/ResourcesTab placeholder divs
 // with the real components.
 // Dumb component: props in, emit out, the parent (AgentPage) holds all state.
 //
@@ -147,7 +147,7 @@ describe('AgentRightPanel', () => {
     expect(w.emitted('commit-all')).toEqual([[]])
   })
 
-  // F1 (final-review opus pass) — the 7th emit, forwarded as-is to the parent (AgentPage).
+  // F1 (a later review pass) — the 7th emit, forwarded as-is to the parent (AgentPage).
   it('F1: the remove-resource-by-path emit from ResourcesTab is forwarded as-is', () => {
     const w = mountPanel({ tab: 'resources' })
     const rt = w.findComponent(ResourcesTab)
@@ -185,7 +185,7 @@ describe('AgentRightPanel', () => {
 
   // Task 13: with systemMetrics removed, props went from 12 down to 11.
   it('all 11 props have sensible defaults, mounting with empty props does not blow up', () => {
-    // F4 fix (final-review opus pass) — the original `expect(() => mountPanel()).not.toThrow()`
+    // F4 fix (a later review pass) — the original `expect(() => mountPanel()).not.toThrow()`
     // was a tautology: a synchronous mount never throws anyway, and an async rejection wouldn't
     // hit this assertion either, so it was removed. The real assertion below (the props count)
     // is kept.

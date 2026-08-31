@@ -122,8 +122,8 @@ export default defineConfig({
     environment: 'jsdom',
     env: { TZ: 'UTC' },
     globals: true,
-    // Claude Code's isolated worktrees appear under .claude/worktrees/ (each a full repo
-    // copy); without the exclusion, vitest recurses into them, runs other sessions' tests,
+    // Local tool state directories may hold isolated worktrees (each a full repo copy);
+    // without the exclusion, vitest recurses into them, runs another checkout's tests,
     // and fails en masse.
     // (Before this package was inlined, this also needed an extra symlink for the old external
     // service package to install dependencies — after inlining, `file:packages/service` is an in-repo relative

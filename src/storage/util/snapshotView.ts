@@ -1,4 +1,4 @@
-// Ported verbatim from the Vue 2 panel's src/service/snapshot.js (SP6-P5).
+// Ported verbatim from the Vue 2 panel's src/service/snapshot.js.
 // Not yet ported: snapshotBrowsePath / parseSnapshotBrowsePath / liveVolumePath / parseSnapshotName /
 // formatSnapshotBannerTime / findVolumeForPath — these belong to the Files-area snapshot browsing suite, to be migrated together with that phase (see the P5 plan ledger).
 

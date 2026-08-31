@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Task 12 (SP7-P5 people): PersonPlacesTab.vue — person detail page "places" tab
+// PersonPlacesTab.vue — person detail page "places" tab
 // (section title + mini world map + Top5 legend + all places card strip). Ported segment-by-segment from the Vue 2 panel
 // src/views/Photos/PhotosPersonDetail.vue:157-183 (entire v-if="tab === 'map'" block,
 // including :158-162 .detail-section / .detail-section-title title shell), :446
@@ -8,23 +8,23 @@
 // style segment follows photos-people.scss:724-739 (.detail-section / .detail-section-title /
 // .sub) and :570-645 (.map-card / .legend / .place-strip / .place-chip).
 //
-// Section title (coordinator decision, Task 12 fix, original submission left this shell blank): Vue2's
+// Section title: Vue2's
 // .detail-section-title sits in v-if="tab === 'map'" block, is this tab's own part
-// (T13's relations tab likewise, each has own section title), not container's responsibility — container only switches tabs.
+// (the relations tab likewise has its own section title), not container's responsibility — container only switches tabs.
 // New i18n keys photosPersonPlacesTitle ("{name} 去过的地方") / photosPersonPlacesSub
 // (subtitle), translations taken from old zh_CN.json, added to end of zh_cn.ts / en_us.ts.
 //
 // Pure display component: no store access, no requests, no emits — two pure functions (groupPlaces/colorPoints)
 // run in computed, rendering completes.
 //
-// Top5 vs all distinction (brief's emphasized key point, pinned by tests): legend lists only
+// Top5 vs all distinction (an important, deliberate design decision, pinned by tests): legend lists only
 // groups.value.slice(0, 5) (following Vue2 :170), card strip below lists groups.value fully
 // (following Vue2 :178) — both share same groupPlaces() result, only slicing range differs,
 // no re-grouping or re-sorting here.
 //
-// Intentional deviation from Vue2 (brief explicitly requires, not unintended): card strip count rendered with
+// Intentional deviation from Vue2 (not unintended): card strip count rendered with
 // t('photosPeoplePhotosCount', {n}) phrase (Vue2 :181 is bare `{{ pl.count }}`); legend count keeps bare number,
-// consistent with Vue2 :173 — two places deliberately different, brief's original only mentioned this for place-strip.
+// consistent with Vue2 :173 — two places deliberately different; the design spec originally only called this out for place-strip.
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import PhotosMiniMap from './PhotosMiniMap.vue'
@@ -37,7 +37,7 @@ const props = defineProps<{
 
 const { t } = useI18n()
 
-// Vue2 :541/:563 unknownLabel hardcodes 'Unknown'; pure function doesn't depend on i18n (brief iron law),
+// Vue2 :541/:563 unknownLabel hardcodes 'Unknown'; the pure function doesn't depend on i18n,
 // pass t()-resolved string here.
 const unknownLabel = computed(() => t('photosPersonUnknownPlace'))
 const groups = computed(() => groupPlaces(props.places, unknownLabel.value))
@@ -90,11 +90,11 @@ function legendPinStyle(color: string): Record<string, string> {
 </template>
 
 <style scoped>
-/* Task 5 (Plan D) shadowing cleanup: `.detail-section`, `.detail-section-title`(+`.sub`),
+/* Shadowing cleanup: `.detail-section`, `.detail-section-title`(+`.sub`),
    `.map-card`, `.legend`(+`.title`/`.row`/`.row .ct`), `.place-strip`, `.place-chip`(+`.nm`/
    `.ct`) all duplicated parity anchors under the same selector paths and have been deleted —
-   parity now governs directly with its own token set. See task-5-report.md's deviations table
-   for the resulting value changes (`.map-card`'s fixed 320px height survives unchanged since
+   parity now governs directly with its own token set
+   (`.map-card`'s fixed 320px height survives unchanged since
    parity has that exact value too — kept only where the geometry/behavior genuinely has no
    parity source, see below). */
 

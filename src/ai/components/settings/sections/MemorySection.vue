@@ -1,5 +1,5 @@
 <!--
-  SP8-P2b Task 6 — 1:1 port from Vue2 src/views/AI/Settings/sections/MemorySection.vue (159 lines).
+  1:1 port from Vue2 src/views/AI/Settings/sections/MemorySection.vue (159 lines).
 
   【D2 declaration】 State remains in component local (ref), direct call to service.ai —
   consistent with Vue2 attribution (Vue2 data() is component local state),

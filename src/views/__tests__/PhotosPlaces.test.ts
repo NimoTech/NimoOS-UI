@@ -1,12 +1,17 @@
-// PhotosPlaces.vue —— 容器,把地点·地图主视图相关的产物接成一个可用页面。逐条覆盖「必含测试清单」+ 6 处删码验证。
+// PhotosPlaces.vue — the container that wires the places/map main view's pieces into one
+// usable page. Covers the "required test checklist" item by item, plus 6 code-removal checks.
 //
-// 挂 Pinia + i18n + 真实 router(spy push 不需要,AreaShell/PhotosSidebar 都用 useRouter(),
-// 照 PhotosAlbums.test.ts/PhotosPeople.test.ts 的既有挂载套路),mock 共享包 photos 方法。
+// Mounts Pinia + i18n + a real router (a push spy isn't needed; AreaShell/PhotosSidebar both
+// use useRouter() — following PhotosAlbums.test.ts/PhotosPeople.test.ts's existing mounting
+// pattern), mocks the shared photos package methods.
 //
-// pick-pin/hover-pin 两个交互直接对 PlacesMap 子组件 `vm.$emit(...)`,不依赖 SVG 内部的
-// buildPins/clusterByOverlap 几何排布去反查某个具体图钉的 DOM 位置——那层几何已经在
-// PlacesMap.test.ts/placesMap.test.ts 各自的单测里覆盖过,这里只验证"容器收到 emit 之后
-// 接线是否正确",避免把聚类算法的实现细节耦合进这份集成测试里造成脆弱。
+// The pick-pin/hover-pin interactions emit directly on the PlacesMap child component via
+// `vm.$emit(...)`, rather than reverse-engineering a specific pin's DOM position from the SVG's
+// internal buildPins/clusterByOverlap geometry layout — that geometry layer is already covered
+// by PlacesMap.test.ts/placesMap.test.ts's own unit tests; this file only verifies "did the
+// container wire things up correctly once it received the emit," to avoid coupling the
+// clustering algorithm's implementation details into this integration test and making it
+// brittle.
 import { readFileSync } from 'node:fs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DOMWrapper, flushPromises, mount } from '@vue/test-utils'
@@ -26,7 +31,7 @@ const svc = vi.hoisted(() => ({
     resetSpotName: vi.fn().mockResolvedValue(undefined),
     createPlaceAlbum: vi.fn().mockResolvedValue({ albumId: 'al1', name: 'x', count: 1 }),
     placeCoverCandidates: vi.fn().mockResolvedValue({ tabs: [], items: [], page: 0, totalPages: 1, total: 0 }),
-    // ── P6b-T8: PhotoLightbox 挂载 + useLightbox.openAt() 链路需要(D9)。 ──
+    // ── Needed for the PhotoLightbox mount + useLightbox.openAt() chain (D9). ──
     getAsset: vi.fn().mockResolvedValue({}),
     getAssetOcr: vi.fn().mockResolvedValue({ lines: [] }),
     recordView: vi.fn().mockResolvedValue(undefined),
@@ -37,7 +42,8 @@ const svc = vi.hoisted(() => ({
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 
-// jsdom 无媒体栈(PhotoLightbox 挂载即引用,同 PhotosPersonDetail.test.ts 前置)。
+// jsdom has no media stack (referenced as soon as PhotoLightbox mounts, same prerequisite as
+// PhotosPersonDetail.test.ts).
 ;(HTMLMediaElement.prototype as unknown as { play: () => Promise<void> }).play = vi.fn(() => Promise.resolve())
 ;(HTMLMediaElement.prototype as unknown as { pause: () => void }).pause = vi.fn()
 
@@ -70,7 +76,7 @@ function makeRouter() {
   })
 }
 
-// Fix-1 item 5 fallout fix (2026-08-16): `createAlbum()` now fires a real
+// Fallout fix: `createAlbum()` now fires a real
 // `usePhotosToast().show()` — unlike the generic Pinia-scoped `useToast()` this replaced,
 // `usePhotosToast()`'s underlying `toasts` ref is a true module-level singleton, shared by
 // EVERY `mountView()` call in this file. None of this file's ~40+ `mountView()` calls were
@@ -97,10 +103,12 @@ async function mountView() {
   return { w, router }
 }
 
-// ── 地点原始(后端)fixture ──────────────────────────────────────────────────
-// TOKYO(9990)+PARIS(2345)+CLUSTER_A(5)+CLUSTER_B(5) = 12345,专为「toLocaleString 千分位」
-// 用例凑的总数;CLUSTER_A/CLUSTER_B 坐标极近(同 PlacesMap.test.ts 的既有先例),用于
-// zoomToCluster 集成场景下 splitScaleFor 有真实可裂的两个成员。
+// ── raw (backend) places fixture ──────────────────────────────────────────────
+// TOKYO(9990)+PARIS(2345)+CLUSTER_A(5)+CLUSTER_B(5) = 12345, a total assembled specifically for
+// the "toLocaleString thousands separator" test case; CLUSTER_A/CLUSTER_B's coordinates are
+// extremely close together (same existing precedent as PlacesMap.test.ts), used so that
+// splitScaleFor has two members that can genuinely be split apart under the zoomToCluster
+// integration scenario.
 const TOKYO = { key: 1, region: 'asia', country: 'Japan', city: 'Tokyo', lon: 139.7, lat: 35.7, count: 9990, recent: false, last: 'Jan 5, 2026', trips: 2, home: false, thumbs: ['t1'], coverAssetId: '' }
 const PARIS = { key: 2, region: 'europe', country: 'France', city: 'Paris', lon: 2.35, lat: 48.85, count: 2345, recent: true, last: 'Jun 10, 2026', trips: 1, home: false, thumbs: ['t2'], coverAssetId: 'p2' }
 const CLUSTER_A = { key: 3, region: 'americas', country: 'X', city: 'Cluster A', lon: 10, lat: 10, count: 5, recent: false, last: 'Feb 1, 2026', trips: 1, home: false, thumbs: [], coverAssetId: '' }
@@ -116,8 +124,9 @@ function okListPlaces() {
   return Promise.resolve({ places: RAW_PLACES, regions: REGIONS, stats: { cities: 4, countries: 3, photos: 12345 } })
 }
 
-// ---- 假 requestAnimationFrame:收集回调,手动以任意大的 now 一次性 flush 到动画终点
-// (同 usePlacesView.test.ts 的既有先例,不用 vi.useFakeTimers() 驱动)。----
+// ---- Fake requestAnimationFrame: collect callbacks, then manually flush them all at once
+// with an arbitrarily large `now` to jump straight to the animation's end (same existing
+// precedent as usePlacesView.test.ts — not driven by vi.useFakeTimers()). ----
 let rafCallbacks: FrameRequestCallback[]
 beforeEach(() => {
   localStorage.clear()
@@ -138,14 +147,14 @@ beforeEach(() => {
   svc.photos.createPlaceAlbum.mockReset().mockResolvedValue({ albumId: 'al1', name: 'x', count: 1 })
   svc.photos.placeCoverCandidates.mockReset().mockResolvedValue({ tabs: [], items: [], page: 0, totalPages: 1, total: 0 })
   useLightbox().__resetForTest()
-  // Fix-1 item 5: usePhotosToast() is a module-level singleton (same pattern as
+  // usePhotosToast() is a module-level singleton (same pattern as
   // useLightbox() above) — reset between tests so one test's queued toast doesn't leak
   // into the next test's assertions.
   usePhotosToast().__resetForTests()
 })
 afterEach(() => {
   vi.restoreAllMocks()
-  // Fix-1 item 5 fallout fix: actually unmount every wrapper `mountView()` created THIS test
+  // Actually unmount every wrapper `mountView()` created THIS test
   // (see that function's own comment for why this matters now) — must run before the
   // `document.body.innerHTML` wipe below, not after, so `.unmount()` gets a chance to tear
   // down each instance's own Teleport content cleanly first.
@@ -160,7 +169,8 @@ afterEach(() => {
 // through the page wrapper's own subtree (same PhotosToastHost.test.ts idiom).
 const body = () => new DOMWrapper(document.body)
 
-// 一次性把在途动画“瞬移”到终点(ease(k=1)):真实场景下 420ms 后必然到达,这里跳过等待。
+// Jump an in-flight animation straight to its end point (ease(k=1)) in one shot — in a real
+// scenario it would arrive after 420ms; here that wait is skipped.
 function flushAnim(): void {
   const cbs = rafCallbacks.splice(0)
   for (const cb of cbs) cb(performance.now() + 100000)
@@ -171,7 +181,7 @@ function flushAnim(): void {
 // main.main > PhotosTopbar + .photos-main` structure every other re-shelled Photos page uses
 // (PhotosPeople.vue/PhotosAlbums.vue's own precedent, PhotosPeople.test.ts's own re-shell test
 // as the style reference).
-describe('PhotosPlaces.vue —— 换壳(Plan E Task 1)', () => {
+describe('PhotosPlaces.vue re-shell', () => {
   it('mounts the app shell: .photos-root .app exists, PhotosTopbar title/sub, FilterMenu/ThemeMenu inside root, lightbox outside', async () => {
     const { w } = await mountView()
     expect(w.find('.photos-root .app').exists()).toBe(true)
@@ -189,7 +199,7 @@ describe('PhotosPlaces.vue —— 换壳(Plan E Task 1)', () => {
     expect(root.findComponent(PlacesFilterMenu).exists()).toBe(true)
     expect(root.findComponent(PlacesThemeMenu).exists()).toBe(true)
 
-    // Plan F Task 5 (2026-08-15): PhotoLightbox re-nested INSIDE .photos-root -- the re-skin
+    // PhotoLightbox re-nested INSIDE .photos-root -- the re-skin
     // (Tasks 3-4) removed the scoped-vs-parity cascade tie that made nesting unsafe (F8-r4).
     const rootEl = w.find('.photos-root').element
     const lbComp = w.findComponent({ name: 'PhotoLightbox' })
@@ -197,31 +207,34 @@ describe('PhotosPlaces.vue —— 换壳(Plan E Task 1)', () => {
   })
 })
 
-describe('首屏加载 + 自动选中', () => {
-  it('onMounted 调 fetchPlaces;加载完自动选中第一个地点', async () => {
+describe('first-screen load + auto-select', () => {
+  it('onMounted calls fetchPlaces; auto-selects the first place once loaded', async () => {
     const { w } = await mountView()
     expect(svc.photos.listPlaces).toHaveBeenCalledTimes(1)
     expect(w.findComponent(PlacesRail).props('activeId')).toBe('1')
     expect(w.findComponent(PlacesMap).props('activeId')).toBe('1')
   })
 
-  // P6b-T8 评审修复:hasDetailPanel 换真实状态后,首屏自动选中即让 activePlace 命中
-  // (place 存在即 hasPanel=true),原先假定"正中心"的数值不再成立——wrapEl 是真实 DOM
-  // 节点,jsdom 默认 getBoundingClientRect 恒返回全 0,`420/0=Infinity` 被
-  // `Math.min(0.55, …)` 钳到 0.55(不是 T8 新增的两条 usePlacesView 用例里手算的
-  // 0.42——那两条显式 mock 了 wrapEl 宽 1000)。tx 的换算随之改用 panelFrac=0.55 时的
-  // c.x=225;ty 公式不受影响(panelFrac 只改 x,见 usePlacesView.ts:98-99)。
-  it('自动选中后 autoPanTo 被调用,入参是第一个地点(TOKYO)——按 view 的 tx/ty/scale 精确核验', async () => {
+  // Review fix: now that hasDetailPanel reflects real state, the first-screen
+  // auto-selection makes activePlace hit immediately (a place existing means hasPanel=true),
+  // so the previously assumed "dead center" value no longer holds — wrapEl is a real DOM node,
+  // and jsdom's default getBoundingClientRect always returns all zeros, so `420/0=Infinity`
+  // gets clamped to 0.55 by `Math.min(0.55, …)` (not the 0.42 hand-computed in the two
+  // usePlacesView cases added by T8 — those two explicitly mock wrapEl's width as 1000).
+  // tx's conversion accordingly switches to c.x=225 for panelFrac=0.55; the ty formula is
+  // unaffected (panelFrac only changes x, see usePlacesView.ts:98-99).
+  it('after auto-select, autoPanTo is called with the first place (TOKYO) — verified precisely via view tx/ty/scale', async () => {
     const { w } = await mountView()
-    // autoPanTo → centerOn → animateView 已经同步排了一个 raf 回调,flush 它让缓动直接到终点。
+    // autoPanTo → centerOn → animateView has already synchronously queued a raf callback;
+    // flush it to take the easing straight to its end point.
     expect(rafCallbacks.length).toBeGreaterThan(0)
     flushAnim()
     await w.vm.$nextTick()
     const view = w.findComponent(PlacesMap).props('view') as { tx: number, ty: number, scale: number }
-    // centerOn(wx,wy,scale) 的换算:c = visibleCenterVb()(hasDetailPanel 此刻为真——首屏
-    // 自动选中的地点即是 activePlace;wrapEl 未 mock 宽度,panelFrac 钳到 0.55,
-    // c.x = 1000*(1-0.55)/2 = 225,c.y 仍是 MAP_H/2),scale = max(1, 1.8) = 1.8,
-    // tx = c.x - wx*scale,ty = c.y - wy*scale。
+    // centerOn(wx,wy,scale)'s conversion: c = visibleCenterVb() (hasDetailPanel is true at
+    // this point — the place auto-selected on first screen IS activePlace; wrapEl's width
+    // isn't mocked, so panelFrac clamps to 0.55, c.x = 1000*(1-0.55)/2 = 225, c.y is still
+    // MAP_H/2), scale = max(1, 1.8) = 1.8, tx = c.x - wx*scale, ty = c.y - wy*scale.
     const { x: wx, y: wy } = project(TOKYO.lon, TOKYO.lat)
     expect(view.scale).toBeCloseTo(1.8, 5)
     expect(view.tx).toBeCloseTo(225 - wx * 1.8, 3)
@@ -229,11 +242,11 @@ describe('首屏加载 + 自动选中', () => {
   })
 })
 
-describe('activeId 切换 → loadDetail(P6b 接缝守卫)', () => {
-  it('切换到另一个地点时 loadDetail 用解析出的后端 key 调用 getPlace', async () => {
+describe('activeId switch triggers loadDetail', () => {
+  it('switching to another place calls getPlace via loadDetail with the resolved backend key', async () => {
     const { w } = await mountView()
     await flushPromises()
-    expect(svc.photos.getPlace).toHaveBeenCalledWith(1) // 首屏自动选中 TOKYO(key=1)
+    expect(svc.photos.getPlace).toHaveBeenCalledWith(1) // first-screen auto-selects TOKYO (key=1)
     svc.photos.getPlace.mockClear()
 
     const pin: Pin = { id: '2', x: 0, y: 0, r: 10, hitR: 10, count: PARIS.count, city: PARIS.city, country: PARIS.country, thumbs: PARIS.thumbs, coverAssetId: PARIS.coverAssetId, recent: PARIS.recent, cluster: false, active: false }
@@ -244,21 +257,21 @@ describe('activeId 切换 → loadDetail(P6b 接缝守卫)', () => {
   })
 })
 
-describe('过滤联动:rail 与 map 收到同一份过滤后地点,rail 的搜索不影响 map', () => {
-  it('minCount=50 之后,rail 与 map 的 places 都从 4 个收窄到 2 个', async () => {
+describe('filter sync: rail and map receive the same filtered places; rail search does not affect map', () => {
+  it('after minCount=50, both rail and map places narrow from 4 to 2', async () => {
     const { w } = await mountView()
     expect(w.findComponent(PlacesRail).props('places')).toHaveLength(4)
     expect(w.findComponent(PlacesMap).props('places')).toHaveLength(4)
 
     await w.find('[data-test="pfm-chip"]').trigger('click')
     const btns = w.findAll('[data-test="pfm-mincount-btn"]')
-    await btns[2].trigger('click') // MIN_COUNT_STEPS = [0,10,50,100,200],下标 2 = 50
+    await btns[2].trigger('click') // MIN_COUNT_STEPS = [0,10,50,100,200], index 2 = 50
 
     expect(w.findComponent(PlacesRail).props('places')).toHaveLength(2)
     expect(w.findComponent(PlacesMap).props('places')).toHaveLength(2)
   })
 
-  it('rail 内部搜索词变化,map 的 places prop 不变(核 Vue2 :229/:237)', async () => {
+  it('changing the rail search term leaves map places prop unchanged', async () => {
     const { w } = await mountView()
     const before = w.findComponent(PlacesMap).props('places')
     await w.find('.map-search input').setValue('nonexistent-city-xyz')
@@ -267,28 +280,32 @@ describe('过滤联动:rail 与 map 收到同一份过滤后地点,rail 的搜�
     expect(w.findComponent(PlacesMap).props('places')).toHaveLength(4)
   })
 
-  // 评审 I3:rail 的空态分流靠容器传的 totalPlaces(未过滤全量)——筛选条件把
-  // filteredPlaces 收窄到零之后,totalPlaces 仍必须是全量长度,不能跟着筛选结果一起归零
-  // (否则 rail 会分流错分支,显示"还没有位置数据"而不是"没有符合当前筛选条件的城市")。
-  it('minCount + regionFilter 叠加收窄到零结果后,rail 收到的 totalPlaces 仍是全量长度(4)', async () => {
+  // Review I3: the rail's empty-state branching relies on the totalPlaces the container
+  // passes down (the unfiltered full count) — once the filter conditions narrow
+  // filteredPlaces to zero, totalPlaces must still be the full unfiltered length, it can't
+  // drop to zero along with the filtered result (otherwise the rail would branch into the
+  // wrong empty state, showing "no location data yet" instead of "no cities match the
+  // current filter").
+  it('after minCount + regionFilter narrow the result to zero, rail still receives the full totalPlaces (4)', async () => {
     const { w } = await mountView()
     await w.find('[data-test="pfm-chip"]').trigger('click')
     const btns = w.findAll('[data-test="pfm-mincount-btn"]')
-    // MIN_COUNT_STEPS = [0,10,50,100,200],下标 4 = 200:先把 CLUSTER_A/B(count=5)收窄掉,
-    // 留下 TOKYO(9990)/PARIS(2345)。
+    // MIN_COUNT_STEPS = [0,10,50,100,200], index 4 = 200: first narrows out CLUSTER_A/B
+    // (count=5), leaving TOKYO(9990)/PARIS(2345).
     await btns[4].trigger('click')
-    // 再叠加大洲筛选到 americas——TOKYO 是 asia、PARIS 是 europe,两者都不是 americas,
-    // 与上面的 minCount 条件取交集后四个 fixture 全部被过滤掉,filteredPlaces 归零。
+    // Then layers on a continent filter for americas — TOKYO is asia, PARIS is europe,
+    // neither is americas, so intersecting with the minCount condition above filters out all
+    // four fixtures, and filteredPlaces drops to zero.
     await w.find('[data-test="pfm-region-btn"][data-region-id="americas"]').trigger('click')
     expect(w.findComponent(PlacesRail).props('places')).toHaveLength(0)
     expect(w.findComponent(PlacesRail).props('totalPlaces')).toBe(4)
   })
 })
 
-describe('pick-pin 接线(Vue2 :736-743)', () => {
-  it('簇图钉 → zoomToCluster 被调(view.scale 变化,以 CLUSTER_A/B 两个真实成员驱动 splitScaleFor)', async () => {
+describe('pick-pin wiring', () => {
+  it('a cluster pin calls zoomToCluster (view.scale changes, driven by splitScaleFor with real CLUSTER_A/B members)', async () => {
     const { w } = await mountView()
-    flushAnim() // 先把首屏自动选中触发的那次缓动清空,避免混进下面的断言
+    flushAnim() // First flush the easing triggered by first-screen auto-selection, so it doesn't bleed into the assertions below
     await w.vm.$nextTick()
 
     const store = usePhotosPlaces()
@@ -305,15 +322,18 @@ describe('pick-pin 接线(Vue2 :736-743)', () => {
     await w.vm.$nextTick()
 
     const view = w.findComponent(PlacesMap).props('view') as { scale: number }
-    // 当前 scale 是 1(容器初始值,前一次 autoPan 已被上面 flushAnim 清空未产生新调用——
-    // 实际上此刻 view.scale 已经是 1.8,zoomToCluster 的目标是 max(currentScale+0.01, splitScaleFor(...))
-    // >= 1.81,断言"确实继续变大了"即可,不依赖 splitScaleFor 的具体数值(那是 T2/T7 自己的单测范围)。
+    // The current scale is not 1 (the container's initial value; the previous autoPan was
+    // already flushed above by flushAnim without producing a new call) — at this point
+    // view.scale is actually already 1.8, and zoomToCluster's target is
+    // max(currentScale+0.01, splitScaleFor(...)) >= 1.81, so it's enough to assert "it did
+    // keep getting bigger," without depending on splitScaleFor's exact value (that's T2/T7's
+    // own unit-test territory).
     expect(view.scale).toBeGreaterThan(1.8)
-    // activeId 不应该因为点了簇而改变(簇没有单一 id)。
+    // activeId shouldn't change just from clicking a cluster (a cluster has no single id).
     expect(w.findComponent(PlacesRail).props('activeId')).toBe('1')
   })
 
-  it('非簇图钉 → activeId 变成 pin.id', async () => {
+  it('a non-cluster pin sets activeId to pin.id', async () => {
     const { w } = await mountView()
     const pin: Pin = { id: '2', x: 0, y: 0, r: 10, hitR: 10, count: PARIS.count, city: PARIS.city, country: PARIS.country, thumbs: PARIS.thumbs, coverAssetId: PARIS.coverAssetId, recent: PARIS.recent, cluster: false, active: false }
     await w.findComponent(PlacesMap).vm.$emit('pick-pin', pin, new MouseEvent('click'))
@@ -322,7 +342,7 @@ describe('pick-pin 接线(Vue2 :736-743)', () => {
   })
 })
 
-describe('悬停卡片(Vue2 :1013-1028,tip 定位用显式 wrapEl,偏离登记 10)', () => {
+describe('hover card', () => {
   function mockCurrentTarget(): Element {
     const el = document.createElement('div')
     el.getBoundingClientRect = () => ({ left: 100, top: 200, right: 110, bottom: 210, width: 10, height: 10, x: 100, y: 200, toJSON: () => ({}) }) as DOMRect
@@ -332,8 +352,8 @@ describe('悬停卡片(Vue2 :1013-1028,tip 定位用显式 wrapEl,偏离登记 1
     return { id, x: 0, y: 0, r: 10, hitR: 10, count: raw.count, city: raw.city, country: raw.country, thumbs: raw.thumbs, coverAssetId: raw.coverAssetId, recent: raw.recent, cluster: false, active: false }
   }
 
-  it('hover 非选中地点 → tip 出现,文案含城市/国家/照片数', async () => {
-    const { w } = await mountView() // 首屏已自动选中 '1'(TOKYO)
+  it('hovering an unselected place shows the tip with city/country/photo count', async () => {
+    const { w } = await mountView() // first screen already auto-selected '1' (TOKYO)
     const ev = { currentTarget: mockCurrentTarget() } as unknown as MouseEvent
     await w.findComponent(PlacesMap).vm.$emit('hover-pin', pinFor(PARIS, '2'), ev)
     await w.vm.$nextTick()
@@ -341,18 +361,18 @@ describe('悬停卡片(Vue2 :1013-1028,tip 定位用显式 wrapEl,偏离登记 1
     expect(tip.exists()).toBe(true)
     expect(tip.text()).toContain('Paris')
     expect(tip.text()).toContain('France')
-    expect(tip.text()).toContain('2345 张照片') // photosPlacesPhotoCount({n: 2345}),不走 toLocaleString(照 Vue2 :1025)
+    expect(tip.text()).toContain('2345 张照片') // photosPlacesPhotoCount({n: 2345}), doesn't go through toLocaleString (per Vue2 :1025)
   })
 
-  it('hover 当前选中地点 → tip 不出现', async () => {
-    const { w } = await mountView() // activeId 已是 '1'
+  it('hovering the currently selected place shows no tip', async () => {
+    const { w } = await mountView() // activeId is already '1'
     const ev = { currentTarget: mockCurrentTarget() } as unknown as MouseEvent
     await w.findComponent(PlacesMap).vm.$emit('hover-pin', pinFor(TOKYO as unknown as typeof PARIS, '1'), ev)
     await w.vm.$nextTick()
     expect(w.find('[data-test="map-tip"]').exists()).toBe(false)
   })
 
-  it('hover-clear → tip 消失', async () => {
+  it('hover-clear hides the tip', async () => {
     const { w } = await mountView()
     const ev = { currentTarget: mockCurrentTarget() } as unknown as MouseEvent
     await w.findComponent(PlacesMap).vm.$emit('hover-pin', pinFor(PARIS, '2'), ev)
@@ -364,8 +384,8 @@ describe('悬停卡片(Vue2 :1013-1028,tip 定位用显式 wrapEl,偏离登记 1
   })
 })
 
-describe('图例 + 统计', () => {
-  it('图例四组齐备;第四组文案是 i18n 字典真实值「本次旅行」(brief 转述"当前行程"与字面值有出入,已回源确认);三个数字字面量都在', async () => {
+describe('legend + stats', () => {
+  it('legend has all 4 groups; the 4th group copy is the real i18n value "本次旅行"; all three numeric literals are present', async () => {
     const { w } = await mountView()
     const legend = w.find('[data-test="map-legend"]')
     expect(legend.findAll('.grp')).toHaveLength(4)
@@ -375,16 +395,18 @@ describe('图例 + 统计', () => {
     expect(legend.text()).toContain('本次旅行')
   })
 
-  it('统计三项;照片数走 toLocaleString(总数 12345 → 出现千分位 "12,345")', async () => {
+  it('stats has three items; photo count goes through toLocaleString (12345 → "12,345")', async () => {
     const { w } = await mountView()
     const stats = w.find('[data-test="map-stats"]')
     const values = stats.findAll('.v').map((n) => n.text())
     expect(values).toEqual(['4', '3', '12,345'])
   })
 
-  // 评审 M3:第四组绿色不能靠"恰好写在样式块后面"赢过基类 `.map-legend .dot`——两条选择器
-  // 的优先级必须真的不相等(第四组选择器多带一个 class),不依赖源码书写顺序。
-  it('第四组的选择器优先级真的高于基类 .map-legend .dot(不靠源码顺序苟活)', () => {
+  // The 4th group's green can't win over the base class `.map-legend .dot` merely
+  // by "happening to be written later in the style block" — the two selectors' specificity
+  // must genuinely differ (the 4th group's selector carries one extra class), independent of
+  // source-code ordering.
+  it('the 4th group selector genuinely outranks the base .map-legend .dot rule (not just source order)', () => {
     const rules = parseCssRules(extractStyleBlock(photosPlacesRaw))
     const classCount = (selector: string) => (selector.match(/\.[\w-]+/g) ?? []).length
     const base = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.map-legend .dot')
@@ -396,8 +418,8 @@ describe('图例 + 统计', () => {
   })
 })
 
-describe('加载失败态', () => {
-  it('fetchPlaces 失败 → 出现失败文案 + 重试按钮;点重试再调一次 fetchPlaces', async () => {
+describe('load failure state', () => {
+  it('fetchPlaces failure shows the failure copy + retry button; clicking retry calls fetchPlaces again', async () => {
     svc.photos.listPlaces.mockRejectedValueOnce(new Error('network down'))
     const { w } = await mountView()
     expect(w.find('[data-test="places-failed"]').exists()).toBe(true)
@@ -411,11 +433,13 @@ describe('加载失败态', () => {
     expect(w.find('[data-test="places-failed"]').exists()).toBe(false)
   })
 
-  // 评审 I4:Vue2 把"没有选中项就选 places[0]"放在 loadPlaces() 内部,所以每一次成功加载
-  // (不只是第一次)都会自动选中并 autoPan、触发 loadDetail。retryLoad 之前只调
-  // store.fetchPlaces(),漏了这一步——首屏失败、点重试后第二次成功,会出现"rail 列满
-  // 城市、地图画出图钉,但没有任何城市被选中"的落点不一致。
-  it('首次 fetchPlaces 失败 → 点重试 → 第二次成功后自动选中第一个地点并调用 loadDetail', async () => {
+  // Review I4: Vue2 puts "if nothing is selected, pick places[0]" inside loadPlaces() itself,
+  // so every successful load (not just the first) auto-selects, autoPans, and triggers
+  // loadDetail. retryLoad used to only call store.fetchPlaces() and missed this step —
+  // after a first-screen failure, clicking retry and succeeding the second time would leave
+  // an inconsistent end state: "the rail is full of cities, the map has drawn pins, but no
+  // city is selected."
+  it('after the first fetchPlaces fails, retrying and succeeding auto-selects the first place and calls loadDetail', async () => {
     svc.photos.listPlaces.mockRejectedValueOnce(new Error('network down'))
     const { w } = await mountView()
     expect(w.find('[data-test="places-failed"]').exists()).toBe(true)
@@ -426,39 +450,44 @@ describe('加载失败态', () => {
     await flushPromises()
 
     expect(w.find('[data-test="places-failed"]').exists()).toBe(false)
-    expect(w.findComponent(PlacesRail).props('activeId')).toBe('1') // TOKYO(key=1)是 fixture 里第一个
+    expect(w.findComponent(PlacesRail).props('activeId')).toBe('1') // TOKYO (key=1) is the first one in the fixture
     expect(svc.photos.getPlace).toHaveBeenCalledWith(1)
   })
 })
 
-// 评审 M2:失败态条件必须带 `attempted` 收紧,否则"还没请求过"(onMounted 的异步
-// fetchPlaces 尚未真正跑起来那一瞬)会被误判成"请求过且失败了"。
+// The failed-state condition must be tightened with `attempted`, otherwise
+// "hasn't been requested yet" (the instant before onMounted's async fetchPlaces has actually
+// started running) gets misjudged as "requested and failed."
 //
-// 排雷记录(TDD 过程中的真实教训,留着防止以后有人"优化"成 helper 又踩回去):这个用例
-// 起初把 `mount()` 包进一个 `async function mountFresh() { ...; return { w } }` 再
-// `await mountFresh()`,结果无论有没有修 M2 都测不出区别——原因是 async 函数 return 出的
-// Promise,哪怕函数体里再没有别的 await,await 它本身也一定会让出一次微任务;而
-// `attempted.value = true` 这行在 onMounted 里是**同步**执行的(它前面没有任何 await),
-// Vue 的响应式调度器早在 mount() 内部就把这次变化排进了微任务队列——那次多余的 await
-// 恰好把断言推到了"Vue 已经重渲染过一轮"之后,永远看不到真正的第一帧。改成不包 helper、
-// mount() 之后不打任何 await 就立刻断言,才是真的卡在第一帧上(已用 w.html() 手工核对过
-// 两种写法在"删掉 attempted 收紧"这个变异下的真实差异,见任务报告 M2 节)。
-describe('首帧门控(评审 M2:区分"还没请求过"与"请求过且失败了")', () => {
-  it('首帧(onMounted 的异步 fetchPlaces 尚未落地)显示骨架,不是失败态', async () => {
+// Debugging note (a real lesson learned during TDD, kept here so nobody "optimizes" this into
+// a helper and falls back into the same trap): this test case originally wrapped `mount()`
+// inside an `async function mountFresh() { ...; return { w } }` and then did
+// `await mountFresh()`, and the result was that it couldn't tell the difference whether M2 was
+// fixed or not — because the Promise an async function returns will always yield one
+// microtask when awaited, even with no other await left in the function body; and the line
+// `attempted.value = true` inside onMounted runs **synchronously** (there's no await before
+// it), so Vue's reactivity scheduler had already queued that change into the microtask queue
+// from inside mount() itself — that one extra await happened to push the assertion to after
+// "Vue has already re-rendered once," so the actual first frame was never visible. Switching
+// to not wrapping a helper, and asserting immediately with no await at all after mount(), is
+// what actually catches the first frame (manually cross-checked both versions' real
+// difference under the "delete the `attempted` tightening" mutation using w.html()).
+describe('first-frame gating: distinguishes "not requested yet" from "requested and failed"', () => {
+  it('the first frame (before onMounted\'s async fetchPlaces resolves) shows the skeleton, not the failure state', async () => {
     const router = makeRouter()
     router.push('/photos/places')
-    await router.isReady() // 这个 await 在 mount() 之前,不影响下面要卡住的那一帧
+    await router.isReady() // this await is before mount(), so it doesn't affect the frame we're trying to catch below
     const w = mount(PhotosPlaces, { global: { plugins: [i18n, router] } })
-    // mount() 之后立刻断言,中间不能有任何 await——见上方注释。
+    // Assert immediately after mount() — there must be no await in between, see the comment above.
     expect(w.find('[data-test="places-skeleton"]').exists()).toBe(true)
     expect(w.find('[data-test="places-failed"]').exists()).toBe(false)
   })
 })
 
-describe('pointer 手势透传(评审 I1:容器 ↔ composable 之间唯一没有断言保护的接线)', () => {
-  it('svg 上按下拖动 → PlacesMap 的 view.tx 跟着变(usePlacesView.ts:201-206 的位移换算)', async () => {
+describe('pointer gesture pass-through', () => {
+  it('dragging on the svg moves PlacesMap\'s view.tx (usePlacesView.ts offset conversion)', async () => {
     const { w } = await mountView()
-    flushAnim() // 先清空首屏自动选中触发的那次缓动,不让它混进 tx 的前后对比
+    flushAnim() // First flush the easing triggered by first-screen auto-selection, so it doesn't bleed into the tx before/after comparison
     await w.vm.$nextTick()
     const before = (w.findComponent(PlacesMap).props('view') as { tx: number }).tx
 
@@ -470,7 +499,7 @@ describe('pointer 手势透传(评审 I1:容器 ↔ composable 之间唯一没�
     expect(after).not.toBeCloseTo(before, 5)
   })
 
-  it('pointerup 之后再 pointermove 不再平移(drag 状态已清)', async () => {
+  it('pointermove after pointerup no longer pans (drag state already cleared)', async () => {
     const { w } = await mountView()
     flushAnim()
     await w.vm.$nextTick()
@@ -484,7 +513,7 @@ describe('pointer 手势透传(评审 I1:容器 ↔ composable 之间唯一没�
     expect(afterMove).toBeCloseTo(afterUp, 5)
   })
 
-  it('从图钉(.geo-pin)上按下不会平移地图(usePlacesView.ts:189-192 的 closest 守卫)', async () => {
+  it('pressing down on a pin (.geo-pin) does not pan the map (usePlacesView.ts closest guard)', async () => {
     const { w } = await mountView()
     flushAnim()
     await w.vm.$nextTick()
@@ -499,8 +528,8 @@ describe('pointer 手势透传(评审 I1:容器 ↔ composable 之间唯一没�
   })
 })
 
-describe('wheel 显式 addEventListener 注册(偏离登记 11-⑤)', () => {
-  it('svgEl.addEventListener("wheel", ..., { passive: false });卸载后 removeEventListener 被调', async () => {
+describe('wheel explicit addEventListener registration', () => {
+  it('svgEl.addEventListener("wheel", ..., { passive: false }); removeEventListener is called on unmount', async () => {
     const addSpy = vi.spyOn(SVGSVGElement.prototype, 'addEventListener')
     const removeSpy = vi.spyOn(SVGSVGElement.prototype, 'removeEventListener')
     const { w } = await mountView()
@@ -511,12 +540,12 @@ describe('wheel 显式 addEventListener 注册(偏离登记 11-⑤)', () => {
     w.unmount()
     const wheelRemoveCall = removeSpy.mock.calls.find((c) => c[0] === 'wheel')
     expect(wheelRemoveCall).toBeTruthy()
-    expect(wheelRemoveCall?.[1]).toBe(wheelCall?.[1]) // 摘的必须正好是挂的那同一个函数引用
+    expect(wheelRemoveCall?.[1]).toBe(wheelCall?.[1]) // the removed reference must be the exact same function reference that was added
   })
 })
 
-describe('两个弹层的 Esc 互不干扰(P5-T10 的 bug 形态)', () => {
-  it('Filters 与地图主题弹层同时打开,按一次 Esc 两个都关', async () => {
+describe('Esc handling for two popovers does not interfere with each other', () => {
+  it('with Filters and map theme popovers both open, one Esc closes both', async () => {
     const { w } = await mountView()
     await w.find('[data-test="pfm-chip"]').trigger('click')
     await w.find('[data-test="mtm-chip"]').trigger('click')
@@ -531,8 +560,8 @@ describe('两个弹层的 Esc 互不干扰(P5-T10 的 bug 形态)', () => {
   })
 })
 
-describe('地图主题弹层接线(评审 M1:分流逻辑是容器独有的决策,T1-T10 都没覆盖过)', () => {
-  it('点预设 → store.themePrefs.mapTheme 变,PlacesMap 的 themeVars.background 跟着变', async () => {
+describe('map theme popover wiring', () => {
+  it('picking a preset changes store.themePrefs.mapTheme, and PlacesMap\'s themeVars.background follows', async () => {
     const { w } = await mountView()
     const before = (w.findComponent(PlacesMap).props('themeVars') as { background: string }).background
 
@@ -545,7 +574,7 @@ describe('地图主题弹层接线(评审 M1:分流逻辑是容器独有的决�
     expect(after).not.toBe(before)
   })
 
-  it('改取色器 → mapTheme 落成 custom,customDotColor 落盘(不是无条件走 setMapTheme 把颜色丢了)', async () => {
+  it('changing the color picker sets mapTheme to custom and persists customDotColor', async () => {
     const { w } = await mountView()
     await w.find('[data-test="mtm-chip"]').trigger('click')
     const dotInput = w.find('[data-test="mtm-dot-input"]')
@@ -554,34 +583,39 @@ describe('地图主题弹层接线(评审 M1:分流逻辑是容器独有的决�
     const store = usePhotosPlaces()
     expect(store.themePrefs.mapTheme).toBe('custom')
     expect(store.themePrefs.customDotColor).toBe('#123456')
-    // 主题弹层的 selection prop 直连 store.themePrefs(消歧义 3:读永远走 store),这里顺带
-    // 验证回填也生效,不是"写完 store、界面读的却是旧值"的单向断link。
+    // The theme popover's selection prop connects directly to store.themePrefs
+    // (disambiguation 3: reads always go through the store) — this also verifies the
+    // read-back actually works, not just a one-way link where "the store gets written but
+    // the UI still reads the old value."
     expect(w.findComponent(PlacesThemeMenu).props('selection')).toMatchObject({ mapTheme: 'custom', customDotColor: '#123456' })
   })
 })
 
-describe('.map-toolbar 的 pointer-events 守卫(程序化断言,防重塑时丢掉导致拖不动地图)', () => {
-  it('pointer-events:none 与 > * 的 auto 都在样式块里', () => {
+describe('.map-toolbar pointer-events guard', () => {
+  it('both pointer-events:none and the > * auto rule are present in the style block', () => {
     const style = extractStyleBlock(photosPlacesRaw)
     expect(/\.map-toolbar\s*\{[^}]*pointer-events:\s*none/.test(style)).toBe(true)
     expect(/\.map-toolbar\s*>\s*\*\s*\{[^}]*pointer-events:\s*auto/.test(style)).toBe(true)
   })
 })
 
-// 真机验收反馈 2:「filter 弹窗会挡住地图缩放的那个 +- 条」——Vue2 把 .map-toolbar 与
-// .map-zoombar 都设成 z-index:4,toolbar 自成层叠上下文致内部弹层的 z-index:30 跨不过
-// 同级的 zoombar,DOM 顺序又让 zoombar 排在 toolbar 之后,于是缩放条画在 Filters/主题
-// 弹层上面(见 .map-toolbar 上方登记)。这里钉的是"工具栏在这些浮层之上"这条不变量本身
-// (toolbar z-index 严格大于 legend/stats/tip 与 zoombar 里的最大值),不是写死数值 7——
-// 任何等效的层级调整都放行,把 toolbar 降回 4 就会红。
+// On-device bug report: "the filter popover gets covered by the map zoom +/-
+// bar" — Vue2 sets both .map-toolbar and .map-zoombar to z-index:4; the toolbar forms its own
+// stacking context, so its inner popover's z-index:30 can't climb over the sibling zoombar,
+// and DOM order puts the zoombar after the toolbar, so the zoom bar ends up painted on top of
+// the Filters/theme popovers (see the note above .map-toolbar). What this pins down is the
+// invariant itself — "the toolbar sits above these overlays" (the toolbar's z-index is
+// strictly greater than the max of legend/stats/tip and the zoombar) — not a hardcoded value
+// of 7; any equivalent stacking adjustment is fine, and dropping the toolbar back to 4 will
+// fail this test.
 //
-// Plan E Task 3 update(shadowing cleanup): `.map-zoombar`'s z-index used to live in
+// Update (shadowing cleanup): `.map-zoombar`'s z-index used to live in
 // PlacesZoomBar.vue's own `<style scoped>` block; that whole block has since been deleted
 // (parity governs 100% of `.map-zoombar` now, and this component no longer carries a
 // `<style>` tag at all — `extractStyleBlock` would throw "未找到样式块" on it). Read the
 // same rule from the shared parity stylesheet instead, which is now the *only* place this
 // value lives — same source of truth the app itself renders from.
-describe('.map-toolbar 层叠顺序守卫(真机验收反馈 2:弹层不应被缩放条穿透)', () => {
+describe('.map-toolbar stacking-order guard', () => {
   function zIndexOf(rules: ReturnType<typeof parseCssRules>, selector: string): number {
     const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === selector)
     if (!rule) throw new Error(`未找到规则:${selector}`)
@@ -590,7 +624,7 @@ describe('.map-toolbar 层叠顺序守卫(真机验收反馈 2:弹层不应被�
     return Number(m[1])
   }
 
-  it('.map-toolbar 的 z-index 严格大于容器内其它浮层(.map-legend/.map-stats/.map-tip)与 parity 的 .map-zoombar', () => {
+  it('.map-toolbar z-index is strictly greater than the other overlays in the container (.map-legend/.map-stats/.map-tip) and parity\'s .map-zoombar', () => {
     const containerRules = parseCssRules(extractStyleBlock(photosPlacesRaw))
     const toolbarZ = zIndexOf(containerRules, '.map-toolbar')
     const othersInContainer = ['.map-legend', '.map-stats', '.map-tip'].map((s) => zIndexOf(containerRules, s))
@@ -607,37 +641,42 @@ describe('.map-toolbar 层叠顺序守卫(真机验收反馈 2:弹层不应被�
   })
 })
 
-describe('路由 + 侧栏(只追加,不重排)', () => {
-  // SP7-P7a-T4:NAV 新增 smart-views,插在 places 之后、favorites 之前——回归更新
-  // (PhotosSidebar.vue 改动的必然连带,不在本文件所属任务范围内,顺手同步断言)。
-  // SP15-P2b Task 5:该条目的标签从「智能视图」改为「为你推荐」(id/route 不变,页面已
-  // 收窄成 Moments-only「为你推荐」页,智能相册迁进了 Albums)——同步更新第 5 项文案。
-  it('侧栏 NAV 顺序为 library, albums, people, places, smart-views, favorites, trash', async () => {
+describe('route + sidebar (append-only, no reorder)', () => {
+  // NAV adds smart-views, inserted after places and before favorites — a regression update
+  // (an inevitable side effect of a PhotosSidebar.vue change, not within this file's own
+  // task scope, just syncing the assertion along the way).
+  // This entry's label changes from "智能视图" to "为你推荐" (id/route unchanged; the page has
+  // since narrowed to a Moments-only "for you" page, and smart albums moved into Albums) —
+  // syncing item 5's copy along with it.
+  it('sidebar NAV order is library, albums, people, places, smart-views, favorites, trash', async () => {
     const { w } = await mountView()
-    // Task 3(壳 + 侧栏重刻)把导航项类名从 `.side-item`/`.side-name` 换成 Vue2 的
-    // `.nav-item`(单个裸 <span> 装标签文字,没有专门的 name 子类——与 Vue2 源码一致)。
-    // 这里跟着改选择器,不是本文件所属任务的功能改动。
+    // Task 3 (shell + sidebar re-cut) changed the nav item's class names from
+    // `.side-item`/`.side-name` to Vue2's `.nav-item` (a single bare <span> holding the label
+    // text, with no dedicated name subclass — matching Vue2's own source). The selector is
+    // updated to follow along here — not a functional change within this file's own task scope.
     const ids = w.findAll('.nav-item').map((n) => n.text())
-    // 侧栏渲染的是 i18n 标签文字,直接比对文案序列(与 photosLibrary/.../photosTrash 的
-    // zh_CN 字典值一一对应),不需要额外解析源码——这就是"侧栏真的按此顺序渲染"的直接证据。
+    // The sidebar renders i18n label text, so this compares the copy sequence directly
+    // (matching the zh_CN dictionary values for photosLibrary/.../photosTrash one for one) —
+    // no need to additionally parse the source; this IS the direct evidence that "the sidebar
+    // really does render in this order."
     expect(ids).toEqual(['照片库', '相册', '人物', '地点', '为你推荐', '收藏', '最近删除'])
   })
 })
 
 // ════════════════════════════════════════════════════════════════════════════
-// P6b-T8: 容器接线 —— 详情面板/封面弹层/spot/灯箱/相册 toast/跳库导航
+// Container wiring — detail panel / cover popover / spot / lightbox / album toast / jump-to-library navigation
 // ════════════════════════════════════════════════════════════════════════════
 
-describe('P6b-T8: 面板显隐', () => {
-  it('activeId 命中列表项 → PlaceDetailPanel 挂载;activeId=null → 卸载', async () => {
-    const { w } = await mountView() // 首屏已自动选中 TOKYO
+describe('detail panel visibility', () => {
+  it('activeId matching a list item mounts PlaceDetailPanel; activeId=null unmounts it', async () => {
+    const { w } = await mountView() // first screen already auto-selected TOKYO
     expect(w.findComponent(PlaceDetailPanel).exists()).toBe(true)
     await w.findComponent(PlacesRail).vm.$emit('pick', null)
     await w.vm.$nextTick()
     expect(w.findComponent(PlaceDetailPanel).exists()).toBe(false)
   })
 
-  it('点面板的 close → activeId 变 null 且 loadDetail(null) 被调', async () => {
+  it('clicking the panel close sets activeId to null and calls loadDetail(null)', async () => {
     const { w } = await mountView()
     const store = usePhotosPlaces()
     const loadDetailSpy = vi.spyOn(store, 'loadDetail')
@@ -656,9 +695,9 @@ describe('P6b-T8: 面板显隐', () => {
 // coverAssetId || (this.activeDetail.thumbs || [])[0] || ''`). Most places have no *explicit*
 // coverAssetId (only set once a user actually picks one via this same dialog) and fall back to
 // their first thumb for a cover — exactly the common case this bug always showed empty for.
-describe('Fix-1 item 2: 封面弹层头部缩略图跟随 activeDetail.thumbs[0] 兜底(照 Vue2 currentHero)', () => {
-  it('activeDetail.coverAssetId 为空但 thumbs 非空 → PlaceCoverPicker 的 current-asset-id 落到 thumbs[0]', async () => {
-    const { w } = await mountView() // 首屏已自动选中 TOKYO(id=1)
+describe('cover popover head thumbnail falls back to activeDetail.thumbs[0]', () => {
+  it('activeDetail.coverAssetId empty but thumbs non-empty → PlaceCoverPicker current-asset-id falls back to thumbs[0]', async () => {
+    const { w } = await mountView() // first screen already auto-selected TOKYO (id=1)
     const store = usePhotosPlaces()
     store.detail = {
       id: '1', city: 'Tokyo', country: 'Japan', count: 9990, trips: 2, home: false,
@@ -672,7 +711,7 @@ describe('Fix-1 item 2: 封面弹层头部缩略图跟随 activeDetail.thumbs[0]
     expect(w.findComponent(PlaceCoverPicker).props('currentAssetId')).toBe('fallback-thumb-1')
   })
 
-  it('activeDetail.coverAssetId 非空 → current-asset-id 优先用 coverAssetId,不落 thumbs[0]', async () => {
+  it('activeDetail.coverAssetId non-empty → current-asset-id prefers coverAssetId over thumbs[0]', async () => {
     const { w } = await mountView()
     const store = usePhotosPlaces()
     store.detail = {
@@ -688,11 +727,12 @@ describe('Fix-1 item 2: 封面弹层头部缩略图跟随 activeDetail.thumbs[0]
   })
 })
 
-describe('P6b-T8: 偏离登记 4 守卫(切城市后详情不认上一城市)', () => {
-  it('store.detail 是 B 城的、activeId 是 A 城 → 面板的 detail prop 为 null、place prop 是 A 城', async () => {
-    const { w } = await mountView() // activeId = '1'(TOKYO)
+describe('guard: detail does not retain the previous city after switching cities', () => {
+  it('store.detail is city B while activeId is city A → panel detail prop is null, place prop is city A', async () => {
+    const { w } = await mountView() // activeId = '1' (TOKYO)
     const store = usePhotosPlaces()
-    // 模拟"上一个城市(PARIS,id=2)的详情响应还没被新请求覆盖"这个竞态窗口。
+    // Simulate the race window where "the previous city's (PARIS, id=2) detail response
+    // hasn't been overwritten by the new request yet."
     store.detail = {
       id: '2', city: 'Paris', country: 'France', count: 1, trips: 1, home: false,
       coverAssetId: '', thumbs: [], spots: [], insights: [], visits: [], recent: [],
@@ -705,30 +745,31 @@ describe('P6b-T8: 偏离登记 4 守卫(切城市后详情不认上一城市)', 
   })
 })
 
-describe('P6b-T8: hasDetailPanel 真实化(P6a 接缝二 —— panelFrac 首次真正生效)', () => {
-  it('面板打开与关闭时,同一 setScale 调用的落点不同(wrapEl 宽 1000 → panelFrac=0.42 → 中心 x=290 而非 500)', async () => {
-    const { w } = await mountView() // 首屏已自动选中 TOKYO,hasPanel = true
+describe('hasDetailPanel becomes real (panelFrac actually takes effect)', () => {
+  it('the same setScale call lands differently with the panel open vs. closed (wrapEl width 1000 → panelFrac=0.42 → center x=290, not 500)', async () => {
+    const { w } = await mountView() // first screen already auto-selected TOKYO, hasPanel = true
     flushAnim()
     await w.vm.$nextTick()
 
-    // 钉住 wrapEl 宽度,让 panelFrac 落在未钳制区间(与 usePlacesView.test.ts 的既定 mock
-    // 值 1000 一致),而不是 jsdom 默认 0 宽度被钳到的 0.55。
+    // Pin wrapEl's width so panelFrac lands in the unclamped range (matching
+    // usePlacesView.test.ts's own established mock value of 1000), instead of jsdom's default
+    // 0 width getting clamped to 0.55.
     const wrap = w.find('.map-canvas-wrap').element as HTMLElement
     wrap.getBoundingClientRect = () => ({ width: 1000, height: 500, left: 0, top: 0, right: 1000, bottom: 500, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect
 
-    // 面板打开态:先 reset 到已知基线(tx=0,ty=0,scale=1),再 setScale(4)。
+    // Panel-open state: first reset to a known baseline (tx=0, ty=0, scale=1), then setScale(4).
     await w.findComponent(PlacesZoomBar).vm.$emit('reset')
     flushAnim()
     await w.vm.$nextTick()
     await w.findComponent(PlacesZoomBar).vm.$emit('set-scale', 4)
     await w.vm.$nextTick()
     const txOpen = (w.findComponent(PlacesMap).props('view') as { tx: number }).tx
-    // 手算:panelFrac = min(0.55, 420/1000) = 0.42 → c.x = 1000*(1-0.42)/2 = 290。
-    // applyZoom(4, 290, 250) 从 {tx:0,ty:0,scale:1}:wx=(290-0)/1=290,
-    // tx_new = 290 - 290*4 = -870。
+    // Hand-computed: panelFrac = min(0.55, 420/1000) = 0.42 → c.x = 1000*(1-0.42)/2 = 290.
+    // applyZoom(4, 290, 250) from {tx:0,ty:0,scale:1}: wx=(290-0)/1=290,
+    // tx_new = 290 - 290*4 = -870.
     expect(txOpen).toBeCloseTo(290 - 290 * 4, 5)
 
-    // 面板关闭态:同一基线、同一 setScale(4),但 hasPanel = false → panelFrac = 0 → c.x=500。
+    // Panel-closed state: same baseline, same setScale(4), but hasPanel = false → panelFrac = 0 → c.x=500.
     await w.findComponent(PlaceDetailPanel).vm.$emit('close')
     await w.vm.$nextTick()
     expect(w.findComponent(PlaceDetailPanel).exists()).toBe(false)
@@ -744,8 +785,8 @@ describe('P6b-T8: hasDetailPanel 真实化(P6a 接缝二 —— panelFrac 首次
   })
 })
 
-describe('P6b-T8: 切城市重置封面/spot 状态(照 Vue2 :295-301)', () => {
-  it('打开封面弹层 + 选中 spot + 翻到第 2 页,再改 activeId → 全部复位', async () => {
+describe('switching cities resets cover/spot state', () => {
+  it('opening the cover popover + picking a spot + paging to 2, then changing activeId resets everything', async () => {
     const { w } = await mountView() // TOKYO
     const panel = w.findComponent(PlaceDetailPanel)
     await panel.vm.$emit('open-cover-picker')
@@ -758,7 +799,7 @@ describe('P6b-T8: 切城市重置封面/spot 状态(照 Vue2 :295-301)', () => {
     expect(w.findComponent(PlaceCoverPicker).props('page')).toBe(2)
     expect(w.findComponent(PlaceDetailPanel).props('activeSpotKey')).toBe('s1')
 
-    await w.findComponent(PlacesRail).vm.$emit('pick', '2') // 切到 PARIS
+    await w.findComponent(PlacesRail).vm.$emit('pick', '2') // switch to PARIS
     await w.vm.$nextTick()
 
     expect(w.findComponent(PlaceCoverPicker).props('open')).toBe(false)
@@ -769,8 +810,8 @@ describe('P6b-T8: 切城市重置封面/spot 状态(照 Vue2 :295-301)', () => {
   })
 })
 
-describe('P6b-T8: 封面候选拉取(前置条件 activeId && coverOpen,删码清单⑧)', () => {
-  it('openCoverPicker 拉一次;改 tab/搜索词/翻页各拉一次;coverOpen=false 时改 tab 不拉', async () => {
+describe('cover candidate fetching (precondition: activeId && coverOpen)', () => {
+  it('openCoverPicker fetches once; changing tab/search/page each fetch once; changing tab while coverOpen=false does not fetch', async () => {
     const { w } = await mountView()
     svc.photos.placeCoverCandidates.mockClear()
     const panel = w.findComponent(PlaceDetailPanel)
@@ -784,7 +825,7 @@ describe('P6b-T8: 封面候选拉取(前置条件 activeId && coverOpen,删码�
     await picker.vm.$emit('update:tab', 'top')
     await w.vm.$nextTick()
     expect(svc.photos.placeCoverCandidates).toHaveBeenCalledTimes(2)
-    expect(w.findComponent(PlaceCoverPicker).props('page')).toBe(0) // 改 tab → page 归 0
+    expect(w.findComponent(PlaceCoverPicker).props('page')).toBe(0) // changing tab resets page to 0
 
     await picker.vm.$emit('update:search', 'xyz')
     await w.vm.$nextTick()
@@ -794,9 +835,11 @@ describe('P6b-T8: 封面候选拉取(前置条件 activeId && coverOpen,删码�
     await w.vm.$nextTick()
     expect(svc.photos.placeCoverCandidates).toHaveBeenCalledTimes(4)
 
-    // 关闭弹层后改 tab 不应再拉——只通过弹层自己的 close 关闭 coverOpen(不碰 activeId,
-    // 否则 fetchCandidatesIfOpen 里的 `!activeId.value` 早退会掩盖 coverOpen 前置条件
-    // 本身有没有被真的删掉,删码验证会测不出差异)。
+    // Changing tab after the popover is closed shouldn't fetch again — close coverOpen only
+    // through the popover's own close (without touching activeId, otherwise
+    // fetchCandidatesIfOpen's `!activeId.value` early-return would mask whether the coverOpen
+    // precondition itself was actually removed, and the code-removal check couldn't tell the
+    // difference).
     await w.findComponent(PlaceCoverPicker).vm.$emit('close')
     await w.vm.$nextTick()
     svc.photos.placeCoverCandidates.mockClear()
@@ -806,8 +849,8 @@ describe('P6b-T8: 封面候选拉取(前置条件 activeId && coverOpen,删码�
   })
 })
 
-describe('P6b-T8: 封面提交', () => {
-  it('点 cell(pick)→ 弹层先关、setPlaceCover 被调;失败 → toast「封面更新失败」', async () => {
+describe('cover submission', () => {
+  it('clicking a cell (pick) closes the popover first and calls setPlaceCover; failure shows the "封面更新失败" toast', async () => {
     const { w } = await mountView()
     const toastStore = useToast()
     const showSpy = vi.spyOn(toastStore, 'show')
@@ -817,7 +860,7 @@ describe('P6b-T8: 封面提交', () => {
 
     await w.findComponent(PlaceCoverPicker).vm.$emit('pick', 'asset-9')
     await w.vm.$nextTick()
-    expect(w.findComponent(PlaceCoverPicker).props('open')).toBe(false) // 先关弹层
+    expect(w.findComponent(PlaceCoverPicker).props('open')).toBe(false) // popover closes first
     expect(svc.photos.setPlaceCover).toHaveBeenCalledWith(1, 'asset-9')
 
     svc.photos.setPlaceCover.mockRejectedValueOnce(new Error('boom'))
@@ -828,7 +871,7 @@ describe('P6b-T8: 封面提交', () => {
     expect(showSpy).toHaveBeenCalledWith('封面更新失败')
   })
 
-  it('reset 同形:弹层先关、resetPlaceCover 被调;失败 → toast「封面更新失败」', async () => {
+  it('reset follows the same shape: popover closes first, resetPlaceCover is called; failure shows the "封面更新失败" toast', async () => {
     const { w } = await mountView()
     const toastStore = useToast()
     const showSpy = vi.spyOn(toastStore, 'show')
@@ -849,15 +892,15 @@ describe('P6b-T8: 封面提交', () => {
   })
 })
 
-describe('P6b-T8: spot 三个动作', () => {
-  it('emit pick-spot → 面板收到的 activeSpotKey 是 String(spot.key)', async () => {
+describe('spot: three actions', () => {
+  it('emitting pick-spot gives the panel activeSpotKey as String(spot.key)', async () => {
     const { w } = await mountView()
     await w.findComponent(PlaceDetailPanel).vm.$emit('pick-spot', { key: 42, name: 'S', lon: 0, lat: 0, count: 1, thumb: '' })
     await w.vm.$nextTick()
     expect(w.findComponent(PlaceDetailPanel).props('activeSpotKey')).toBe('42')
   })
 
-  it('emit rename → setSpotName 被调且没有额外的 loadDetail(偏离 7 守卫)', async () => {
+  it('emitting rename calls setSpotName without an extra loadDetail', async () => {
     const { w } = await mountView()
     const store = usePhotosPlaces()
     await w.findComponent(PlaceDetailPanel).vm.$emit('pick-spot', { key: 's1', name: 'Old', lon: 0, lat: 0, count: 1, thumb: '' })
@@ -869,7 +912,7 @@ describe('P6b-T8: spot 三个动作', () => {
     expect(loadDetailSpy).not.toHaveBeenCalled()
   })
 
-  it('emit reset-name → resetSpotName 被调', async () => {
+  it('emitting reset-name calls resetSpotName', async () => {
     const { w } = await mountView()
     await w.findComponent(PlaceDetailPanel).vm.$emit('pick-spot', { key: 's1', name: 'Old', lon: 0, lat: 0, count: 1, thumb: '' })
     await w.vm.$nextTick()
@@ -878,7 +921,7 @@ describe('P6b-T8: spot 三个动作', () => {
     expect(svc.photos.resetSpotName).toHaveBeenCalledWith(1, 's1')
   })
 
-  it('rename/reset-name 失败各弹一次 toast', async () => {
+  it('rename/reset-name failure each shows one toast', async () => {
     const { w } = await mountView()
     const toastStore = useToast()
     const showSpy = vi.spyOn(toastStore, 'show')
@@ -898,15 +941,15 @@ describe('P6b-T8: spot 三个动作', () => {
   })
 })
 
-describe('P6b-T8: 相册与 toast', () => {
-  it('emit save-album → createPlaceAlbum 收到 { name: 城市名 }', async () => {
+describe('album + toast', () => {
+  it('emitting save-album calls createPlaceAlbum with { name: <city name> }', async () => {
     const { w } = await mountView() // TOKYO
     await w.findComponent(PlaceDetailPanel).vm.$emit('save-album')
     await flushPromises()
     expect(svc.photos.createPlaceAlbum).toHaveBeenCalledWith(1, { name: 'Tokyo', from: '', to: '' })
   })
 
-  it('emit save-trip → createPlaceAlbum 收到 `城市 · when` + from/to', async () => {
+  it('emitting save-trip calls createPlaceAlbum with `<city> · when` + from/to', async () => {
     const { w } = await mountView()
     await w.findComponent(PlaceDetailPanel).vm.$emit('save-trip', { when: '2026 春', from: '2026-01-01', to: '2026-01-10', current: false, days: 9, photos: 5, faces: [], spots: 2, thumbs: [] })
     await flushPromises()
@@ -918,7 +961,7 @@ describe('P6b-T8: 相册与 toast', () => {
   // other Places/library flow already uses) — see createAlbum()'s own comment in
   // PhotosPlaces.vue for the full account. These two tests replace (not merely rename) the
   // old `useToast()`-spying assertions below them.
-  it('成功 → photosToast 队列收到 icon:album + 文案含相册名与张数 + action,5000ms;点 action → router.push 到相册详情', async () => {
+  it('success queues a photosToast with icon:album + copy containing the album name and count + a 5000ms action; clicking the action pushes to the album detail route', async () => {
     svc.photos.createPlaceAlbum.mockResolvedValueOnce({ albumId: 'al-9', name: 'Tokyo', count: 3 })
     const { w, router } = await mountView()
     const photosToast = usePhotosToast()
@@ -943,7 +986,7 @@ describe('P6b-T8: 相册与 toast', () => {
     expect(genericShowSpy).not.toHaveBeenCalled()
   })
 
-  it('失败 → photosToast 队列收到失败文案;albumBusy 错误不弹 toast', async () => {
+  it('failure queues a photosToast with the failure copy; an albumBusy error does not toast', async () => {
     const { w } = await mountView()
     const photosToast = usePhotosToast()
 
@@ -961,8 +1004,8 @@ describe('P6b-T8: 相册与 toast', () => {
   })
 })
 
-describe('P6b-T8: 灯箱(D9)', () => {
-  it("emit open-photo('b', ['a','b','c']) → lb.openAt 收到的 list 长度 3、当前项 id 是 'b'", async () => {
+describe('lightbox', () => {
+  it("emit open-photo('b', ['a','b','c']) → lb.openAt receives a list of length 3, current item id is 'b'", async () => {
     const { w } = await mountView()
     const lb = useLightbox()
     await w.findComponent(PlaceDetailPanel).vm.$emit('open-photo', 'b', ['a', 'b', 'c'])
@@ -971,7 +1014,7 @@ describe('P6b-T8: 灯箱(D9)', () => {
     expect(lb.open.value).toBe(true)
   })
 
-  it("emit open-photo('x', []) → list 长度 1", async () => {
+  it("emit open-photo('x', []) → list length is 1", async () => {
     const { w } = await mountView()
     const lb = useLightbox()
     await w.findComponent(PlaceDetailPanel).vm.$emit('open-photo', 'x', [])
@@ -987,8 +1030,8 @@ describe('P6b-T8: 灯箱(D9)', () => {
 // `onPlacesOpenLibrary`/`onPlacesOpenSpot` city-level EXIF-facet jump (PhotosTimeline.vue:
 // 767-793). The old `/photos/places/:key` assertions below are replaced, not merely renamed —
 // this is a genuine navigation-target change, not a refactor.
-describe('Fix-1 item 4: 跳库导航改落到图书馆(带 ?libraryPlace= 城市名),不再落到独立地点页', () => {
-  it('emit open-library → router.push 到 /photos?libraryPlace=<city>(用地点的 city,不是 key/id)', async () => {
+describe('jump-to-library navigation now lands on the library (with ?libraryPlace=<city>) instead of the standalone place page', () => {
+  it('emitting open-library pushes to /photos?libraryPlace=<city> (using the place\'s city, not key/id)', async () => {
     const { w, router } = await mountView()
     const store = usePhotosPlaces()
     store.places.push({
@@ -1003,7 +1046,7 @@ describe('Fix-1 item 4: 跳库导航改落到图书馆(带 ?libraryPlace= 城市
     expect(pushSpy).toHaveBeenCalledWith({ path: '/photos', query: { libraryPlace: 'Weird City' } })
   })
 
-  it('emit open-spot-library → 同样落到 /photos?libraryPlace=<city>(spot 精度在图书馆现有筛选系统里无落点,降级成同城过滤,登记但非疏漏)+ activeSpotKey 被清空', async () => {
+  it('emitting open-spot-library also lands on /photos?libraryPlace=<city> (spot precision has no equivalent in the library\'s filter system, so it degrades to a same-city filter — a known tradeoff, not an oversight) and clears activeSpotKey', async () => {
     const { w, router } = await mountView()
     const store = usePhotosPlaces()
     store.places.push({
@@ -1031,8 +1074,8 @@ describe('Fix-1 item 4: 跳库导航改落到图书馆(带 ?libraryPlace= 城市
   })
 })
 
-describe('P6b-T8: 三浮层同开时一次 Esc 三者都关(P5-T10 的 bug 形态)', () => {
-  it('Filters + 主题 + 封面弹层同时打开,按一次 Esc 三者都关', async () => {
+describe('with three popovers open at once, one Esc closes all three', () => {
+  it('with Filters + theme + cover popovers all open, one Esc closes all three', async () => {
     const { w } = await mountView()
     await w.find('[data-test="pfm-chip"]').trigger('click')
     await w.find('[data-test="mtm-chip"]').trigger('click')

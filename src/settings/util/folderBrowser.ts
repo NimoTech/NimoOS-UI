@@ -16,7 +16,7 @@ export function dirEntries(content: FolderEntry[] | null | undefined): { name: s
 /** Root layer for the picker. Candidates come from the Wiki service (volumes backed by LocalStorage);
  *  when candidates are empty or unavailable, the picker must still work, so it falls back to
  *  NimoOS's fixed layout.
- *  ⚠️ The SP9-P4 snapshot is always empty → what you see on a real device is exactly these three fallback roots. */
+ *  ⚠️ The current snapshot is always empty → what you see on a real device is exactly these three fallback roots. */
 export function pickerRoots(candidates: FolderCandidate[] | null | undefined): PickerRoot[] {
   const cands = candidates || []
   if (cands.length) {

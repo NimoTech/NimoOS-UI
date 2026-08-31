@@ -1,24 +1,33 @@
 <script setup lang="ts">
-// EXIF/详情栏——移植自 the Vue 2 panel's src/views/Photos/PhotosLightbox.vue:74-149(<aside class="lb-info">)。
-// 纯展示组件:props { photo, visible },emits 无。
-// delta(见 task-7-brief.md):
-//   1) 删「交给 Nimo」/「Hand off to Nimo」按钮(Vue2 :84-87)——本组件不渲染任何 ask-nimo 交互。
-//      [Fix-2 item 2, owner acceptance 2026-08-16]:按钮已加回,见下方 `.give-nimo`/onGiveNimo ——
-//      这条 delta 只是历史记录,当前不再成立。
-//   2) tags/scene/faces 在 P2 时间线路径恒为空 → 对应段落整体隐藏(v-if 挡在外层 div 上),保留结构以便后续接入真实数据后无需改模板。
+// EXIF/details panel -- ported from the Vue 2 panel's src/views/Photos/PhotosLightbox.vue:74-149
+// (<aside class="lb-info">).
+// Pure presentational component: props { photo, visible }, no emits.
+// Delta from Vue2:
+//   1) Removed the "Hand off to Nimo" button (Vue2 :84-87) -- this component didn't render any
+//      ask-nimo interaction.
+//      Update: the button has since been added back, see `.give-nimo`/onGiveNimo below --
+//      this delta note is now historical only and no longer applies.
+//   2) tags/scene/faces are always empty on the timeline data path so far, so the corresponding
+//      sections are hidden entirely (v-if gates the outer div), keeping the structure so wiring
+//      up real data later won't require template changes.
 //
-// Task 15B(SP7-P5 两笔记账收口)人脸 chip 真头像 —— 前置事实纠正(task-15-brief.md):
-//   ① 后端没有 asset-scoped face-thumbnail 端点,全仓只有 person-scoped 的
-//      /v1/photos/persons/:id/face-thumbnail;② Vue2 灯箱本身也是首字母占位
-//      (PhotosLightbox.vue:128-129 的 `{{ f[0] }}`)——New-UI 此前(delta ② 的原描述)其实已经
-//      与 Vue2 1:1;③ 根因是 Photo.faces 只是人名字符串数组(assetToPhoto.ts:311/398),不带
-//      personId,且后端只在收藏列表接口填充这个字段。
-//   本任务做的是在不改后端前提下能做到的最好版本:用人名反查人物列表(usePhotosPeople)拿
-//   personId,唯一命中(resolvePersonByName)才用 PersonAvatar 显示真头像,否则保持首字母
-//   占位——这是超出 Vue2 的增强,登记为偏离;真正的正解(后端让 faces 带 personId,或新增
-//   asset-scoped 端点)记后端票,不在本任务范围。不加点击跳转(保持 Vue2 的非交互 chip)。
-//   顺带修正:占位首字母原来是裸 `f[0]`(未大写),改用 personInitial(f) 统一大写,对齐
-//   Vue2 peopleUtils.js 的 personInitial 语义。
+// Face-chip real avatars -- prerequisite fact correction:
+//   (1) The backend has no asset-scoped face-thumbnail endpoint, only the person-scoped
+//      /v1/photos/persons/:id/face-thumbnail; (2) the Vue2 lightbox itself also just shows an
+//      initial placeholder (PhotosLightbox.vue:128-129's `{{ f[0] }}`) -- New-UI's earlier delta
+//      note above was actually already 1:1 with Vue2; (3) the root cause is that Photo.faces is
+//      just an array of name strings (assetToPhoto.ts:311/398), carrying no personId, and the
+//      backend only populates this field on the favorites-list endpoint.
+//   What's implemented here is the best achievable version without changing the backend: look up
+//   the person list (usePhotosPeople) by name to get a personId, and only when there's a unique
+//   match (resolvePersonByName) show a real avatar via PersonAvatar, otherwise fall back to the
+//   initial placeholder -- this is an enhancement beyond Vue2 and is logged as a deviation; the
+//   real fix (backend adding personId to faces, or a new asset-scoped endpoint) is filed as a
+//   backend ticket, out of scope here. No click-through navigation is added (keeping Vue2's
+//   non-interactive chip).
+//   Incidental fix: the placeholder initial used to be the bare `f[0]` (not uppercased), now
+//   uses personInitial(f) to uppercase consistently, matching Vue2 peopleUtils.js's
+//   personInitial semantics.
 import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { copyText } from '../../files/util/clipboard'
@@ -33,7 +42,7 @@ const props = defineProps<{ photo: Photo | null; visible: boolean }>()
 
 const { t } = useI18n()
 
-// —— 相机/拍摄字段格式化(照 Vue2 :95-96 的 toFixed 规则) ——
+// —— Camera/capture field formatting (following Vue2 :95-96's toFixed rule) ——
 const apertureLabel = computed(() => {
   const a = props.photo?.aperture
   if (a == null || a === '') return null
@@ -51,17 +60,19 @@ const mapSrc = computed(() => hasLocation.value ? osmEmbedSrc(props.photo!.latit
 const faces = computed(() => (props.photo?.faces as string[] | undefined) ?? [])
 const tags = computed(() => (props.photo?.tags as string[] | undefined) ?? [])
 
-// —— Task 15B:人脸 chip 真头像(见头部注释的前置事实纠正与登记的偏离) ——
+// —— Face-chip real avatars (see the header comment's prerequisite fact correction and logged deviation) ——
 const people = usePhotosPeople()
-// 只拉一次(store 的 peopleLoaded 标志天然去重):faces 非空且尚未加载过才拉。失败时
-// peopleLoaded 留 false(people.ts 内部约定),下次开图 watch 会再触发一次重试。
+// Fetch only once (the store's peopleLoaded flag naturally dedupes): fetch only when faces is
+// non-empty and hasn't loaded yet. On failure peopleLoaded stays false (people.ts's own
+// convention), so the watch will trigger another retry the next time an image opens.
 watch(
   faces,
   (list) => { if (list.length > 0 && !people.peopleLoaded) void people.fetchPeople() },
   { immediate: true },
 )
-// 人名 → 唯一匹配的人物(重名/无匹配都是 null,退回首字母占位)。与 faces 一起渲染,
-// 随 people.people 到位后自动重新求值。
+// Name → the uniquely matching person (both duplicate names and no match yield null, falling
+// back to the initial placeholder). Rendered together with faces, automatically recomputed once
+// people.people is populated.
 const faceEntries = computed(() =>
   faces.value.map((f) => ({ name: f, person: resolvePersonByName(people.people, f) })),
 )
@@ -79,7 +90,7 @@ function onGiveNimo(): void {
   useAskNimo().openWith(t('photosHandOffToNimoPrompt', { title }))
 }
 
-// —— 复制文件路径 ——(HTTP 非安全上下文兜底走 src/files/util/clipboard.ts 既有 copyText)
+// —— Copy file path —— (falls back through the existing copyText in src/files/util/clipboard.ts for HTTP non-secure contexts)
 const justCopied = ref(false)
 let copiedTimer: ReturnType<typeof setTimeout> | null = null
 async function onCopyPath(): Promise<void> {
@@ -91,13 +102,13 @@ async function onCopyPath(): Promise<void> {
     if (copiedTimer) clearTimeout(copiedTimer)
     copiedTimer = setTimeout(() => { justCopied.value = false; copiedTimer = null }, 2000)
   } catch {
-    // 两条兜底路径都失败——静默忽略,不打断详情栏展示(与 Vue2 行为一致,未做 toast)
+    // Both fallback paths failed -- silently ignore, don't interrupt the info panel display (consistent with Vue2 behavior, no toast)
   }
 }
 </script>
 
 <template>
-  <!-- Plan F Task 3: root class renamed from the invented `.info-panel` to parity's real
+  <!-- Root class renamed from the invented `.info-panel` to parity's real
        anchor `.lb-info` (Vue2 PhotosLightbox.vue:74 `<aside class="lb-info scroll">`, parity
        photos.scss:677 `.photos-root .lb-info { grid-area: info; ... }`). This component is
        mounted as a direct child of PhotoLightbox's `.lightbox` grid (see that file's
@@ -106,21 +117,21 @@ async function onCopyPath(): Promise<void> {
        into this component's box model. -->
   <transition name="lb-info-slide">
   <aside v-if="visible && photo" class="lb-info">
-    <!-- Fix-2 item 2 (owner acceptance, 2026-08-16): "Hand off to Nimo" button, restored per Vue2
+    <!-- "Hand off to Nimo" button, restored per Vue2
          PhotosLightbox.vue:84-87. Positioned as the panel's first child (Vue2's own position: right
          after the title/subtitle header block, before the first info section -- this component
-         never rendered that header block at all, see Plan F Task 3's delta note in PhotoLightbox.vue,
-         so "first child of the panel" is the closest faithful placement without inventing new
-         header markup). `.give-nimo`'s CSS already existed in parity's stylesheet, unused, since
-         Plan F Task 5 (vue2-parity/photos.scss `.photos-root .give-nimo`) -- only the markup was
-         missing. `.nimo-orb`'s inline 16x16 size matches Vue2's own inline style byte-exact
-         (structural sizing, not a color -- not subject to the token-guard). -->
+         never rendered that header block at all, see the delta note in PhotoLightbox.vue,
+         so "first child of the panel" is the closest faithful placement without
+         inventing new header markup). `.give-nimo`'s CSS already existed in parity's stylesheet,
+         unused, since an earlier change (vue2-parity/photos.scss `.photos-root .give-nimo`) --
+         only the markup was missing. `.nimo-orb`'s inline 16x16 size matches Vue2's own inline
+         style byte-exact (structural sizing, not a color -- not subject to the token-guard). -->
     <button type="button" class="give-nimo" data-test="lb-give-nimo" @click="onGiveNimo">
       <span class="nimo-orb" style="width:16px;height:16px;flex:none"></span>
       {{ t('photosHandOffToNimo') }}
     </button>
 
-    <!-- 图片:相机与拍摄 -->
+    <!-- Image: camera & capture -->
     <div v-if="!photo.isVideo" class="info-section">
       <div class="info-label">{{ t('photosInfoCameraCapture') }}</div>
       <div v-if="photo.camera" class="info-row" data-field="camera"><span class="k">{{ t('photosFieldCamera') }}</span><span class="v">{{ photo.camera }}</span></div>
@@ -132,7 +143,7 @@ async function onCopyPath(): Promise<void> {
       <div v-if="photo.size" class="info-row" data-field="file-size"><span class="k">{{ t('photosFieldFileSize') }}</span><span class="v">{{ photo.size }}</span></div>
     </div>
 
-    <!-- 视频:编码/帧率/码率/旋转 -->
+    <!-- Video: codec/frame rate/bit rate/rotation -->
     <div v-if="photo.isVideo" class="info-section">
       <div class="info-label">{{ t('photosInfoVideo') }}</div>
       <div v-if="photo.duration" class="info-row" data-field="duration"><span class="k">{{ t('photosFieldDuration') }}</span><span class="v">{{ photo.duration }}</span></div>
@@ -145,7 +156,7 @@ async function onCopyPath(): Promise<void> {
       <div v-if="photo.size" class="info-row" data-field="file-size"><span class="k">{{ t('photosFieldFileSize') }}</span><span class="v">{{ photo.size }}</span></div>
     </div>
 
-    <!-- 位置:图片/视频共用 -->
+    <!-- Location: shared by image/video -->
     <div v-if="photo.place || photo.coords" class="info-section" data-section="location">
       <div class="info-label">{{ t('photosInfoLocation') }}</div>
       <div v-if="photo.place" class="info-row" data-field="place"><span class="k">{{ t('photosFieldPlace') }}</span><span class="v">{{ photo.place }}</span></div>
@@ -153,14 +164,15 @@ async function onCopyPath(): Promise<void> {
       <div v-if="hasLocation" class="map-mini">
         <iframe :src="mapSrc" title="map" loading="lazy"></iframe>
         <div class="map-pin"></div>
-        <!-- 自绘归属声明:OSM 自己那条页脚(Report a problem / Make a Donation /
-             Website and API terms)已被上下对称裁切挡掉(见 .map-mini iframe 的注释),
-             但 ODbL 要求保留署名,故在盒内右下补一条最小可读的 credit。 -->
+        <!-- Self-drawn attribution notice: OSM's own footer (Report a problem / Make a Donation /
+             Website and API terms) is clipped off by the symmetric top/bottom crop (see the
+             .map-mini iframe comment), but ODbL requires attribution to be kept, so a minimal
+             legible credit is added in the box's bottom-right corner. -->
         <div class="map-credit">© OpenStreetMap</div>
       </div>
     </div>
 
-    <!-- 人物(P2 时间线路径 faces 多为空,恒隐藏本段;有数据时渲染 chip,不引入 face-thumbnail) -->
+    <!-- People (faces is mostly empty on the timeline data path so far, so this section is always hidden; when data exists it renders chips, without introducing face-thumbnail) -->
     <div v-if="faces.length > 0" class="info-section" data-section="people">
       <div class="info-label">{{ t('photosInfoPeople') }} · {{ faces.length }}</div>
       <div class="face-row">
@@ -178,11 +190,11 @@ async function onCopyPath(): Promise<void> {
       </div>
     </div>
 
-    <!-- Nimo 识别(P2 时间线路径 tags/scene 恒空,隐藏本段;保留结构等后续接入) -->
+    <!-- Nimo recognition (tags/scene are always empty on the timeline data path so far, so this section is hidden; structure kept for later wiring) -->
     <div v-if="tags.length > 0" class="info-section" data-section="nimo-sees">
       <div class="info-label">{{ t('photosInfoNimoSees') }}<template v-if="photo.scene"> · {{ photo.scene }}</template></div>
       <div class="tag-row">
-        <!-- Plan F Task 3: renamed from the invented `.tag-chip` to parity's real anchor
+        <!-- Renamed from the invented `.tag-chip` to parity's real anchor
              `.tag[data-kind="ai"]` (Vue2 PhotosLightbox.vue:137, parity photos.scss:696-697).
              This section only ever renders Nimo-recognized tags (the "Nimo sees" section),
              so data-kind is unconditionally "ai", matching Vue2's own hard-coded value. -->
@@ -190,7 +202,7 @@ async function onCopyPath(): Promise<void> {
       </div>
     </div>
 
-    <!-- 文件路径 + 复制 -->
+    <!-- File path + copy -->
     <div class="info-section">
       <div class="info-label">{{ t('photosInfoFile') }}</div>
       <div class="path-row">
@@ -205,34 +217,35 @@ async function onCopyPath(): Promise<void> {
 </template>
 
 <style scoped>
-/* Plan F Task 5: the Task 3 "card look" deviation on `.lb-info` (border/border-radius/box-
+/* The earlier "card look" deviation on `.lb-info` (border/border-radius/box-
    shadow/backdrop-filter/background/padding/overflow-y, all self-contained so the panel stayed
    legible while rendering standalone outside `.photos-root`) is retired now that this component
    actually nests inside `.photos-root` -- parity's own `.photos-root .lb-info` (photos.scss:685-
    689: `grid-area: info; background: var(--surface-1); border-left: 1px solid var(--line);
    overflow-y: auto; padding: 18px 0;`) is a bare flush panel and now governs those properties
-   alone (this was the exact "revisit when Task 5 re-nests" flagged by that original comment).
+   alone (this was the exact "revisit once re-nested" flagged by that original comment).
    Layout structure with no parity counterpart survives: `max-width`/`box-sizing` (defensive floor
    for the narrow-screen media query below, which switches this element out of grid flow
    entirely) and `color` (parity never sets a base text color on the panel itself, each child sets
    its own).
 
-   I3 (final review, 2026-08-15): `display: flex; flex-direction: column; gap: 16px` here, plus
+   `display: flex; flex-direction: column; gap: 16px` here, plus
    `.info-section`'s own `display: flex; flex-direction: column; gap: 6px` below, were an
    unregistered pixel deviation -- Vue2 stacks `.info-section`s flush against each other (parity
    :690-691: `padding: 12px 20px; border-bottom: 1px solid var(--line)` is the ONLY spacing
    mechanism between sections, no gap layered on top). Both flex/flex-direction/gap declarations
    deleted so parity's flush, padding+border-driven stacking is what actually governs, matching
    Vue2's real vertical rhythm instead of an extra 16px/6px gap Vue2 never had. */
-/* Fix-2 item 4 (owner acceptance, 2026-08-16): `color: var(--fg)` was New-UI's *global* text
+/* `color: var(--fg)` was New-UI's *global* text
    token -- it only follows the app-wide `[data-theme]` attribute on `<html>`, not Photos' own
    PRIVATE light/dark toggle (`usePhotosTheme()`/`.photos-root.is-light`, see
    src/photos/composables/usePhotosTheme.ts). In the very common "Photos-light + app-global-dark"
-   combination this stayed white/washed-out on the now-near-white `.lb-info` panel -- the owner's
-   acceptance screenshot's "info panel text illegible" report. `--text-1` is this area's own
+   combination this stayed white/washed-out on the now-near-white `.lb-info` panel -- reported as
+   "info panel text illegible". `--text-1` is this area's own
    `.photos-root`/`.photos-root.is-light`-scoped token (vue2-parity/photos.scss), the one parity's
-   own `.info-title`/row text already uses -- same fix shape as the Places-area sweep this same day
-   (photosGlassSurfaces.test.ts's "Places 区不再消费全局玻璃/文本 token" describe block). */
+   own `.info-title`/row text already uses -- same fix shape as the Places-area sweep done the same
+   day (photosGlassSurfaces.test.ts's "Places area no longer consumes global glass/text tokens"
+   describe block). */
 .lb-info {
   max-width: 100%;
   box-sizing: border-box;
@@ -256,23 +269,27 @@ async function onCopyPath(): Promise<void> {
 .info-row .v { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* `.map-mini`'s `position`/`border-radius`/`overflow`/`height` collide with parity's
-   `.photos-root .map-mini` (height already matched byte-exact per the prior Task 4 fix, parity
+   `.photos-root .map-mini` (height already matched byte-exact per an earlier fix, parity
    additionally sets `margin-top`/`background`) -- retired; only the `border` survives (parity's
    own map area has none, but this component's border ring doesn't conflict with any parity
    property and isn't part of the "card look" being un-done above). New-UI addition, no Vue2
-   source (M6): Vue2's own `.map-mini` (PhotosLightbox.vue:119-122) has no border ring at all --
+   source: Vue2's own `.map-mini` (PhotosLightbox.vue:119-122) has no border ring at all --
    this is a New-UI-only visual accent with nothing to cite on the Vue2 side, kept because it
    doesn't collide with any parity-declared property. */
-/* Fix-2 item 4: `--card-border` (global) → `--line` (this area's own is-light-aware token),
+/* `--card-border` (global) → `--line` (this area's own is-light-aware token),
    same root cause as `.lb-info`'s color fix above. */
 .map-mini { border: 1px solid var(--line); }
-/* 用户 2026-07-31 验收要求:去掉 OSM 内嵌页自带的那条页脚文字
-   (Report a problem | © OpenStreetMap contributors ♥ Make a Donation. Website and API terms)。
-   iframe 是跨域的,内部元素无法用 CSS 隐藏,只能靠外层裁切;实测在 328px 宽处那条页脚会
-   折成两行占约 40px,故裁 48px 留余量(更窄/更宽处行数只会更少)。
-   **上下对称裁切**:iframe 比盒子高 2×48px 并上移 48px,让地图中心仍落在盒子中心 ——
-   若只加高不上移,OSM 自己的标记会掉到 .map-pin 下方错位(已用无头浏览器截图自查过对位)。
-   代价:内嵌页右上角的 +/- 缩放钮也一并被裁掉,小地图不再可缩放(可接受,它是位置示意图)。 */
+/* Removes OSM's own embedded-page footer text
+   (Report a problem | © OpenStreetMap contributors ♥ Make a Donation. Website and API terms).
+   The iframe is cross-origin, so internal elements can't be hidden via CSS -- only the outer crop
+   works; testing showed that at a 328px width the footer wraps to two lines taking about 40px, so
+   48px is cropped for margin (narrower/wider widths only need fewer lines).
+   **Symmetric top/bottom crop**: the iframe is 2×48px taller than the box and shifted up 48px, so
+   the map's center still lands on the box's center --
+   if only the height were increased without the shift, OSM's own marker would end up misaligned
+   below .map-pin (verified against headless-browser screenshots).
+   Trade-off: the embedded page's own +/- zoom buttons in the top-right corner get cropped off too,
+   so the mini-map is no longer zoomable (acceptable, since it's just a location indicator). */
 .map-mini iframe {
   position: absolute; left: 0; width: 100%; border: none; display: block;
   top: -48px; height: calc(100% + 96px);
@@ -281,17 +298,17 @@ async function onCopyPath(): Promise<void> {
   position: absolute; right: 6px; bottom: 4px; z-index: 1;
   font-size: 9px; line-height: 1.2; letter-spacing: .01em;
   pointer-events: none;
-  /* theme-exception: 归属声明压在任意地图瓦片上(颜色不可预测),固定浅色 + 深色投影保可读,皮肤无关 */
+  /* theme-exception: the attribution notice sits on top of arbitrary map tiles (unpredictable color), fixed light color + dark shadow keeps it legible, independent of the app theme */
   color: rgba(255, 255, 255, 0.72);
-  /* theme-exception: 同上,投影为固定暗色描边 */
+  /* theme-exception: same as above, the shadow is a fixed dark-color outline */
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65);
 }
-/* Plan F Task 5: `.map-pin` retired -- byte-duplicate anchor of parity's `.photos-root .map-pin`,
+/* `.map-pin` retired -- byte-duplicate anchor of parity's `.photos-root .map-pin`,
    which additionally corrects the anchor point (`transform: translate(-50%, -100%)`, a bottom-
    anchored teardrop pin vs this rule's centered dot) and size (14px vs 10px) to match Vue2's
    real pin exactly; nothing here survives that parity doesn't already cover. */
 
-/* Plan F Task 5: `.face-row`/`.tag-row` retired -- byte-duplicate of parity's own
+/* `.face-row`/`.tag-row` retired -- byte-duplicate of parity's own
    `.photos-root .face-row`/`.photos-root .tag-row` (display/flex-wrap/gap all collide; only the
    gap value differs, 8px here vs parity's 6px -- parity's now governs alone). */
 /* `.face-chip` retired -- collides with parity's `.photos-root .face-chip` on every property it
@@ -309,14 +326,14 @@ async function onCopyPath(): Promise<void> {
 /* `.tag[data-kind="ai"]`'s `background`/`color` collide with parity's own modifier (which
    additionally adds `border-color`) -- retired, nothing left to declare locally. */
 
-/* Plan F Task 5: `.path-row` retired -- byte-duplicate of parity's `.photos-root .path-row`
+/* `.path-row` retired -- byte-duplicate of parity's `.photos-root .path-row`
    (display/align-items/gap all collide, identical values too); parity additionally adds
    padding/border-radius/background/border/font/color -- a bonus "code chip" look this component
    never had, now inherited for free. `.path-text` has no parity counterpart (parity's own
    `.path-row` uses a bare text node + a `.open` action link, not a wrapper span) and survives
    unchanged; `.copy-btn` likewise shares no class name with parity's differently-named `.open`
    link, so there is no collision to resolve there either. */
-/* Fix-2 item 4: `.path-text`/`.copy-btn` swept the same way -- `--fg-muted`/`--fg`/
+/* `.path-text`/`.copy-btn` swept the same way -- `--fg-muted`/`--fg`/
    `--card-border`/`--chip-bg-hi` (global, app-theme-only) → `--text-2`/`--line`/`--surface-3`
    (this area's own is-light-aware tokens). */
 .path-text { flex: 1 1 auto; min-width: 0; font-size: 12px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -326,7 +343,7 @@ async function onCopyPath(): Promise<void> {
 }
 .copy-btn:hover { background: var(--surface-3); }
 
-/* 窄屏:桌面态右栏 → 底部浮层/全宽覆盖(独立浮层,不接 useSidebarDrawer——那是侧栏专用) */
+/* Narrow screens: desktop right rail → bottom overlay/full-width cover (its own standalone overlay, not hooked into useSidebarDrawer -- that one is sidebar-specific) */
 @media (max-width: 768px) {
   .lb-info {
     position: fixed; left: 0; right: 0; bottom: 0; top: auto;
@@ -336,8 +353,8 @@ async function onCopyPath(): Promise<void> {
   }
 }
 
-/* Fix-2 item 2 (owner acceptance, 2026-08-16): slide-in transition for the panel opening/closing
-   -- an owner-directed net addition, Vue2 has none (its `.lb-info` just appears/disappears with
+/* Slide-in transition for the panel opening/closing
+   -- a net addition, Vue2 has none (its `.lb-info` just appears/disappears with
    `v-if`, no `<transition>` wrapper at all). Kept tasteful and consistent with this lightbox's
    existing animation vocabulary: the house cubic-bezier(0.22, 0.61, 0.36, 1) easing (same curve as
    `.lb-swap-*`/`.lb-ocr-pulse` in vue2-parity/photos.scss), transform+opacity only (no layout

@@ -1,6 +1,6 @@
-// SP9(收尾视图:系统设置 / KVM / Search)文案分片。
-// 与 sp7/sp8 并行开发,分片可让三线几乎不在 i18n 上相撞(spec §4.2 / §9.3)。
-// 约定:扁平 key、值必须是字符串(parity.test.ts 断言 typeof v === 'string')。
+// SP9 (final-stretch views: System Settings / KVM / Search) copy slice.
+// Developed in parallel with sp7/sp8 — slicing keeps the three lines from colliding in i18n (spec §4.2 / §9.3).
+// Convention: flat keys, values must be strings (parity.test.ts asserts typeof v === 'string').
 export default {
   settingsTitle: '设置',
   settingsTabGeneral: '通用',
@@ -67,7 +67,7 @@ export default {
   settingsDownloadCancelled: '下载已取消',
   settingsDownloadCancelFailed: '取消下载失败',
   settingsUpgradeFailed: '升级过程中似乎出现了问题，请重试。',
-  // ── P1 电源流 ──
+  // ── P1 power flow ──
   settingsShutdown: '关机',
   settingsRestart: '重启',
   settingsShutdownConfirmTitle: '确认关机?',
@@ -105,8 +105,9 @@ export default {
   settingsHttpsCertFiles: '证书文件',
   settingsHttpsBothFiles: '请同时上传 PEM 和 CRT 文件。',
   settingsHttpsUploadFailed: '上传证书失败',
-  // ── P2 network ──(中文取自 Vue2 zh_CN.json 原译;标 🆕补译 的 9 条是 Vue2 全部 31 个
-  // 语言文件都缺、中文界面下显示英文原文、用户 2026-07-31 拍板补译的 → 授权偏离 #8)
+  // ── P2 network ── (Chinese text taken verbatim from the Vue2 zh_CN.json translation; the 9 lines
+  // tagged 🆕补译/newly-translated were missing from all 31 Vue2 language files — the Chinese UI showed the
+  // raw English fallback — and were translated per the decision confirmed with the user on 2026-07-31 → declared deviation #8)
   settingsNetConnection: '连接',                     // 🆕补译
   settingsNetEmpty: '未找到网络接口',                 // 🆕补译
   settingsNetLoading: '加载中...',                    // 🆕新增(Vue2 是 b-loading 转圈无文字)
@@ -183,7 +184,7 @@ export default {
   settingsAppsPendingNone: '本地无未完成任务',
   settingsAppsPendingClear: '清除',
   settingsAppsPendingDisabledHint: '待相册区迁移完成后启用',                          // 🆕(本期新增标注,做样子)
-  // ── P3 迁移弹窗 ────────────────────────────────────────────────────────
+  // ── P3 migration dialog ────────────────────────────────────────────────────────
   settingsMigTitle: '存储位置',
   settingsMigCurrentLocation: '当前位置',
   settingsMigRequiredSpace: '所需空间',
@@ -245,13 +246,13 @@ export default {
   settingsTermUnavailableHint: '系统终端的后端接口（/v1/sys/wsssh）已被停用，终端与终端安全策略暂不可用。', // 🆕(本期空态说明)
   settingsTermFullscreen: '全屏',
   settingsTermExitFullscreen: '退出全屏',        // 🆕(Vue2 全屏按钮只有图标,无文字)
-  // 🆕 日志分页(Vue2 无对位:它整块渲染,这是本次修「页面无响应」新增的交互)
+  // 🆕 Log pagination (no Vue2 equivalent — it renders the whole log in one block; this interaction was added in this pass to fix the "page unresponsive" issue)
   settingsTermLogsOlder: '‹ 更早',
   settingsTermLogsNewer: '更新 ›',
   settingsTermLogsPage: '第 {page} / {total} 页',
   settingsTermLogsLive: '实时刷新中',
   settingsTermLogsPaused: '已暂停实时刷新 · 回第 1 页恢复',
-  // ── P3 storage tab(入口卡,授权偏离 #3)────────────────────────────────
+  // ── P3 storage tab (entry card, declared deviation #3) ────────────────────────────────
   settingsStoreEntryTitle: '打开存储区',          // 🆕(本期新增入口卡,授权偏离 #3)
   settingsStoreEntrySub: '磁盘、存储空间、RAID 与快照都在存储区管理。',                 // 🆕(本期新增)
   settingsStoreTotal: '总存储',
@@ -260,7 +261,7 @@ export default {
   settingsStoreFiles: '文件',
   settingsStoreNoStorage: '未找到存储',                                             // 🆕补译
 
-  // ── SP9-P4 folder-permissions(四分区) ─────────────────────────────────
+  // ── folder-permissions (four sections) ─────────────────────────────────
   settingsFpIntro: '在下方各分区分别管理每个智能功能的文件夹。',
   settingsFpDataPending: '数据源待相册区(SP7)与 AI 区(SP8)合并后接入。',  // 🆕本期新增
   settingsFpFilenameIndex: '文件名索引',
@@ -287,7 +288,7 @@ export default {
   settingsFpGlobRules: '另有 {n} 条模式规则(如 *.key)在 AI 设置中管理。',
   settingsFpAddFolder: '添加文件夹',
 
-  // ── SP9-P4 account ────────────────────────────────────────────────────
+  // ── account ────────────────────────────────────────────────────
   settingsAccOwnerLabel: '本机所有者账户',  // 🟡全语言缺译→补中文(用户 2026-08-01 拍板)
   settingsAccChangePassword: '更改密码',
   settingsAccChangeAvatar: '更改头像',
@@ -341,100 +342,109 @@ export default {
   settingsAccNoFoldersGranted: '未授权任何文件夹——仅数据盘(/DATA、/mnt、/media)可访问。',  // 🟡全语言缺译→补中文(用户 2026-08-01 拍板)
   settingsAccFoldersLoadFailed: '加载文件夹授权失败',  // 🆕本期新增
 
-  // ── P5 KVM ── 中文以 Vue2 src/assets/lang/zh_CN.json 为准(逐条核对,与草稿
-  // 有出入处已按 zh_CN.json 改正)。
+  // ── P5 KVM ── Chinese text follows Vue2 src/assets/lang/zh_CN.json as the source of truth (checked
+  // line by line; wherever the draft differed, it was corrected to match zh_CN.json).
   kvmTitle: 'NIMO 虚拟机',
   kvmRunningSuffix: '运行中',
   kvmNoVms: '暂无虚拟机',
   kvmAddVm: '添加虚拟机',
-  // zh_CN.json "Select a Virtual Machine" = "选择虚拟机"(非 brief 草稿的"选择一台虚拟机")。
+  // zh_CN.json "Select a Virtual Machine" = "选择虚拟机" (not the brief draft's "选择一台虚拟机").
   kvmSelectVmTitle: '选择虚拟机',
   // zh_CN.json "Choose a VM from the list to view its console and manage it"
-  // = "从列表中选择虚拟机查看控制台并进行管理"(brief 草稿多了"一台"/"以")。
+  // = "从列表中选择虚拟机查看控制台并进行管理" (the brief draft added extra characters "一台"/"以").
   kvmSelectVmHint: '从列表中选择虚拟机查看控制台并进行管理',
   kvmStateRunning: '运行中',
   kvmStateStopped: '已停止',
   kvmStatePaused: '已暂停',
   kvmStateSuspended: '已挂起',
   kvmStateError: '错误',
-  // zh_CN.json 第 90 行 $t(canEditSettings ? 'Settings' : ...) 用的就是全局 "Settings" 键
-  // = "系统设置"(与全局设置弹窗共用同一 i18n 键,Vue2 原文如此,照抄,不自行改得更贴切)。
+  // zh_CN.json line 90, $t(canEditSettings ? 'Settings' : ...), uses the same global "Settings" key
+  // = "系统设置" (shared with the global settings dialog's i18n key; that's how Vue2 has it — copied as-is rather than rewritten to be a better fit).
   kvmSettings: '系统设置',
-  // Task 11 收尾清点(死键清理):这里原来预埋了一个 `kvmSettingsDisabledHint` 键
-  // (P5 阶段占位,文案与下面 `kvmStopToModifySettings` 完全相同),真正到 P6 Task 9
-  // 实现 ConsoleHeader 齿轮 tooltip 时(:91)另起了 `kvmStopToModifySettings` 这个名字,
-  // 预埋键从未被消费过——两个键文案重复但只有一个在用,是纯粹的死键,已删除
-  // (不是"留着说明原因"的例外,是真的没有任何消费方,brief Step 3 死键清点判定应删)。
-  // zh_CN.json "More" = "浏览更多"(此键在 Vue2 里被复用给"更多操作"三点菜单的 tooltip,
-  // 译文与场景不算贴切但是 Vue2 实际展示的文案,照抄)。
+  // Final cleanup pass (dead-key removal): a `kvmSettingsDisabledHint` key had been pre-staged here
+  // (a P5-stage placeholder with the exact same text as `kvmStopToModifySettings` below); when the
+  // ConsoleHeader gear tooltip was actually implemented in P6 (:91), it was given the different name
+  // `kvmStopToModifySettings` instead, and the pre-staged key was never consumed — the two keys had
+  // duplicate text but only one was ever used, making it a genuine dead key. It has been removed
+  // (this is not the "kept to document a reason" exception — it truly had no consumer; the brief's
+  // Step 3 dead-key sweep says to delete it).
+  // zh_CN.json "More" = "浏览更多" (in Vue2 this key is reused for the tooltip on the "more actions"
+  // three-dot menu; the translation doesn't quite fit the context, but it's what Vue2 actually shows, copied as-is).
   kvmMore: '浏览更多',
-  // 全分支评审删死键(C4,已核实 grep 零消费方):`kvmComingSoon` 原是 P5 期"齿轮恒
-  // disabled + 即将上线"占位状态的文案,P6 Task 9 解禁齿轮时最后一个消费方
-  // (ConsoleHeader.vue)被移除,键本身漏删。
+  // Removed as a dead key in the full-branch review (C4, confirmed zero consumers via grep):
+  // `kvmComingSoon` was originally the placeholder text for the P5-stage "gear permanently disabled +
+  // coming soon" state; when the gear was re-enabled in P6 Task 9, its last consumer (ConsoleHeader.vue)
+  // was removed, but the key itself was left behind.
   kvmPowerOn: '开机',
   kvmForceShutDown: '强制关机',
   kvmForceRestart: '强制重启',
   kvmPause: '暂停',
-  // zh_CN.json "Resume" = "恢复"(非 brief 草稿的"继续")。
+  // zh_CN.json "Resume" = "恢复" (not the brief draft's "继续").
   kvmResume: '恢复',
   kvmWakeUp: '唤醒',
-  // zh_CN.json "Auto Start" = "自动启动"(非 brief 草稿的"开机自启")。
+  // zh_CN.json "Auto Start" = "自动启动" (not the brief draft's "开机自启").
   kvmAutoStart: '自动启动',
   kvmDelete: '删除',
-  // zh_CN.json "Are you sure?" = "你确定吗？"(非 brief 草稿的"确定吗?";注意全角问号)。
+  // zh_CN.json "Are you sure?" = "你确定吗？" (not the brief draft's "确定吗?"; note the full-width question mark).
   kvmAreYouSure: '你确定吗？',
-  // zh_CN.json "Stopping VM" = "正在停止虚拟机"(非 brief 草稿的"正在停止")。
+  // zh_CN.json "Stopping VM" = "正在停止虚拟机" (not the brief draft's "正在停止").
   kvmStopping: '正在停止虚拟机',
-  // zh_CN.json "Restarting VM" = "正在重启虚拟机"(非 brief 草稿的"正在重启")。
+  // zh_CN.json "Restarting VM" = "正在重启虚拟机" (not the brief draft's "正在重启").
   kvmRestarting: '正在重启虚拟机',
-  // zh_CN.json "Deleting VM" = "正在删除虚拟机"(非 brief 草稿的"正在删除")。
+  // zh_CN.json "Deleting VM" = "正在删除虚拟机" (not the brief draft's "正在删除").
   kvmDeleting: '正在删除虚拟机',
   // zh_CN.json "VNC port not available, try restarting" = "VNC 端口不可用，请尝试重启"
-  // (brief 草稿在末尾多加了"虚拟机" 三个字,原文没有)。
+  // (the brief draft tacked on the extra word "虚拟机" [VM] at the end; the source text has no such word).
   kvmVncPortUnavailable: 'VNC 端口不可用，请尝试重启',
   kvmVncFetchFailed: '获取 VNC 信息失败',
   // zh_CN.json "Installing from ISO. Click when finished:" = "正在从光盘安装。完成后请点击："
-  // (原文是"光盘"不是"ISO",且没有"安装"两个字重复)。
+  // (the source text says "光盘" [optical disc], not "ISO", and doesn't repeat the word "安装" [installing]).
   kvmInstallingFromIso: '正在从光盘安装。完成后请点击：',
-  // zh_CN.json "I Finished Installing" = "我已完成安装"(非 brief 草稿的"我已安装完成")。
+  // zh_CN.json "I Finished Installing" = "我已完成安装" (not the brief draft's "我已安装完成").
   kvmFinishedInstalling: '我已完成安装',
-  // kvmEjectSuccess(eject 成功 toast 文案)定义在下面 kvmToastXxx 那一批附近——之前
-  // Task 8 评审判定这是死键删掉过,全分支终审要求补 toast 后又加回来了,详见那里的注释。
-  // 🆕补译:Vue2 里这条走 getErrMsg(err, 'Failed to eject installation media') 再过 $t()，
-  // zh_CN.json 没有这个键 → Vue2 中文界面下实际显示英文原文(遗留缺译,同 P1/P2 见过的模式)。
-  // New-UI 补上中文,不照抄这个缺译。
+  // kvmEjectSuccess (the eject-success toast text) is defined below near the kvmToastXxx group — it
+  // was previously deleted as a dead key during an earlier review, then added back when the
+  // full-branch final review required a success toast; see the comment there for details.
+  // 🆕 Newly translated: in Vue2 this one goes through getErrMsg(err, 'Failed to eject installation media')
+  // and then $t() — zh_CN.json has no key for it, so the Vue2 Chinese UI actually falls back to
+  // showing raw English (a leftover missing translation, same pattern seen in P1/P2).
+  // New-UI supplies the Chinese text here rather than reproducing that missing translation.
   kvmEjectFailed: '弹出安装介质失败',
   kvmSpiceHint: '为获得更好体验，请使用 virt-viewer 客户端连接：',
   // zh_CN.json "Install virtio-win drivers..." = "在虚拟机中安装 virtio-win 驱动以启用剪贴板、
-  // 音频和 USB 功能"(非 brief 草稿的"内"/"与")。
+  // 音频和 USB 功能" (not the brief draft's "内"/"与").
   kvmSpiceAgentWin: '在虚拟机中安装 virtio-win 驱动以启用剪贴板、音频和 USB 功能',
   // zh_CN.json "Install spice-vdagent..." = "在虚拟机中安装 spice-vdagent 以启用剪贴板、音频
-  // 和 USB 功能"(同上,"内"/"与"改"中"/"和")。
+  // 和 USB 功能" (same as above — "内"/"与" changed to "中"/"和").
   kvmSpiceAgentLinux: '在虚拟机中安装 spice-vdagent 以启用剪贴板、音频和 USB 功能',
-  // zh_CN.json "Toggle Ctrl/Alt/Shift" = "切换 Ctrl/Alt/Shift"(非 brief 草稿的"按住 …")。
+  // zh_CN.json "Toggle Ctrl/Alt/Shift" = "切换 Ctrl/Alt/Shift" (not the brief draft's "按住 …" [hold down …]).
   kvmToggleCtrl: '切换 Ctrl',
   kvmToggleAlt: '切换 Alt',
   kvmToggleShift: '切换 Shift',
-  // zh_CN.json "Toggle Windows" = "切换 Windows"(非 brief 草稿的"按住 Windows 键")。
+  // zh_CN.json "Toggle Windows" = "切换 Windows" (not the brief draft's "按住 Windows 键" [hold down the Windows key]).
   kvmToggleWin: '切换 Windows',
-  // zh_CN.json "Press Tab/Esc/Ctrl+Alt+Del" = "按下 …"(非 brief 草稿的"按 …",少了"下"字)。
+  // zh_CN.json "Press Tab/Esc/Ctrl+Alt+Del" = "按下 …" (not the brief draft's "按 …", which drops the character "下").
   kvmPressTab: '按下 Tab',
   kvmPressEsc: '按下 Esc',
   kvmPressCtrlAltDel: '按下 Ctrl+Alt+Del',
   kvmFullscreen: '全屏',
-  // 🆕新增:Vue2 全屏按钮的 title 恒为 $t('Fullscreen')(即使已全屏也不切换文案,是遗留
-  // 的文案 bug),alt 属性硬编码英文 "Exit Fullscreen" 且从不走 i18n。按移植纪律(界面 1:1、
-  // 逻辑 bug 不照抄)New-UI 让 aria-label 正确随全屏状态切换,故补一个 zh_CN.json 没有的键。
+  // 🆕 New: in Vue2 the fullscreen button's title is always $t('Fullscreen') (it never switches text
+  // even once fullscreen is active — a legacy copy bug), and its alt attribute is hardcoded to the
+  // English "Exit Fullscreen" and never goes through i18n. Per the porting discipline (match the UI
+  // 1:1, but don't reproduce logic bugs), New-UI makes the aria-label correctly follow fullscreen
+  // state, hence this extra key that zh_CN.json doesn't have.
   kvmExitFullscreen: '退出全屏',
   kvmClose: '关闭',
-  // ⚠️ 全分支终审删(清理项3):原有 kvmFailedStart/Stop/Restart/Pause/Resume/Delete/
-  // Autostart 这 7 个键与下面 kvmFailedToXxx 家族逐字同值(kvmFailedAutostart 甚至连
-  // 名字都和它对应的 kvmFailedToSaveSettings 不一样,是当场就该发现的错配),而
-  // useVmList.ts 的 errText() fallback 实际只引用 kvmFailedToXxx 这一套——kvmFailedXxx
-  // 一直是死键,编译和测试都不会报,只能靠人工比对发现。二选一,留使用中的那套,删掉
-  // 这 7 个从未被消费过的键。
-  // 🆕Task 5 评审补:useVmList.ts 里 errText() 的 8 个 fallback 字符串用的是
-  // "kvmFailedToXxx" 这套键名。值取 Vue2 zh_CN.json 对应的 "Failed to xxx" 系列译文。
+  // ⚠️ Removed in the full-branch final review (cleanup item 3): the original 7 keys
+  // kvmFailedStart/Stop/Restart/Pause/Resume/Delete/Autostart had values word-for-word identical
+  // to the kvmFailedToXxx family below (kvmFailedAutostart's very name didn't even match its
+  // counterpart kvmFailedToSaveSettings — a mismatch that should have been caught on the spot),
+  // while useVmList.ts's errText() fallback actually only references the kvmFailedToXxx set —
+  // kvmFailedXxx had been dead all along; neither the compiler nor the tests would flag it, only a
+  // manual comparison would catch it. Kept the set that's actually in use and removed these 7 keys,
+  // which were never consumed.
+  // 🆕 Added per review: the 8 fallback strings in useVmList.ts's errText() use the
+  // "kvmFailedToXxx" key naming. Values are taken from the Vue2 zh_CN.json "Failed to xxx" series.
   kvmFailedToStart: '启动虚拟机失败',
   kvmFailedToStop: '停止虚拟机失败',
   kvmFailedToRestart: '重启失败',
@@ -442,60 +452,69 @@ export default {
   kvmFailedToResume: '恢复失败',
   kvmFailedToSaveSettings: '保存设置失败',
   kvmFailedToDelete: '删除虚拟机失败',
-  // ⚠️ Task 8 评审删:kvmFailedToEjectMedia(原值"弹出安装介质失败",与上面的
-  // kvmEjectFailed 译文完全相同)是重复键——useVmList.ejectInstallMedia 的 fallback
-  // 已经改成直接消费 kvmEjectFailed(见该文件 :325 附近注释),这个键因此变成死键,删除。
-  // 必修①(全分支终审):Vue2 六个电源动作 + toggleAutoStart + deleteVM +
-  // handleInstallationFinished 成功时都会弹一条 toast(this.$buefy.toast.open({type:
-  // 'is-success'})),New-UI 之前一条都没有——未申报的偏离,已在 KvmPage.vue 的 onAction/
-  // onEjectFinish 里补上。下面这批键是 toast 文案用的"动词过去时"后缀,拼法逐字对 Vue2
-  // `${vm.name} ${$t('started')}` 这种模式,值取自 zh_CN.json 对应的通用键(见各行注释)。
-  // zh_CN.json "started" = "已启动"(:872)。
+  // ⚠️ Removed per review: kvmFailedToEjectMedia (original value "弹出安装介质失败", identical
+  // to kvmEjectFailed above) was a duplicate key — useVmList.ejectInstallMedia's fallback was
+  // changed to consume kvmEjectFailed directly (see the comment near :325 in that file), which
+  // made this key dead, so it was removed.
+  // Required fix ① (full-branch final review): in Vue2, the six power actions plus toggleAutoStart,
+  // deleteVM, and handleInstallationFinished all pop a success toast (this.$buefy.toast.open({type:
+  // 'is-success'})); New-UI previously had none of these — an undeclared deviation, now fixed in
+  // KvmPage.vue's onAction/onEjectFinish. The keys below are the "past-tense verb" suffixes used in
+  // the toast text, following the exact same pattern as Vue2's `${vm.name} ${$t('started')}`, with
+  // values taken from the corresponding generic keys in zh_CN.json (see the comment on each line).
+  // zh_CN.json "started" = "已启动" (:872).
   kvmToastStarted: '已启动',
-  // zh_CN.json "stopped" = "已停止"(:873)。
+  // zh_CN.json "stopped" = "已停止" (:873).
   kvmToastStopped: '已停止',
-  // zh_CN.json "restarted" = "已重启"(:866)。
+  // zh_CN.json "restarted" = "已重启" (:866).
   kvmToastRestarted: '已重启',
-  // zh_CN.json "paused" = "已暂停"(:228)。
+  // zh_CN.json "paused" = "已暂停" (:228).
   kvmToastPaused: '已暂停',
-  // zh_CN.json "resumed" = "已恢复"(:870)。resume 和 wakeup 两个动作在 Vue2 里
-  // 成功时用的是**同一个**词("resumed"),wakeupVM(:1603)也是 `${vm.name} ${$t('resumed')}`,
-  // 不是单独的"已唤醒"之类的文案——已核对 Vue2 源码确认,不是笔误照抄。
+  // zh_CN.json "resumed" = "已恢复" (:870). In Vue2, the resume and wakeup actions use **the same**
+  // word on success ("resumed") — wakeupVM (:1603) is also `${vm.name} ${$t('resumed')}`, not a
+  // separate string like "已唤醒" [woken up]. Verified against the Vue2 source; this is not a typo
+  // being copied over.
   kvmToastResumed: '已恢复',
-  // zh_CN.json "deleted" = "已删除"(:862)。
+  // zh_CN.json "deleted" = "已删除" (:862).
   kvmToastDeleted: '已删除',
-  // zh_CN.json "On" = "开"(:818)、"Off" = "已关闭"(:817)。Vue2 toggleAutoStart(:1523)
-  // 拼法是 `${vm.name} ${$t('Auto Start')} ${$t('On'|'Off')}`,与上面已有的 kvmAutoStart
-  // ("自动启动")拼在一起用,不需要再拼一个"自动启动开/关"的整句键。
+  // zh_CN.json "On" = "开" (:818), "Off" = "已关闭" (:817). Vue2's toggleAutoStart (:1523) is composed
+  // as `${vm.name} ${$t('Auto Start')} ${$t('On'|'Off')}`, combined with the existing kvmAutoStart
+  // ("自动启动") above — no need for a separate whole-sentence "auto-start on/off" key.
   kvmAutoStartOn: '开',
   kvmAutoStartOff: '已关闭',
-  // 必修①:eject 成功也要弹 toast(Vue2 handleInstallationFinished :867-870)。
-  // 这个键此前在 Task 8 评审时被判定为死键删掉过(New-UI 当时只用"横幅消失"当成功反馈,
-  // 不弹 toast)——现在全分支终审要求补上 toast,键需要加回来。值取 Vue2 zh_CN.json
-  // "Installation media ejected. VM will boot from hard disk on next restart." = "光盘
-  // 已弹出，虚拟机将在下次重启时从硬盘引导。"(:1815),与当年被删的值逐字相同。
+  // Required fix ①: eject success also needs a toast (Vue2 handleInstallationFinished :867-870).
+  // This key had previously been judged a dead key and removed during an earlier review (New-UI at
+  // the time used only the banner disappearing as the success feedback, with no toast) — now the
+  // full-branch final review requires the toast to be added back, so the key needs to be restored.
+  // Value taken from Vue2 zh_CN.json's "Installation media ejected. VM will boot from hard disk on
+  // next restart." = "光盘已弹出，虚拟机将在下次重启时从硬盘引导。" (:1815), word-for-word identical
+  // to the value that was removed back then.
   kvmEjectSuccess: '光盘已弹出，虚拟机将在下次重启时从硬盘引导。',
-  // 🆕SP16 Task 8:重启后控制台迟迟没能自动恢复(MessageBus 掉线 ⇒ kvm:vm_started
-  // 永远不到)时的提示。Vue2 无对应文案 —— Vue2 那边是立刻重连(必失败)、把 vncError
-  // 钉在屏上,本仓换成事件交接之后需要一句兜底解释。
+  // 🆕 SP16: notice shown when the console fails to auto-recover after a restart for a long time
+  // (MessageBus drops the connection ⇒ kvm:vm_started never arrives). Vue2 has no equivalent copy —
+  // over there it reconnects immediately (which is bound to fail) and pins vncError on screen; this
+  // repo switches to an event handoff instead, which needs a fallback explanation sentence.
   kvmConsoleReconnectStalled: '控制台未能自动恢复，请重新选择该虚拟机',
-  // 🆕Task 5 评审补:进度遮罩正文缺的"动词进行时"短语(Vue2 zh_CN.json:874/867/863,
-  // 分别对应 "stopping"/"restarting"/"deleting")。与上面 kvmStopping 等整句标题不是
-  // 同一组键——那几个是 progressTitle(整句),这几个是 progressMessage 里拼接的动词
-  // 片段(`${vm.name} ${$t('stopping')}...`)。
+  // 🆕 Added per review: the "verb, progressive tense" phrases missing from the progress-overlay
+  // body text (Vue2 zh_CN.json :874/867/863, corresponding to "stopping"/"restarting"/"deleting").
+  // These are not the same group of keys as kvmStopping etc. above — those are progressTitle (a
+  // whole sentence), while these are the verb fragments spliced into progressMessage
+  // (`${vm.name} ${$t('stopping')}...`).
   kvmStoppingShort: '停止中',
   kvmRestartingShort: '重启中',
   kvmDeletingShort: '删除中',
-  // Vue2 该按钮没有 title,这里为 a11y 补 aria-label。
-  // zh_CN.json "Toggle sidebar" = "切换侧边栏"(评审指出:上一版此处误判"无对应键"
-  // 并自拟了"折叠/展开侧边栏",违反"中文以 zh_CN.json 为准、不许自译"的硬约束,已订正)。
+  // This button has no title in Vue2; an aria-label is added here for a11y.
+  // zh_CN.json "Toggle sidebar" = "切换侧边栏" (review flagged that a previous version incorrectly
+  // judged this to have "no matching key" and made up its own "折叠/展开侧边栏" [collapse/expand
+  // sidebar] — violating the hard rule that Chinese text must follow zh_CN.json and never be
+  // self-translated; this has been corrected).
   kvmToggleSidebar: '切换侧边栏',
 
-  // ── P6 KVM 创建弹窗 / 快照 / 全局设置 / OSSelector ──(SP9-P6 地基 Task 0)
-  // 中文全部逐字取自 Vue2 src/assets/lang/zh_CN.json(与 P5 同惯例),不自行翻译。
-  // 复用 P5 已有键(不在此重复声明):kvmSettings / kvmAutoStart / kvmDeletingShort /
+  // ── KVM create dialog / snapshots / global settings / OSSelector ──
+  // All Chinese text taken verbatim from Vue2 src/assets/lang/zh_CN.json (same convention as P5), not self-translated.
+  // Reuses existing P5 keys (not redeclared here): kvmSettings / kvmAutoStart / kvmDeletingShort /
   // kvmFailedToSaveSettings / kvmClose / kvmAreYouSure / kvmDelete。
-  // 创建弹窗
+  // Create dialog
   kvmCreateTitle: '创建新虚拟机',
   kvmVmName: '虚拟机名称',
   kvmVmNamePlaceholder: '例如 debian-13',
@@ -512,7 +531,7 @@ export default {
   kvmGenericLinux: '通用 Linux',
   kvmGenericWindows: '通用 Windows',
   kvmCreate: '创建',
-  // 创建校验与结果
+  // Creation validation & results
   kvmErrNoName: '请输入虚拟机名称',
   kvmErrNoOs: '请选择一个操作系统',
   kvmErrDiskMin: '磁盘大小必须至少为',
@@ -522,7 +541,7 @@ export default {
   kvmErrVcpuMax: 'vCPU 超出可用核心',
   kvmToastVmCreated: '虚拟机创建成功',
   kvmFailedToCreate: '创建虚拟机失败',
-  // VM 设置
+  // VM settings
   kvmVmSettingsTitle: '虚拟机设置',
   kvmTabGeneral: '通用',
   kvmTabSnapshots: '快照',
@@ -531,7 +550,7 @@ export default {
   kvmSave: '保存',
   kvmToastSettingsSaved: '设置已保存',
   kvmStopToModifySettings: '停止虚拟机以修改设置',
-  // 快照
+  // Snapshots
   kvmCreateSnapshot: '创建快照',
   kvmName: '名称',
   kvmSnapshotNamePlaceholder: '输入快照名称',
@@ -545,13 +564,14 @@ export default {
   kvmFailedToCreateSnapshot: '创建快照失败',
   kvmRestoringSnapshot: '正在恢复快照',
   kvmRestoringShort: '恢复中',
-  // ⚠️ 与 P5 已有的 kvmToastResumed(「已恢复」)中文同值但语义不同(恢复快照 vs 恢复
-  // 运行中的虚拟机)。Vue2 也是两个独立的 key,分开建,不图省事复用。
+  // ⚠️ Has the same Chinese text as the existing P5 kvmToastResumed ("已恢复") but a different
+  // meaning (restoring a snapshot vs. resuming a running VM). Vue2 also treats these as two separate
+  // keys, so they're kept separate here rather than reusing one for convenience.
   kvmRestoredShort: '已恢复',
   kvmFailedToRestoreSnapshot: '恢复快照失败',
   kvmDeletingSnapshot: '正在删除快照',
   kvmFailedToDeleteSnapshot: '删除快照失败',
-  // 全局设置
+  // Global settings
   kvmStoragePath: '存储路径',
   kvmDefaultVcpu: '默认 vCPU',
   kvmCoresUnit: '核心',
@@ -561,7 +581,7 @@ export default {
   kvmCatAll: '全部',
   kvmCatWindows: 'Windows',
   kvmCatLinux: 'Linux',
-  // kvmCatBsd 是这批键里唯一在 zh_CN.json 查不到的(专有名词),两个 locale 都是 'BSD'。
+  // kvmCatBsd is the only key in this group not found in zh_CN.json (a proper noun) — both locales use 'BSD'.
   kvmCatBsd: 'BSD',
   kvmCustom: '自定义',
   kvmFolderEmpty: '此目录为空',
@@ -570,16 +590,18 @@ export default {
   kvmToastDownloaded: '已下载',
   kvmDownloadFailed: '下载失败',
   kvmWaitForDownload: '请等待下载完成',
-  // New-UI 新增的 aria-label 键(唯一自拟中文的地方):Vue2 这几个按钮只有图标、没有任何
-  // 文案,本期为 a11y 补 aria-label,不是从 zh_CN.json 抄来的。
+  // aria-label keys added by New-UI (the one place with self-authored Chinese text): in Vue2 these
+  // buttons have only icons and no text at all; this pass adds aria-labels for a11y — they are not
+  // copied from zh_CN.json.
   kvmEjectIso: '弹出 ISO',
   kvmMountIso: '挂载 ISO',
   kvmParentDir: '上一级',
   kvmToggleCustom: '展开/收起自定义',
 
-  // ── SP9-P7 Search ──(SearchDialog 接真后端;spec §7.5/§7.6/§7.8)
-  // 排序理由标签(reasons.ts 产 key、这里给文案)。demo 时代那些带计数的英文标签
-  // (Body match ×9 / Transcript match ×3)后端根本不返回,是编的,故新标签不带数字。
+  // ── Search ── (SearchDialog wired to the real backend; spec §7.5/§7.6/§7.8)
+  // Ranking-reason labels (reasons.ts produces the key, the text is provided here). The demo-era
+  // English labels with counts (Body match ×9 / Transcript match ×3) were never actually returned by
+  // the backend — they were made up — so the new labels carry no numbers.
   searchReasonFilename: '文件名命中',
   searchReasonFilenameFuzzy: '文件名相关',
   searchReasonBody: '正文命中',
@@ -587,21 +609,22 @@ export default {
   searchReasonOcr: '图片文字命中',
   searchReasonCaption: '图片内容命中',
   searchReasonSemantic: '语义相关',
-  // 来源徽标(取代 demo 的「98%」准确率——四源分数互不可比,百分比是编的)。
-  // 中文取自 Vue2 zh_CN.json 的 "Semantic" / "Filenames";OCR 沿用现状不译。
+  // Source badges (replacing the demo's "98%" accuracy figure — the four sources' scores aren't
+  // comparable to each other, and the percentage was made up). Chinese text for "Semantic" /
+  // "Filenames" taken from Vue2 zh_CN.json; OCR is left untranslated as-is.
   searchBadgeSemantic: '语义',
   searchBadgeFilename: '文件名',
   searchBadgeOcr: 'OCR',
-  // 降级提示条:哪些源本次没参与。三条源文案逐字取自 Vue2 zh_CN.json。
+  // Degraded-search notice bar: which sources didn't participate this time. All three source strings taken verbatim from Vue2 zh_CN.json.
   searchSourceSemantic: '语义搜索不可用',
   searchSourceImages: '图片搜索不可用',
   searchSourceFilenames: '文件名搜索不可用',
   searchNoticePrefix: '本次未参与搜索：',
-  // 三种空态(spec §7.8):「没搜到」与「后端没就绪」必须分得开。
+  // Three empty states (spec §7.8): "no matches" and "backend not ready" must be kept distinct.
   searchEmptyNoMatch: '没有匹配的文件',   // Vue2 zh_CN.json 逐字
   searchEmptyNoRoots: '没有可搜索的目录',
   searchEmptyNotReady: '搜索后端未就绪',
-  // 错误态(请求失败)。标题逐字取自 Vue2 zh_CN.json。
+  // Error state (request failed). Title taken verbatim from Vue2 zh_CN.json.
   searchErrorTitle: '搜索失败',
   searchErrorHint: '搜索服务当前不可用,请稍后重试',
   searchRetry: '重试',

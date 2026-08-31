@@ -1,4 +1,4 @@
-// SP8-P1c1 Task 6 — 1:1 ported from Vue2 ContextUsageBar.spec.js:54-81 (rendering section).
+// 1:1 ported from Vue2 ContextUsageBar.spec.js:54-81 (rendering section).
 // Pure geometry/formatting logic already has its own tests in contextUsage.ts, here only test component rendering.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'

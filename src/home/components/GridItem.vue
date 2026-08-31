@@ -113,5 +113,5 @@ function onClick() {
 }
 .item-label { font-size: 14px; opacity: 0.85; padding: 6px; text-align: center; }
 
-/* .remove, .resize-handle, @keyframes jiggle, .grid-item.editing animation → global theme.css (P4c) */
+/* .remove, .resize-handle, @keyframes jiggle, .grid-item.editing animation → global theme.css */
 </style>

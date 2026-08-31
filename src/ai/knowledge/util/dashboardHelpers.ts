@@ -1,4 +1,4 @@
-// SP8-P5a Task 9 —— 1:1 ported from Vue2
+// 1:1 ported from Vue2
 // the Vue 2 panel's `src/views/AI/Knowledge/dashboardHelpers.js` (main@7a6ee6b7).
 //
 // Original file has 4 pure functions (`updatePeak`/`progressPercent`/`summarizeNotes`/

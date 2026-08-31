@@ -93,7 +93,7 @@ describe('agentStore theme delegates to aiTheme (D1: cross-page sharing)', () =>
   })
 })
 
-// [SP8-P2b acceptance round 3, user decided 2026-07-30 'only change AI area, desktop unaffected']
+// [Per an earlier review decision: 'only change AI area, desktop unaffected']
 // Bug: all toasts in AI area are invisible. `AppToast` is mounted at the outermost layer of
 // `App.vue`, **not within the `.agent-app` theme scope**, so it draws with the global blue-black
 // theme's `--toast-bg` (semi-transparent white) + `--toast-fg` (undefined → falls back to `--fg` =

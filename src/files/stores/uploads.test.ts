@@ -170,7 +170,7 @@ describe('uploads restore/resume', () => {
   })
 
   it('initUploads is a one-shot latch: a second call on the same store instance is a no-op', () => {
-    // Regression test for SP4-P3b: Files.vue calls initUploads() from
+    // Regression test: Files.vue calls initUploads() from
     // onMounted, but the uploads Pinia store is an app-lifetime singleton
     // while Files.vue unmounts/remounts on every SPA navigation (App.vue's
     // <router-view /> has no <keep-alive>). The `initialized` latch keeps a

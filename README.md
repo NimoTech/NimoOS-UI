@@ -27,8 +27,8 @@ and the **AI assistant with its knowledge base**.
 ## Quick Start
 
 ```bash
-git clone git@github.com:NimoTech/NimoOS-New-UI.git
-cd NimoOS-New-UI
+git clone git@github.com:NimoTech/NimoOS-UI.git
+cd NimoOS-UI
 pnpm install
 pnpm dev        # dev server http://localhost:5273/
 ```

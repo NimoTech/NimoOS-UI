@@ -1,17 +1,17 @@
-// SP15-P1-T5: the "Moments · For You" section, now this page's whole content.
+// The "Moments · For You" section, now this page's whole content.
 // Target is Vue2 939a7d3a:PhotosSmartViewsView.vue:18-32 (mo-section + mo-hero + the gated
 // grid + the slim hint) and :455 (showMoments itself).
 //
 // ⚠ The target for THIS page is 939a7d3a, not the 899af59b these lines used to cite. That
-// citation was P1's target and predates the IA merge; at 899af59b the page still had its own
+// earlier citation predates the IA merge; at 899af59b the page still had its own
 // `sv-hero` above the Moments band, so gating the whole `.mo-section` on showMoments was
-// harmless there. SP15-P2b deleted that hero, which turned the same gate into "the page
+// harmless there. That hero was since deleted, which turned the same gate into "the page
 // renders nothing at all" on any device whose moments table is empty -- the everyday state.
 // Vue 2's target renders `.mo-section` and `.mo-hero` unconditionally (:18-19) and gates only
 // `.sv-grid.mo-grid` (:24), with the slim settings hint as the grid's `v-else-if` INSIDE the
 // section (:31). The cases below pin that shape, in both directions.
 //
-// Two mechanical deviations from the plan brief's literal test code, both logged:
+// Two mechanical deviations from the literal test code this was ported from, both logged:
 //
 //  1) Does not build its own createI18n instance. vitest.setup.ts already installs the
 //     src/i18n singleton into `config.global.plugins` for every mount, and @vue/test-utils
@@ -20,8 +20,8 @@
 //     the very same app alongside the global one, and vue-i18n's install() unconditionally
 //     registers its components/directives, producing "already registered" [Vue warn] noise
 //     on every mount. Same fix already applied at MomentCard.test.ts:5-14 and
-//     PhotosToolbar.test.ts:7-12 (project memory: "New-UI 测试别另建 createI18n"). The global
-//     singleton defaults to 'zh_cn', which is all this file needs.
+//     PhotosToolbar.test.ts:7-12 (established convention: tests must not build their own
+//     createI18n). The global singleton defaults to 'zh_cn', which is all this file needs.
 //  2) Moment/settings fixtures are written into the stores *after* `mountPage()` returns
 //     (which flushes the mount's initial promises), not before. Both PhotosSmartViews.vue's
 //     onMounted fires a real `moments.fetchMoments()` and `settings.fetchAiFeatures()` against
@@ -47,7 +47,7 @@ const svc = vi.hoisted(() => ({
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 
-// SP15-P1-T6: fake sortablejs so drag-drop can be simulated by invoking the captured
+// Fake sortablejs so drag-drop can be simulated by invoking the captured
 // onEnd callback directly, same technique as useAlbumDragSort.test.ts.
 const sortableCreate = vi.hoisted(() => vi.fn((..._args: unknown[]) => ({ destroy: vi.fn() })))
 vi.mock('sortablejs', () => ({ default: { create: sortableCreate } }))
@@ -187,8 +187,8 @@ describe('grid', () => {
   })
 })
 
-// SP15-P2b Task 5: the smart-views hero this divider used to react to no longer exists on
-// this page at all (it moved to PhotosAlbums.vue in Tasks 3/4, which has its own layout and
+// The smart-views hero this divider used to react to no longer exists on
+// this page at all (it moved to PhotosAlbums.vue, which has its own layout and
 // no `.sv-hero-secondary` concept). Both cases below asserted a class on `.sv-hero`, an
 // element this page no longer renders — deleted rather than rewritten, since there is no
 // "relationship with the smart-views hero" left on this route to test. No coverage moves
@@ -202,13 +202,13 @@ describe('fetching', () => {
   })
 })
 
-// SP15-P1-T6: drag-to-reorder. The band reuses useAlbumDragSort (already covered by
+// Drag-to-reorder. The band reuses useAlbumDragSort (already covered by
 // useAlbumDragSort.test.ts) — these cases only check the wiring: the DOM order read by
 // the composable's onEnd reaches store.reorder(), a failed reorder toasts, and the
 // hidden→shown transition rebinds a fresh Sortable instance.
 //
-// Deviation from the brief's literal snippet (same reasoning as this file's header
-// "deviation 2"): moment fixtures are set *after* mountPage() resolves, not before —
+// Same reasoning as this file's header "deviation 2": moment fixtures are set *after*
+// mountPage() resolves, not before —
 // setting them first loses a race against onMounted's real fetchMoments() call, whose
 // mocked listMoments() resolves to [] and would silently overwrite the fixture.
 type CapturedSortableOptions = { onStart: () => void; onEnd: () => void | Promise<void> }
@@ -251,7 +251,7 @@ describe('drag-to-reorder', () => {
     expect(spy).toHaveBeenCalledWith('排序保存失败', expect.anything(), 'danger')
   })
 
-  // SP15-P1 final fix wave, finding 1. Sortable's own post-drag click suppression
+  // Sortable's own post-drag click suppression
   // (`ignoreNextClick`) is cleared by the first `dragover`, so a drag that actually
   // reorders is left unprotected and the drop's click used to navigate into the moment
   // that was just dragged. The composable exposes isDragging() for exactly this, and the
@@ -283,10 +283,10 @@ describe('drag-to-reorder', () => {
   })
 })
 
-// SP15-P2b Task 5: the smart-view grid, hero, create tile and create dialog moved to
-// PhotosAlbums.vue (Tasks 3/4) — this page is now Moments-only. These cases pin down that
+// The smart-view grid, hero, create tile and create dialog moved to
+// PhotosAlbums.vue — this page is now Moments-only. These cases pin down that
 // the removal actually happened (not just "the new stuff still works").
-describe('SP15-P2b: smart-view list responsibilities are gone from this page', () => {
+describe('smart-view list responsibilities are gone from this page', () => {
   it('renders the Moments band as the page\'s only hero (h1), with none of the old smart-view entry points', async () => {
     const { w } = await mountPage()
     const s = usePhotosMoments()
@@ -299,7 +299,7 @@ describe('SP15-P2b: smart-view list responsibilities are gone from this page', (
     expect(h1.exists()).toBe(true)
     expect(h1.text()).toContain('时刻')
     // Everything the smart-view list used to own is gone from this page (moved to
-    // PhotosAlbums.vue in Tasks 3/4 — see task-5-report.md for exactly where).
+    // PhotosAlbums.vue in Tasks 3/4).
     expect(w.find('[data-test="sv-hero-create"]').exists()).toBe(false)
     expect(w.find('[data-test="sv-create-card"]').exists()).toBe(false)
     expect(w.find('[data-test="sv-skeleton"]').exists()).toBe(false)
@@ -331,7 +331,7 @@ describe('SP15-P2b: smart-view list responsibilities are gone from this page', (
   it('shows the hero on its own — no grid, no hint — when there are simply no moments (the everyday real-device state)', async () => {
     const { w } = await mountPage()
     // No moments fixture set — mountPage's mocked listMoments() already resolved to [].
-    // This is the state the acceptance device is in, and it must not be a blank page: the
+    // This is the state a freshly-set-up device is in, and it must not be a blank page: the
     // hero is what tells the user which page they are on and what it is for.
     expect(w.find('[data-test="mo-section"]').exists()).toBe(true)
     const h1 = w.find('.mo-hero h1')

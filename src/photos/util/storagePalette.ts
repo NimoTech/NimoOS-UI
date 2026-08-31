@@ -1,6 +1,6 @@
-// SP7-P8a-T3: segmented palette for the storage bar + pure formatting functions. Following the
-// established precedent of D5 / PLACE_PALETTE (P5-T12) / placesMapThemes.ts (P6a) / --badge-photo
-// etc. (P7a-T15): **data-visualization palettes** fall under docs/THEMING.md's convention 0,
+// Segmented palette for the storage bar + pure formatting functions. Following the
+// established precedent of D5 / PLACE_PALETTE / placesMapThemes.ts / --badge-photo
+// etc.: **data-visualization palettes** fall under docs/THEMING.md's convention 0,
 // third exception category -- the photos/thumbs segments reference existing semantic tokens
 // directly, while the other three segments (videos/raw/ai) and the "other" segment are
 // classification-identity colors inlined in Vue2 that are unrelated to the theme skin; their
@@ -10,7 +10,7 @@
 //
 // The "palette" in this file's name carries more than just the palette itself -- the three
 // formatting/segmenting pure functions fmtGB/fmtBytes/buildBreakdown live here too, per the
-// task's established file layout (task-3-brief.md); don't split this file up.
+// established file layout; don't split this file up.
 export const STORAGE_SEG_COLORS = {
   photos: 'var(--accent)',
   videos: 'var(--photos-seg-video)',

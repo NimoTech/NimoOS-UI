@@ -1,4 +1,4 @@
-// SP8-P5f Task 4 — `AllowlistView.vue` component test.
+// `AllowlistView.vue` component test.
 // Blueprint: the Vue 2 panel's `src/views/AI/Knowledge/AllowlistView.vue` (main@7a6ee6b7, 249 lines).
 //
 // ═══ mock strategy (governance §4.1 requires explicit statement) ═══
@@ -183,7 +183,7 @@ const FOLDER_RULES_CONSTRUCTED = [
 // ── Three `match` tables from blueprint `:161` / `:163` / `:165` (verbatim copies, for N54
 // source comparison) ──
 // 🔴 **N54 / corrigendum E-74**: **12 + 13 + 25 = 50** items. Verbatim equivalence between
-// copy and blueprint confirmed by programmatic comparison in T4 report §6
+// copy and blueprint confirmed by programmatic comparison
 // (diffed against the Vue 2 panel's source at that commit, not visual inspection).
 const DOCS_BLUEPRINT = ['.pdf', '.docx', '.doc', '.pptx', '.ppt', '.xlsx', '.xls', '.odt', '.html', '.htm', '.xml', '.epub']
 const TEXT_BLUEPRINT = ['.md', '.markdown', '.txt', '.rst', '.csv', '.tsv', '.json', '.yaml', '.yml', '.toml', '.ini', '.env', '.log']
@@ -315,9 +315,9 @@ describe('AllowlistView — three-layer shell + two sections (blueprint :2-97, c
 //   injection via comments all green"); this repo's `knowledgeStyles.test.ts` gap ③′ only
 //   scans `<template>` block, §0.3 only scans `<script>` **comments** — all three miss
 //   `<script>` **code body** ⇒ breaking it passes all three gates.
-// Pattern = second instance of P5d-T3 nailing `NOTE_TYPES` four gradients (K40).
+// Pattern = second instance of nailing `NOTE_TYPES` four gradients (K40).
 // 🔴 Criterion: inject a color literal into any `bg` → this suite must fail (two outputs +
-//   md5sum restore in T4 report §7).
+//   md5sum restore verified).
 describe('AllowlistView — K55: GROUPS_TEMPLATE three bg contain only var(--…), zero color literals', () => {
   /** Extract `const GROUPS_TEMPLATE = [ … ]` whole block (up to `]` at column 0). */
   function groupsBlock(src: string): string {
@@ -549,9 +549,9 @@ describe('AllowlistView — N47: data-on is "true"/"false" strings, assert both 
   //   **has no guard at all** — put K5/K58's core prohibition (**echo backend `e.message`**)
   //   directly in that catch, `AllowlistView.test.ts` **all 52/52 green, three gates silent**.
   //   Another instance of "product code correct, zero guards" family; earlier we fill gaps,
-  //   sooner we avoid forgetting them (under P5e ruling R16).
+  //   sooner we avoid forgetting them (ruling R16).
   // 🔴 Criterion = put `e.message` echo into `AllowlistView.vue`'s `toggle()` catch →
-  //   **must fail** (T5 report §7 shows complete output + md5sum restore).
+  //   **must fail** (verified complete output + md5sum restore).
   // ⚠️ Probe text `PROBE-K58-8Q3Z-*` same family as other four K58 test cases here;
   //   it **deliberately does not appear in `AllowlistView.vue`** (governance §9: negative
   //   assertion hits comment = false fail).

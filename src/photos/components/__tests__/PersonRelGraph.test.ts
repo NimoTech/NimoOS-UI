@@ -1,8 +1,8 @@
-// Task 13 (SP7-P5 Person): PersonRelGraph.vue — SVG force-directed relation graph. Copied character-by-character
+// PersonRelGraph.vue — SVG force-directed relation graph. Copied character-by-character
 // geometric values from the Vue 2 panel's src/views/Photos/PhotosRelGraph.vue (94 lines), colors changed to use
 // scoped CSS class (SVG presentation attributes don't recognize var(), see component top comment).
 //
-// Add affordance (explicitly required by brief, Vue2 relation graph nodes not clickable): clicking satellite nodes
+// Add affordance (Vue2 relation graph nodes are not clickable): clicking satellite nodes
 // emit open-person, is the only behavior this component adds beyond Vue2, not a defect.
 import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
@@ -192,14 +192,13 @@ describe('PersonRelGraph.vue', () => {
   })
 })
 
-// Task 6 (Plan D, PR#137 gap-close): three cases ported from the Vue 2 panel's
+// Three cases ported from the Vue 2 panel's
 // tests/photosRelGraph.test.js (commit 03245590) — MAX_GRAPH_NODES cap, avatar-fallback
 // initial letter under every avatar, and the co-appearances empty state. All three behaviors
-// were entirely missing from this component before this task (verified RED before
+// were entirely missing from this component before this change (verified failing before
 // implementation: cap test found 3 <image>s not 13, initial test found no `.rg-avatar-initial`
-// text at all, empty-state test found no `.rg-empty` element — see task-6-report.md for the
-// captured RED output).
-describe('PersonRelGraph.vue — PR#137 port: node cap / avatar initial fallback / empty state', () => {
+// text at all, empty-state test found no `.rg-empty` element).
+describe('PersonRelGraph.vue — node cap / avatar initial fallback / empty state', () => {
   it('with more than 12 relations only 12 satellite nodes plus 1 centre render (13 <image> in total, per Vue2 tests/photosRelGraph.test.js "caps rendered nodes at 12")', () => {
     const relations: PersonRelation[] = Array.from({ length: 20 }, (_, i) => ({
       personId: `p${i}`, name: `P${i}`, count: 20 - i,

@@ -1,4 +1,4 @@
-// SP8-P4 Task 2 — 1:1 port from Vue2 src/views/AI/MCP/mcpServerVisual.js (15 lines).
+// 1:1 port from Vue2 src/views/AI/MCP/mcpServerVisual.js (15 lines).
 // Hash algorithm, palette order, modulo operation preserved verbatim; palette is identical
 // to SKILL_COLOR_IDS in SkillTile.vue (both map to the seven gradient tokens --grad-sk-*
 // at tokens.scss:236-242), so no new palette or tokens are added.

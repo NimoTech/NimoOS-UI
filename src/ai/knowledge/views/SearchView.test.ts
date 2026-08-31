@@ -1,4 +1,4 @@
-// SP8-P5e Task 6+7 — `SearchView.vue` unit tests (T6: search box + advanced panel + `run()` +
+// `SearchView.vue` unit tests (T6: search box + advanced panel + `run()` +
 // four states; T7 continuation: result card list + two subcomponents wiring + `fetchBlobUrl`/
 // `openOriginal`/`downloadFile`/`onDrawerToast`). Blueprint `the Vue 2 panel@7a6ee6b7`
 // `src/views/AI/Knowledge/SearchView.vue` (401 lines).
@@ -129,7 +129,7 @@ const F5B_RESPONSE = {
       paths: [
         {
           root_id: 'dfcd1840f5dab439cd9d7050aa5bafd0',
-          path: '/DATA/.system_data/.docker/containers/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1-json.log',
+          path: '/DATA/Containers/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1-json.log',
           mtime_ms: 1784424392240,
         },
       ],
@@ -191,7 +191,7 @@ const F5B_RESPONSE = {
       paths: [
         {
           root_id: 'dfcd1840f5dab439cd9d7050aa5bafd0',
-          path: '/DATA/.system_data/.docker/containers/9f4d9086c55a06321ece3e53ddd890df5127fd5deaf0d95bb94fa223f32ffef0/9f4d9086c55a06321ece3e53ddd890df5127fd5deaf0d95bb94fa223f32ffef0-json.log',
+          path: '/DATA/Containers/9f4d9086c55a06321ece3e53ddd890df5127fd5deaf0d95bb94fa223f32ffef0/9f4d9086c55a06321ece3e53ddd890df5127fd5deaf0d95bb94fa223f32ffef0-json.log',
           mtime_ms: 1784359333549,
         },
       ],
@@ -292,9 +292,9 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-// ─── T7 — URL.createObjectURL/revokeObjectURL (jsdom unimplemented, `typeof` always
+// ─── URL.createObjectURL/revokeObjectURL (jsdom unimplemented, `typeof` always
 // `undefined`, direct assignment rather than `vi.spyOn` — spyOn requires property to exist,
-// see T5 report for same issue with `document.execCommand`) ───
+// same issue as `document.execCommand`) ───
 let createObjectURLMock: ReturnType<typeof vi.fn>
 let revokeObjectURLMock: ReturnType<typeof vi.fn>
 let blobUrlSeq = 0
@@ -955,7 +955,7 @@ describe('SearchView — T7: result card render fields (blueprint :121-156, use 
     const first = w.findAll('.k-rcard')[0]
     const meta = first.findAll('.k-rcard-meta-item')
     expect(meta.length).toBe(3)
-    expect(meta[0].text()).toContain('/DATA/.system_data/.docker/containers/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1/') // r.path = dirname(fullPath), no filename
+    expect(meta[0].text()).toContain('/DATA/Containers/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1/') // r.path = dirname(fullPath), no filename
     expect(meta[1].text()).toContain('修改时间')
     expect(meta[2].text()).toContain('已收录')
   })
@@ -1441,7 +1441,7 @@ describe('SearchView — T7: two subcomponents can mount simultaneously + N41 (E
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🔴 SP8-P5f Task 1b — debt I-1 (P5e final review Important-1) hole-fill block
+// 🔴 debt I-1 (P5e final review Important-1) hole-fill block
 //
 // P5e final review testing: `runSearch` two parameters `topK` / `rerank` have **zero guards**
 // in this file — reversing `rerank`, hardcoding `topK` to 10, all 4254 tests green (final review
@@ -1460,7 +1460,7 @@ describe('SearchView — T7: two subcomponents can mount simultaneously + N41 (E
 //              3rd `.k-adv-field` two buttons; passes **boolean** `quality === 'accurate'`
 //              (not string) — `fast → false`, `accurate → true`.
 //
-// criteria (RED probe, see p5f-task-1b-report.md):
+// criteria (RED probe):
 //   ① reverse `rerank` to `quality.value !== 'accurate'` → this block must fail;
 //   ② hardcode `topK` to `topK: 10` → this block must fail.
 // ═══════════════════════════════════════════════════════════════════════════

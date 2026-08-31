@@ -1,31 +1,39 @@
 <script setup lang="ts">
-// SP7-P7a-T15: SearchResultTile.vue —— 搜索结果单个瓦片。
-// Ported from the Vue 2 panel's src/views/Photos/PhotosSearchView.vue:243-250(与:261-268
-// 逐字重复的第二份,New-UI 抽出为独立组件,两个网格共用——结构去重,视觉逐元素 1:1,
-// 偏离登记(结构规格 4):Vue2 把同样 8 行标记写了两遍,本仓抽成这个文件,
-// 避免"两份标记漂"(P6b 教训:漏渲染是最高频缺陷,重复标记比单一组件更容易顾此失彼)。
+// SearchResultTile.vue — a single search result tile.
+// Ported from the Vue 2 panel's src/views/Photos/PhotosSearchView.vue:243-250 (a second,
+// verbatim-repeated copy at :261-268; New-UI extracts this as a standalone component shared
+// by both grids — deduplicating the structure while keeping every element visually 1:1).
+// Deviation noted: Vue2 wrote the same 8 lines of markup twice; this repo extracts it into
+// this one file instead, avoiding "two copies of markup drifting apart" (a lesson learned
+// elsewhere: missed rendering is the highest-frequency defect, and duplicated markup makes it
+// easier to fix one copy and forget the other).
 //
-// i18n 键(D1,已逐个 grep 核实存在,非 brief 写的名字):
-//   photosSearchBadgePhoto / photosSearchBadgeVideo / photosSearchTypeOcr / photosSearchTextMatch。
+// i18n keys (individually grep-verified to exist, not names taken on faith):
+//   photosSearchBadgePhoto / photosSearchBadgeVideo / photosSearchTypeOcr / photosSearchTextMatch.
 //
-// 收藏星(D5,控制器裁定——照抄先例,不新造):Vue2 :249 是内联 `color="#FFD60A"` 的
-// photos-icon,本仓不做内联 prop 染色,改用 PhotosGrid.vue:395 已建立的
-// `color: var(--star-fg, #ffd60a)` token 回落写法(--star-fg 在 theme.css 里没有任何
-// 主题块给值,永远吃 fallback 字面量——这是 P3 遗留的既有问题,不在本任务范围,报告里
-// 单独登记为"范围外观察",这里不修 PhotosGrid.vue,只是复用同一个 var() 写法)。
+// The favorite star (following an established precedent rather than inventing something new):
+// Vue2 :249 is a photos-icon with an inline `color="#FFD60A"`; this repo doesn't do inline
+// prop coloring, so it uses the `color: var(--star-fg, #ffd60a)` token-with-fallback pattern
+// already established in PhotosGrid.vue:395 instead (--star-fg has no value given by any
+// theme block in theme.css, so it always falls back to the literal — a pre-existing issue left
+// over from earlier work, out of scope here; this doesn't fix PhotosGrid.vue, it just reuses
+// the same var() pattern).
 //
-// 徽标底色(D9,控制器裁定):三个 `.type-badge[data-type]` 变体改用新增语义 token
-// `--badge-photo`/`--badge-video`/`--badge-ocr`(theme.css 两套主题块同值,精确复刻
-// Vue2 photos.scss:2768-2770 字面量),不是就近取 --accent/--danger。
+// Badge background colors: the three `.type-badge[data-type]` variants use new semantic
+// tokens `--badge-photo`/`--badge-video`/`--badge-ocr` instead (same value in both theme.css
+// theme blocks, precisely replicating Vue2's photos.scss:2768-2770 literals), rather than
+// reaching for the nearest existing --accent/--danger.
 //
-// `.match-source` 底色(回源核对新发现的 brief 错误,报告里登记):brief D4 断言
-// ".match-source 底色是与 ocr 徽标同一个翠绿"——回源核实后这是错的:Vue2
-// photos.scss :2751-2758 的 `.match-source` 背景字面量是 rgba(52,199,89,0.85),
-// 与 `.type-badge[data-type="ocr"]` 的 rgba(16,185,129,0.92) 不是同一个值;紧邻的
-// Vue2 源码注释(:2744-2750)明确写着"Deliberately styled distinctly from the
-// top-left .type-badge... different color family"——两者故意不同色。这里保持
-// `.match-source` 自己独立的固定字面量(theme-exception),不复用 --badge-ocr token,
-// 避免引入一个 Vue2 从未有过的视觉变化。
+// `.match-source`'s background color (a discrepancy found by cross-checking against the
+// source, noted here): an earlier assumption claimed ".match-source's background is the same
+// emerald green as the ocr badge" — cross-checking against the actual source shows this is
+// wrong: Vue2 photos.scss:2751-2758's `.match-source` background literal is
+// rgba(52,199,89,0.85), which is not the same value as `.type-badge[data-type="ocr"]`'s
+// rgba(16,185,129,0.92); Vue2's own adjacent source comment (:2744-2750) explicitly states
+// "Deliberately styled distinctly from the top-left .type-badge... different color family" —
+// the two colors are intentionally different. `.match-source` keeps its own independent fixed
+// literal here (theme-exception) rather than reusing the --badge-ocr token, to avoid
+// introducing a visual change Vue2 never had.
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
@@ -41,8 +49,9 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
-// 三元顺序照 Vue2 :246/:264 逐字:isVideo → video,否则 hasOcr → ocr,否则 photo。
-// isVideo 与 hasOcr 同真时 video 胜出——顺序不能换(删码验证清单 ④)。
+// The ternary order follows Vue2 :246/:264 verbatim: isVideo -> video, else hasOcr -> ocr,
+// else photo. When isVideo and hasOcr are both true, video wins — this order must not be
+// changed.
 const badgeType = computed<'photo' | 'video' | 'ocr'>(() => {
   if (props.result.p.isVideo) return 'video'
   if (props.result.p.hasOcr) return 'ocr'
@@ -55,7 +64,8 @@ const badgeLabel = computed(() => {
   return t('photosSearchBadgePhoto')
 })
 
-// v-if / v-else-if 互斥(照 Vue2 :247-248 逐字,不能拆成两个独立 v-if——删码验证清单 ⑤)。
+// v-if / v-else-if are mutually exclusive (follows Vue2 :247-248 verbatim; must not be split
+// into two independent v-if's).
 const pct = computed(() => matchPct(props.result.score))
 </script>
 
@@ -78,7 +88,7 @@ const pct = computed(() => matchPct(props.result.score))
 </template>
 
 <style scoped>
-/* Plan F Task 2 (2026-08-15, tile-to-parity cleanup): the `.tile` base rule that used to live
+/* Tile-to-parity cleanup: the `.tile` base rule that used to live
    here (position/aspect-ratio/overflow/border-radius/background/cursor/isolation) is deleted
    outright — `vue2-parity/photos.scss`'s own `.photos-root .tile` (:427-430) already declares
    the exact same property set, so this component now simply lets that bare rule apply (this
@@ -88,10 +98,10 @@ const pct = computed(() => matchPct(props.result.score))
    1. `background: var(--chip-bg)` was the generic cross-app glass token — never locally
       redefined by `.photos-root`, so it fell through to theme.css's global blue-glass value
       instead of the Photos-local `--surface-2` parity actually uses. Same class of leak the
-      owner's 2026-08-13 reversal fixed for the fchip/fpop family.
+      design reversal fixed for the fchip/fpop family.
    2. `border-radius: 8px` carried a citation ("matches PhotosGrid.vue's own 8px, so search
       tiles don't look sharper-cornered than library tiles on the same device") that is no
-      longer true: PhotosGrid.vue's Task 6 grid-re-cast re-skin (predating this task) already
+      longer true: PhotosGrid.vue's own grid-re-cast re-skin (predating this component) already
       reverted ITS OWN `.tile` to Vue2 parity's 3px (confirmed — `grep -n
       "border-radius" src/photos/components/PhotosGrid.vue` has zero hits; its tiles get 3px
       from the same bare `.photos-root .tile` parity rule this file now also defers to).
@@ -101,12 +111,14 @@ const pct = computed(() => matchPct(props.result.score))
 .tile img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.4s ease, filter 0.2s ease; }
 .tile:hover img { transform: scale(1.04); }
 
-/* Vue2 photos.scss:334-340(.tile-overlay 悬停暗化遮罩)。渐变字面量是叠在照片
-   缩略图之上的固定暗化层,与主题皮肤无关(同 .type-badge/.match-source 的既定处理)。 */
+/* Vue2 photos.scss:334-340 (.tile-overlay, the hover darkening mask). The gradient literal is
+   a fixed darkening layer sitting on top of the photo thumbnail, unrelated to the theme skin
+   (same established handling as .type-badge/.match-source). */
 .tile-overlay {
   position: absolute;
   inset: 0;
-  /* theme-exception: 悬停暗化渐变,叠在照片缩略图上,固定黑色,与主题皮肤无关 */
+  /* theme-exception: hover darkening gradient, sits on top of the photo thumbnail, fixed
+     black, unrelated to the theme skin */
   background: linear-gradient(180deg, rgba(0, 0, 0, 0) 50%, rgba(0, 0, 0, 0.55));
   opacity: 0;
   transition: opacity 0.18s ease;
@@ -115,10 +127,12 @@ const pct = computed(() => matchPct(props.result.score))
 }
 .tile:hover .tile-overlay { opacity: 1; }
 
-/* Vue2 photos.scss:2761-2767(基类)+ :2768-2770(三个类别变体)。四个徽标全部
-   压在照片缩略图之上——前景钉死浅色(各条声明自带的豁免注释见下方),禁 --on-accent
-   (同 PhotosGrid.vue:401-404 的既定处理:--on-accent 只在背景确为 --accent 实底时
-   可用,这里背景是三个并列的类别色 token,不是 accent)。 */
+/* Vue2 photos.scss:2761-2767 (base class) + :2768-2770 (three category variants). All four
+   badges sit on top of the photo thumbnail — the foreground is pinned to a light color (see
+   each declaration's own exemption comment below), and --on-accent is forbidden (same
+   established handling as PhotosGrid.vue:401-404: --on-accent is only valid when the
+   background is genuinely a solid --accent fill; here the background is one of three parallel
+   category-color tokens, not accent). */
 .type-badge {
   position: absolute;
   top: 6px;
@@ -127,77 +141,89 @@ const pct = computed(() => matchPct(props.result.score))
   border-radius: 99px;
   font-size: 10px;
   font-weight: 700;
-  /* theme-exception: 叠在照片上的徽标文字,固定浅色,与主题皮肤无关 */
+  /* theme-exception: badge text sitting on top of a photo, fixed light color, unrelated to
+     the theme skin */
   color: white;
   z-index: 4;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   backdrop-filter: blur(8px);
-  /* theme-exception: 固定投影,增强叠在照片上的可读性,与主题皮肤无关 */
+  /* theme-exception: fixed drop shadow, improves readability over a photo, unrelated to the
+     theme skin */
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
 }
 .type-badge[data-type="photo"] { background: var(--badge-photo); }
 .type-badge[data-type="video"] { background: var(--badge-video); }
 .type-badge[data-type="ocr"] { background: var(--badge-ocr); }
 
-/* Vue2 photos.scss:2739-2743(.match-score,语义相似度百分比,右下角)。 */
+/* Vue2 photos.scss:2739-2743 (.match-score, the semantic-similarity percentage, bottom-right). */
 .match-score {
   position: absolute;
   bottom: 6px;
   right: 6px;
   font-size: 10px;
   font-variant-numeric: tabular-nums;
-  /* theme-exception: 叠在照片上的百分比文字,固定浅色,与主题皮肤无关 */
+  /* theme-exception: percentage text sitting on top of a photo, fixed light color, unrelated
+     to the theme skin */
   color: white;
   font-weight: 600;
-  /* theme-exception: 叠在照片上的固定半透明黑底,与主题皮肤无关 */
+  /* theme-exception: fixed semi-transparent black background sitting on top of a photo,
+     unrelated to the theme skin */
   background: rgba(0, 0, 0, 0.6);
   padding: 1px 6px;
   border-radius: 99px;
   z-index: 3;
 }
 
-/* Vue2 photos.scss:2751-2758(.match-source,OCR 文本命中替代 .match-score)。
-   回源核对新发现(见上方脚本注释):这里的绿与 .type-badge[data-type="ocr"] 是
-   Vue2 源码注释里明确"故意不同"的两个绿,不能合并成同一个 token,保持各自独立的
-   固定字面量。 */
+/* Vue2 photos.scss:2751-2758 (.match-source, an OCR text match replacing .match-score).
+   A discrepancy found by cross-checking against the source (see the script-block comment
+   above): the green here and .type-badge[data-type="ocr"]'s green are two colors Vue2's own
+   source comment explicitly calls out as "deliberately different" — they must not be merged
+   into the same token; each keeps its own independent fixed literal. */
 .match-source {
   position: absolute;
   bottom: 6px;
   right: 6px;
   font-size: 10px;
   font-weight: 700;
-  /* theme-exception: 叠在照片上的文字,固定浅色,与主题皮肤无关 */
+  /* theme-exception: text sitting on top of a photo, fixed light color, unrelated to the
+     theme skin */
   color: white;
   letter-spacing: 0.03em;
   text-transform: uppercase;
-  /* theme-exception: 固定翠绿底(与 .type-badge 的 ocr 绿故意不同,见 Vue2 :2744-2750
-     源码注释 "different color family"),与主题皮肤无关 */
+  /* theme-exception: fixed emerald-green background (deliberately different from
+     .type-badge's ocr green, see Vue2's own source comment at :2744-2750, "different color
+     family"), unrelated to the theme skin */
   background: rgba(52, 199, 89, 0.85);
   backdrop-filter: blur(8px);
   padding: 2px 8px;
   border-radius: 99px;
   z-index: 3;
-  /* theme-exception: 固定投影,与主题皮肤无关 */
+  /* theme-exception: fixed drop shadow, unrelated to the theme skin */
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
 }
 
-/* Vue2 photos.scss:357-360(.tile-fav)。D5 裁定:颜色改用 PhotosGrid.vue:395 已建立
-   的 --star-fg token 回落写法,不照抄 Vue2 内联字面金色 + CSS 固定浅色文字两层叠加
-   (那是给菜单/工具栏图标组件专用的写法,本仓没有该图标组件;Vue2 原字面色值见文件头部
-   脚本区顶部注释——那段注释在脚本标签块内,不受 color-guard 扫描,这里不在样式块内
-   重复写十六进制,避免被误判成裸颜色字面量)。
-   fix round 1 · M-3(评审必修):上一版这里说脚本区注释里写的是"文字描述",与事实
-   不符——那两处其实就是字面十六进制本身,不是对颜色的文字转述,已改成准确表述(且
-   本次改法不在这条样式注释里复述那两个十六进制,避免重蹈同一个坑)。 */
+/* Vue2 photos.scss:357-360 (.tile-fav). Following an established precedent: the color uses
+   the --star-fg token-with-fallback pattern already established in PhotosGrid.vue:395, rather
+   than copying Vue2's inline literal gold plus a separate fixed-light-color CSS text layer
+   (that combination is specific to a menu/toolbar icon component this repo doesn't have;
+   Vue2's original literal color value is noted in the comment at the top of the script block
+   above — that comment lives inside the script tag, out of reach of the color-guard scan, so
+   it isn't repeated as a hex literal here in the style block, to avoid being mistaken for a
+   bare color literal).
+   A correction: an earlier version of this comment said the script-block comment described
+   the color in words, which wasn't accurate — those are literal hex values themselves, not a
+   prose paraphrase; this has been corrected to state that accurately (and this fix
+   deliberately avoids repeating those two hex values in this style comment, to not fall into
+   the same trap again). */
 .tile-fav {
   position: absolute;
   bottom: 6px;
   left: 6px;
   z-index: 3;
   color: var(--star-fg, #ffd60a);
-  /* theme-exception: 星标投影固定深色阴影,叠在照片上,与主题皮肤无关(同 .type-badge
-     的既定处理) */
+  /* theme-exception: fixed dark drop shadow on the star, sits on top of a photo, unrelated to
+     the theme skin (same established handling as .type-badge) */
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
 }
 </style>

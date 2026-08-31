@@ -1,4 +1,4 @@
-// P6b-T5: PlaceInsights.vue — "Nimo Discovery" insight card section.
+// PlaceInsights.vue — "Nimo Discovery" insight card section.
 // Covers the "write failing tests" checklist: one card per backend shape x4 +
 // no v-html + named slot bold verification + unknown key skips card(deviation from registry 8) +
 // three icon branches + empty state doesn't render.

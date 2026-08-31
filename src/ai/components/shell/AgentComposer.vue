@@ -1,5 +1,5 @@
 <!--
-  SP8-P1c1 Task 9 — AgentComposer skeleton: chips + textarea + toolbar + send/stop.
+  AgentComposer skeleton: chips + textarea + toolbar + send/stop.
   1:1 ported from Vue2 src/views/AI/Agent/shell/AgentComposer.vue (830 lines). This task
   only implements the skeleton: visible resource chips (Vue2 5-17), auto-height textarea
   (45-54), toolbar row (56-113), caption (127-129). **Not implemented** (left for Task 10/11,
@@ -15,14 +15,14 @@
       (close mention panel + clear pending attachments), both belong to the next task scope.
       Adding an empty watcher body here would be dead code, so defer entirely to Task 10.
 
-  SP8-P1c1 Task 10 — attachment pipeline (select/upload/progress/doc errors/delete/clear).
+  Attachment pipeline (select/upload/progress/doc errors/delete/clear).
   1:1 ported from Vue2: attachment chips template (18-42), `attachments` data shape
   (220-225), `onFilesPicked` (506-602), `removeAttachment` (604-611),
   `chipTitle`/`docOkLabel` (488-504), `attachmentHint` (234-244), `submit()` attachment
   portion (438-452), `activeSessionId` watcher (275-281, this task only clears attachments;
   `closeMention()` call site left for Task 11 — see note in watch block below).
 
-  SP8-P1c1 Task 11 — @mention + slash command wiring + gitignore 409 confirmation.
+  @mention + slash command wiring + gitignore 409 confirmation.
   1:1 ported from Vue2: slash/@ scanning in `onInput` (300-335, pure text math already
   prepared in Task 5's `composerText.ts`: `scanMention`/`buildDrillText`/`buildPopText`/
   `stripMentionToken`), `onBlur` (343-346), `closeMention` (347-352),
@@ -31,13 +31,13 @@
   SlashMenu mount (131-136). **Don't port** BrowserModal mount (138-142) — deferred this
   phase, Browse button still placeholder toast.
 
-  SP8-P1c1 acceptance patch Task 3 (2026-07-27, user acceptance round 1 rejected fullscreen
-  SlashMenu) — retire the `SlashMenu` mounted in Task 11 above (fullscreen overlay +
-  centered card + single-select list), replace with `SlashPopover.vue` (same shell as
-  MentionPopover, inline/anchored/↑↓/Enter/Tab/Esc/Backspace, two-stage command→target).
-  This is not a defect fix but user-reshaped interaction design, so directly delete the
-  component written in the previous cycle (not subject to "defer all deletes to SP10" — that
-  rule governs the old Vue2 repo, not our own work from this cycle that got rejected).
+  Retire the `SlashMenu` mounted above (fullscreen overlay + centered card +
+  single-select list) — the user's first pass rejected the fullscreen design — replace with
+  `SlashPopover.vue` (same shell as MentionPopover, inline/anchored/↑↓/Enter/Tab/Esc/Backspace,
+  two-stage command→target). This is not a defect fix but user-reshaped interaction design, so
+  directly delete the component written in the previous cycle (not subject to our usual
+  don't-delete-old-code convention — that convention governs the old Vue2 repo, not our own
+  work from this cycle that got rejected).
   State machine (replaces Task 11's "entire string is exactly `/`" rule in onInput 307-310):
   three refs `slashOpen`/`slashStage`/`slashQuery` re-derived on each onInput (and focus/click
   sync paths from Task 1) — see `deriveSlashState()`. Add `slashDismissedText`: remember
@@ -115,7 +115,7 @@
   `setSelectionRange` then `focus()` — first doesn't require focus, second won't reset
   existing selection, swap order fixes it. See note at `drillIn` declaration.
 
-  SP8-P3a post-acceptance addition (2026-07-30) — "mounted skill" banner, **user-directed
+  A later addition — "mounted skill" banner, **user-directed
   new UI not in Vue2**. Context: "try in conversation" stores skill id in
   `agentStore.pendingSkillId` (placeholder, temporary only), truly takes effect **next time**
   `send()` puts it in `X-Skill-Id` header and clears it (agentStore.ts:925-927, same as Vue2
@@ -212,7 +212,7 @@ const mentionSegs = ref<string[]>([])
 const mentionQuery = ref('')
 // P1c1 patch Task 3 — SlashPopover driver state (replaces Task 11's single-shot `slashOpen`
 // that only fires when entire string is exactly '/', fails on second keystroke). See file
-// header "SP8-P1c1 acceptance patch Task 3" state machine overview, and line-by-line notes
+// header comment above for the state machine overview, and line-by-line notes
 // in deriveSlashState() declaration.
 const slashOpen = ref(false)
 const slashStage = ref<'command' | 'target'>('command')
@@ -379,7 +379,7 @@ function openSlashIfNotDismissed(v: string) {
  * P1c1 patch Task 3 — replaces Task 11's "entire string is exactly '/', fails on second
  * keystroke" rule in onInput 307-310. Every call re-derives purely from current `text.value`
  * and current `slashStage` (no history dependency), so `onInput`/`onFocus`/`onClick` sharing
- * same logic doesn't drift. See file header "SP8-P1c1 acceptance patch Task 3" section.
+ * same logic doesn't drift. See the file header comment above.
  *
  * - First char not '/' (or text empty): force close, revert to command stage, clear query,
  *   clear `slashDismissedText` (brief: "clear this memory when text empties or first char
@@ -545,7 +545,7 @@ const chips = computed(() =>
 /** Vue2 654-657 toastError() — shared generic error hint for removeChip/pickItem/onBrowserPick,
  *  corresponds to Vue2's `$t('Authorization failed: {msg}')`, catch with `aiAuthFailed` key here;
  *  removeChip is the only call site wired in this task, else resource removal failure silently
- *  swallowed. SP8-P1c2 Task 6: auth failure → danger tier ("AgentComposer 7 places"). */
+ *  swallowed. Auth failure → danger tier ("AgentComposer 7 places"). */
 function toastError(e: unknown) {
   const err = e as { response?: { data?: { detail?: string } }; message?: string } | null
   const msg = err?.response?.data?.detail || err?.message || 'unknown'
@@ -636,7 +636,7 @@ function onMentionPopClose() {
  * clearTimeout in onBeforeUnmount — Vue2 never stored it, setTimeout can fire after
  * component unmount (this becomes dead instance).
  *
- * Final-review fix (2026-07-27): storing only the *latest* handle was still incomplete —
+ * A later fix: storing only the *latest* handle was still incomplete —
  * blur→focus→blur sequence overwrote `blurTimer` with second timer's handle without
  * clearing the first, so first timer kept running and could fire `closeMention()` after
  * user refocused and reopened popover. Clear any pending handle before scheduling new one
@@ -1030,7 +1030,7 @@ function openFilePicker() {
 }
 
 /** Vue2 651-653 notSupported() (voice key). Vue2 uses 'is-warning' type, not error, default
- *  toast duration. SP8-P1c2 Task 6: "feature not yet supported" is categorized as info tier
+ *  toast duration. "feature not yet supported" is categorized as info tier
  *  ("AgentComposer 7 places") — don't pass tier param, use show()'s default, so this call
  *  site needs no change. */
 function notSupported() {
@@ -1042,7 +1042,7 @@ function notSupported() {
  * browser dialog). Dialog not implemented this phase (user decision, see Task 9 brief
  * "Browse button" section), changed to toast placeholder here, no browserOpen state,
  * don't render `data-active` (Vue2 line 59 `:data-active="browserOpen"` also dropped).
- * SP8-P1c2 Task 6: same, Browse placeholder → info tier, don't pass tier, call site no change.
+ * Same, Browse placeholder → info tier, don't pass tier, call site no change.
  */
 function onBrowseClick() {
   toast.show(t('aiBrowseComingSoon'))
@@ -1087,8 +1087,8 @@ onBeforeUnmount(() => {
 <template>
   <div class="composer-wrap">
     <div class="composer" ref="composerEl">
-      <!-- SP8-P3a post-acceptance addition — see file header: store.pendingSkillId placeholder
-           hint, no Vue2 equivalent, user requested in-person 2026-07-30. -->
+      <!-- See file header comment: store.pendingSkillId placeholder
+           hint, no Vue2 equivalent, user requested in person. -->
       <div v-if="store.pendingSkillId" class="pending-skill">
         <AgentIcon name="sparkle" :size="12" color="var(--accent)" />
         <i18n-t keypath="aiSkPendingBanner" tag="span" class="pending-skill-text">
@@ -1282,7 +1282,7 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 
-/* SP8-P3a post-acceptance addition — "mounted skill" banner (see file header). Visual
+/* "Mounted skill" banner (see file header comment). Visual
    language mirrors .ctx-chip below (border-radius/font/spacing aligned), bg uses --accent-softer
    to differentiate (same token as .composer:focus-within, see agent-styles.scss:369). */
 .pending-skill {

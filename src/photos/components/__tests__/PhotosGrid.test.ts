@@ -8,10 +8,9 @@
 //  - the selection action bar lives out of this component entirely — it lives in
 //    the parent as PhotosSelectionToolbar.vue, so this component no longer emits
 //    batch-delete/cancel.
-//  - Task 6 (grid rework): the per-tile checkbox was briefly (SP7 acceptance feedback)
-//    the Files-region native-checkbox pattern (`.tile-check`/`.tile-check-box`
-//    <input>) — Task 6 supersedes that with Vue2's own `.tile-checkbox` div
-//    (click-to-toggle, no native <input>). Likewise the favorite star splits
+//  - the per-tile checkbox briefly used the Files-region native-checkbox pattern
+//    (`.tile-check`/`.tile-check-box` <input>) before being replaced with Vue2's own
+//    `.tile-checkbox` div (click-to-toggle, no native <input>). Likewise the favorite star splits
 //    into Vue2's two elements: a decorative `.tile-fav` (shown only when
 //    favorited AND not selecting) and the actual click target, `.tile-act`
 //    inside `.tile-actions`.
@@ -123,7 +122,7 @@ describe('PhotosGrid', () => {
     expect(w.find('.tile-check-box').exists()).toBe(false)
   })
 
-  // Fix round 1 (review finding): the pre-rewrite file had a dedicated assertion that
+  // The pre-rewrite file had a dedicated assertion that
   // `.tile-check-box`'s `:checked` reflects WHICH tile is in `selected` (not just that a
   // checkbox exists). Vue2's `.tile-checkbox` div carries no `:checked` state of its own —
   // selection is expressed on `.tile` via `:data-selected`, which drives the parity CSS's
@@ -138,8 +137,8 @@ describe('PhotosGrid', () => {
     expect(tiles[1].attributes('data-selected')).toBe('true')
   })
 
-  // Task 14 (a11y): `.tile-checkbox` is a plain div with a click handler, not a native
-  // <input type="checkbox"> (Task 6's deliberate parity choice, see the test above), so it
+  // For accessibility: `.tile-checkbox` is a plain div with a click handler, not a native
+  // <input type="checkbox"> (a deliberate parity choice, see the test above), so it
   // needs explicit ARIA to be exposed as a checkbox to assistive tech at all.
   it('tile-checkbox exposes role=checkbox and aria-checked matching selection state', async () => {
     const months = [month('2026-07', 'July 2026', [photo('a'), photo('b')])]
@@ -151,7 +150,7 @@ describe('PhotosGrid', () => {
     expect(boxes[1].attributes('aria-checked')).toBe('true')
   })
 
-  // P6b-T9: `selectable` prop (deviation log 14) -- the place-photos page (D10) doesn't support
+  // `selectable` prop (deviation log 14) -- the place-photos page (D10) doesn't support
   // multi-select, so reusing this component there shouldn't show a checkbox. The default value
   // must stay true, or the two existing consumers Photos.vue/PhotosFavorites.vue (neither passes
   // selectable) would silently lose their checkbox -- this is purely a default-value regression assertion.
@@ -243,7 +242,7 @@ describe('PhotosGrid', () => {
   })
 
   it('keeps the hover preview mounted after a timeline refresh rebuilds the photo object (match by id, not reference)', async () => {
-    // Regression (SP7-P1 acceptance): the timeline's quiet refresh (index poll)
+    // Regression: the timeline's quiet refresh (index poll)
     // replaces `timelineGroups`, so assetToPhoto rebuilds each Photo as a NEW
     // object with the SAME id. The old `hoveredVideo === p` reference check then
     // went false and the preview silently unmounted (Vue2 kept refs stable; Vue3
@@ -342,7 +341,7 @@ describe('PhotosGrid', () => {
   })
 
   it('captures startMs after a timeline refresh rebuilds the hovered video object (match by id, not reference)', async () => {
-    // Regression (SP7-P2 real-machine acceptance): onTileClick guarded the
+    // Regression (found on real hardware): onTileClick guarded the
     // start-position capture with `hoveredVideo === p` (object reference). The
     // quiet index-poll refresh rebuilds the Photo as a NEW object with the SAME
     // id on the same keyed DOM node (no mouseleave fires), so the reference
@@ -394,13 +393,13 @@ describe('PhotosGrid', () => {
     }
   })
 
-  // Task 6 (grid rework): Vue2 PhotosGrid.vue:65-76 splits favoriting into TWO elements —
+  // Vue2 PhotosGrid.vue:65-76 splits favoriting into TWO elements —
   // a decorative bottom-left `.tile-fav` (v-if="p.fav && !selecting", no click handler)
   // and the actual click target, a top-right `.tile-act` button inside `.tile-actions`
   // (always present, hover-visible via CSS, `data-on` reflects fav state). This
-  // supersedes the pre-Task-6 shape where `.tile-fav` itself was the single, always-
+  // supersedes an earlier shape where `.tile-fav` itself was the single, always-
   // rendered, clickable toggle.
-  describe('per-tile favorite star (SP7-P3 Task 5, re-skinned to Vue2\'s split shape in Task 6)', () => {
+  describe('per-tile favorite star (re-skinned to match Vue2\'s split shape)', () => {
     it('a favorited photo renders the decorative .tile-fav badge (value comparison via fav.isFav(id), not object identity)', async () => {
       svc.photos.listFavoriteIds.mockResolvedValueOnce(['a'])
       const fav = usePhotosFavorites()

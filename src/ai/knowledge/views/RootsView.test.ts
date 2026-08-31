@@ -1,4 +1,4 @@
-// SP8-P5f Task 5 — Component test for `RootsView.vue`.
+// Component test for `RootsView.vue`.
 // Blueprint: the Vue 2 panel @ `7a6ee6b7` `src/views/AI/Knowledge/RootsView.vue` (289 lines).
 //
 // ═══ Mock strategy (governance §4.1 requires explicit documentation) ═══
@@ -24,7 +24,7 @@
 // (decision R3 constraint 1), **don't use `node:fs` to read the capture directory at runtime** — that directory is
 // gitignored (lost entirely in SP7 once).
 // 🔴 **Take only data fields, convert `__meta` to comments** (decision R14 / `p5f-fixtures/README.md` §0.2).
-// Copy equivalence confirmed by **byte-for-byte programmatic verification** (output pasted in T5 report §5),
+// Copy equivalence confirmed by **byte-for-byte programmatic verification**,
 // not by eyeballing.
 // Always read `.vue` source files with `node:fs`, **never use Vite's `?raw`** (always empty under vitest → false positives).
 //
@@ -445,7 +445,7 @@ describe('RootsView — N46: row content reads camelCase fields (blueprint :22-2
 //    risk decision R9 itself flagged ("what if we change to replacing the whole array"). **Empirically valid criterion**:
 //    replace `setRootEnabled`'s in-place mutation with
 //      `wikiRoots.value = wikiRoots.value.map((r) => (r.id === id ? { ...r, enabled } : r))`
-//    → first two of this suite + the one in R27 **all 3 fail** (T5 report §7 pasted full output + md5sum restored).
+//    → first two of this suite + the one in R27 **all 3 fail** (verified full output + md5sum restored).
 //    ⇒ If downstream needs to re-run this guard, use **the later criterion**, not brief's literal version.
 describe('RootsView — R9 invariant: after toggle() success, toast reads **new** state', () => {
   it('🔴 Off → On: toast is "enabled" (not old state "disabled")', async () => {
@@ -1270,7 +1270,7 @@ describe('RootsView — R27: 7 toasts all via store.toast (not direct useToast)'
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🔴🔴 SP8-P5f **Task 6 addition** (decision **R27** — Important I-1 from T5 review handed to this file)
+// 🔴🔴 **Later addition** (decision **R27** — Important I-1 from T5 review handed to this file)
 //
 // ⚠️ For T6 this file has **extremely narrow exemption: new tests only, zero changes to existing lines** (decision R27).
 //    🔴 **`RootsView.vue` product code unchanged** — review verified it **character-by-character correct**,
@@ -1291,8 +1291,7 @@ describe('RootsView — R27: 7 toasts all via store.toast (not direct useToast)'
 //   `.kr-error` inline block of `RootsView.vue`) — it `@click="submit(true)"` and
 //   **has no `:disabled` binding** ⇒ double-click really dispatches two clicks, really enters `submit()` twice.
 //   🔴 Criterion: remove `submitting.value` gate from `submit()` → **this test must fail**
-//   (with gate 1 call / without gate 2 calls to `createRoot`). RED output and md5sum validation in
-//   `p5f-task-6-report.md` §7.
+//   (with gate 1 call / without gate 2 calls to `createRoot`).
 // ═══════════════════════════════════════════════════════════════════════════
 describe('RootsView — 🔴 submitting is **function gate**, not just :disabled binding (decision R27)', () => {
   /** Open dialog → fill valid path → use 409 to get "Add in mirror mode" button (N50). */

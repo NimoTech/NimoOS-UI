@@ -1,4 +1,4 @@
-// SP8-P5c Task 3 (part 1) — unit tests for `util/folderBrowser.ts` three pure functions.
+// Unit tests for `util/folderBrowser.ts` three pure functions.
 // Blueprint: the Vue 2 panel's `src/components/common/folderBrowser.js:3-34` (main@7a6ee6b7).
 //
 // [Data source for end-to-end test case] `data.content` layer of `folder-list-DATA.json`

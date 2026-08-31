@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import SetSwitch from './SetSwitch.vue'
 
-// SP8-P2a Task 6 — ported from Vue2
+// Ported from Vue2
 // `src/views/AI/Settings/__tests__/SetSwitch.spec.js` (2 assertions, keep all).
 // Vue2's two are direct .call() on component methods; this repo changed to real mount + trigger DOM events,
 // asserting power only increases (it also incidentally covers data-on / aria bindings on template).

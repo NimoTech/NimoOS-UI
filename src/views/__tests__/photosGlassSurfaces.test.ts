@@ -1,33 +1,44 @@
-// SP7 修复:相册区两处"不透明深色板压在玻璃壳上"。
+// Fix: two places in the Photos area where an opaque dark panel sat on top of the glass shell.
 //
-// 病根是一类移植缺陷 —— **照抄 token 名,但两个同名 token 的语境不同**:
-//   · Vue2 相册区是一整块**不透明深色页面**(`photos.scss:3` `--bg: #0A0A0C`),页内任何
-//     元素刷 `var(--bg)` 都与页底无缝;
-//   · New-UI 的相册区活在 AreaShell 的**玻璃壳**里(半透明 + 壁纸/渐变透上来),同样刷
-//     `var(--bg)`(`#1a2138`)就变成一块黑板 —— 真机截图里那条横贯整宽的黑带就是它。
+// Root cause is a class of migration defect -- **the token name was copied verbatim, but the
+// two same-named tokens have different contexts**:
+//   · Vue2's Photos area is one whole **opaque dark page** (`photos.scss:3` `--bg: #0A0A0C`), so
+//     any element inside it painting `var(--bg)` blends seamlessly with the page background;
+//   · New-UI's Photos area lives inside AreaShell's **glass shell** (translucent, with
+//     wallpaper/gradient showing through), so painting the same `var(--bg)` (`#1a2138`) there
+//     becomes a solid dark panel -- the band spanning the full width in the real-device
+//     screenshot is exactly this.
 //
-// 本仓 `--bg` 的**正当用法是"占满视口、自己就是页底"的壳**(StorageShell / SettingsShell /
-// MediaViewer / SearchDialog)与 SmartViewCard 拼贴图的缝隙色;内嵌在区域壳里的行/条/面板
-// 一律走玻璃 token(`--panel-bg`),同区先例:PhotosSidebar / PlacesRail / PhotoInfoPanel /
-// PersonPlacesTab 全是 `var(--panel-bg)`。
+// In this repo, `--bg`'s **legitimate use is a shell that fills the viewport and is itself the
+// page background** (StorageShell / SettingsShell / MediaViewer / SearchDialog) and the gap
+// color between tiles in SmartViewCard's collage; any row/bar/panel nested inside an area shell
+// always uses the glass token (`--panel-bg`) instead -- existing precedent in this same area:
+// PhotosSidebar / PlacesRail / PhotoInfoPanel / PersonPlacesTab all use `var(--panel-bg)`.
 //
-// `--panel-bg-solid`(深色是不透明渐变实底)当年**为地图专门引入**:PlaceDetailPanel 压在
-// PlacesMap 的画布上,半透会把地图网格点透上来(P6b 真机验收反馈)。除此之外没有第二个
-// 合法场景 —— 所以下面第三组用**白名单**钉住它的消费方集合,多一个就红。
+// `--panel-bg-solid` (dark theme is an opaque gradient fill) was **introduced specifically for
+// the map**: PlaceDetailPanel sits on top of PlacesMap's canvas, and translucency let the map's
+// grid dots show through (found via real-device verification). Beyond that there is no other
+// legitimate scenario -- so the third group below pins its set of consumers with a
+// **whitelist**; one more consumer turns it red.
 //
-// 订正:当年那条"半透会把网格点透上来"的理由
-// 本身站不住脚——`--surface-1`(本仓 Photos 私有 token)在两套 Photos 主题下都是**完全不
-// 透明**的纯色(`#131318` 深色 / `oklch(0.975 0.004 80)` 浅色,均无 alpha 通道),从来不是
-// 半透明的。`--panel-bg-solid` 反而是个*全局* token,只跟随全站 `[data-theme]` 属性、不跟随
-// Photos 私有的 `.photos-root.is-light` 切换——真正的后果是:切 Photos 私有浅色主题后,这块
-// 面板底色仍卡在深色(真机验收里"右侧详情面板不跟随浅色主题"的报告)。PlaceDetailPanel.vue
-// 的 `.map-detail` 已改回 `--surface-1`(parity `photos-places.scss` 自己的 `.map-detail`
-// 规则本就是这个值,组件那条本地覆盖此前一直在遮盖它)——`--panel-bg-solid` 现在没有任何
-// 合法消费方了,下面白名单已改成空集,不是又找了个新消费方。
+// Correction: the original reasoning that "translucency would let the grid dots show through"
+// doesn't actually hold up -- `--surface-1` (this repo's Photos-private token) is **fully
+// opaque** in both Photos themes (`#131318` dark / `oklch(0.975 0.004 80)` light, neither has an
+// alpha channel), it was never translucent. `--panel-bg-solid` is instead a *global* token that
+// only follows the site-wide `[data-theme]` attribute, not Photos' own private
+// `.photos-root.is-light` toggle -- the real consequence: after switching to Photos' private
+// light theme, this panel's background stays stuck in dark (the real-device finding of "the
+// right-side detail panel doesn't follow the light theme"). PlaceDetailPanel.vue's
+// `.map-detail` has been changed back to `--surface-1` (parity `photos-places.scss`'s own
+// `.map-detail` rule was already this value; the component's local override had been shadowing
+// it) -- `--panel-bg-solid` now has no legitimate consumers at all, the whitelist below has been
+// changed to an empty set, not because a new consumer was found.
 //
-// jsdom 不算级联、也不做布局,这类缺陷单测抓不到(5952 例全绿也没抓到),故与
-// color-guard.test.ts / photosLayoutHeightCap.test.ts 同一路数:对样式块原文做文本断言。
-// 读盘一律 node:fs —— 本仓 `?raw` 在测试环境恒空(color-guard 曾因此空转)。
+// jsdom doesn't compute cascade or do layout, so unit tests can't catch this class of defect
+// (all 5952 cases green didn't catch it either), so same approach as color-guard.test.ts /
+// photosLayoutHeightCap.test.ts: assert against the raw style-block text.
+// Always read files via node:fs -- this repo's `?raw` is always empty in the test environment
+// (color-guard once silently no-op'd because of this).
 import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -41,7 +52,7 @@ function read(rel: string): string {
   return text
 }
 
-/** 取某个选择器的规则体(只取第一处,够用:这几个类在各自 SFC 里都只有一条规则)。 */
+/** Get a selector's rule body (only the first occurrence, which is enough: each of these classes has only one rule in its own SFC). */
 function ruleBody(text: string, selector: string): string {
   const i = text.indexOf(selector)
   expect(i, `找不到选择器 ${selector}`).toBeGreaterThan(-1)
@@ -52,7 +63,7 @@ function ruleBody(text: string, selector: string): string {
   return text.slice(open + 1, close)
 }
 
-describe('相册区表面用玻璃 token,不刷应用底色', () => {
+describe('photos area surfaces use glass tokens, not the app background paint', () => {
   // Correction: this case's own
   // premise -- "this page still lives inside AreaShell's glass shell, so any background paints a
   // visible band" -- is no longer true, same class of correction as the next case below did for
@@ -65,17 +76,17 @@ describe('相册区表面用玻璃 token,不刷应用底色', () => {
   // with every other selector name already covered by vue2-parity/photos.scss, letting THAT rule
   // (which does paint `background: var(--bg)`, matching Vue2 1:1, photos.scss:2610-2616) govern
   // directly.
-  it('搜索页不再自带本地 .filterbar 规则(已随 2026-08-13 回退整体移交 parity)', () => {
+  it('search page no longer carries its own local .filterbar rule (handed off to parity via rollback)', () => {
     const src = read('views/PhotosSearch.vue')
     expect(src, '搜索页仍留着一份本地 .filterbar 规则,应已随回退删除').not.toMatch(/\n\.filterbar\s*\{/)
   })
 
-  it('parity 自己的 .filterbar 画底色(Plan C 已脱离 AreaShell 玻璃壳,画底色不再产生色带)+ 仍保留分隔线与层叠', () => {
+  it("parity's own .filterbar paints the background (no longer inside AreaShell's glass shell under Plan C, so it no longer causes banding), and still keeps the divider and stacking", () => {
     const body = ruleBody(read('photos/styles/vue2-parity/photos.scss'), '.filterbar {')
     expect(body).toMatch(/background\s*:\s*var\(--bg\)/)
-    // border-bottom 是它与排序行之间唯一的视觉分界。
+    // border-bottom is the only visual divider between it and the sort row.
     expect(body).toMatch(/border-bottom\s*:\s*1px solid var\(--line\)/)
-    // position/z-index 不是装饰:筛选弹层(.fpop)是它的后代,靠这两条才画得到下方网格之上。
+    // position/z-index aren't decorative: the filter popover (.fpop) is its descendant, and these two properties are what let it paint above the grid below.
     expect(body).toMatch(/position\s*:\s*sticky/)
     expect(body).toMatch(/z-index\s*:\s*6/)
   })
@@ -93,7 +104,7 @@ describe('相册区表面用玻璃 token,不刷应用底色', () => {
   // `--panel-bg`, which was not, and stayed a barely-visible glass tint in photos light mode --
   // the actual bug this correction fixes, on top of restoring the pre-Plan-C premise this test
   // case itself no longer describes).
-  it('智能视图详情的右侧栏用 parity 自己的不透明面板底(Plan C 已脱离 AreaShell 玻璃壳,与 PhotosSidebar 现状一致)', () => {
+  it("smart view detail's right sidebar uses parity's own opaque panel background (no longer inside AreaShell's glass shell, consistent with PhotosSidebar)", () => {
     const body = ruleBody(read('views/PhotosSmartViewDetail.vue'), '.sv-detail-side {')
     expect(body).toMatch(/background\s*:\s*var\(--surface-1\)/)
     expect(body, '右侧栏底下没有地图,用不着不透明实底(且早已不是 --panel-bg-solid 消费方)').not.toMatch(/var\(--panel-bg-solid\)/)
@@ -101,8 +112,8 @@ describe('相册区表面用玻璃 token,不刷应用底色', () => {
   })
 })
 
-describe('--panel-bg-solid 的消费方白名单(反向闸)', () => {
-  // Fix-1 item 6 (2026-08-16): the previously-sole "legitimate scenario" (PlaceDetailPanel.vue,
+describe('--panel-bg-solid consumer whitelist (reverse gate)', () => {
+  // The previously-sole "legitimate scenario" (PlaceDetailPanel.vue,
   // stacked over the map canvas) has been fixed to use `--surface-1` instead (see this file's
   // header comment for the full account) — `--surface-1` is already fully opaque in both
   // Photos themes, so there was never a real translucency problem to solve with a second,
@@ -142,11 +153,11 @@ describe('--panel-bg-solid 的消费方白名单(反向闸)', () => {
 
   const files = walk(SRC)
 
-  it('取数有效(扫到了 .vue 文件)', () => {
+  it('data fetch is valid (found .vue files)', () => {
     expect(files.length).toBeGreaterThan(50)
   })
 
-  it('只有白名单里的组件用 --panel-bg-solid', () => {
+  it('only whitelisted components use --panel-bg-solid', () => {
     const users = files
       .filter((p) => fs.readFileSync(p, 'utf8').includes('var(--panel-bg-solid)'))
       .map((p) => path.relative(SRC, p).replace(/\\/g, '/'))
@@ -162,28 +173,28 @@ describe('--panel-bg-solid 的消费方白名单(反向闸)', () => {
 // regardless of how opaque its own background is, so the aurora painted on top of `.app` all
 // along. It read as a plausible ambient glow in Photos' own dark theme and was never reported;
 // `.photos-root.is-light`'s near-white `--bg` makes the exact same bleed-through glaringly
-// visible (a colourful gradient wash over a light page), which is what the owner's screenshot
-// shows. Fix: `position: relative; z-index: 1` on `.app` promotes it into the positioned/
+// visible (a colourful gradient wash over a light page), which is the reported symptom.
+// Fix: `position: relative; z-index: 1` on `.app` promotes it into the positioned/
 // z-index layer above the aurora's `z-index: 0` -- theme-invariant (fixes both of
 // `.photos-root`'s own themes at once, not a per-theme override), same recipe already used by
 // ViewerShell.vue's own opaque shell over its own z-index:0 bokeh layer. jsdom does not compute
 // paint order/cascade, so (same as this file's other cases) this is a raw-source assertion, not
 // a rendered-DOM one; real-device verification is still the authority for the visual result.
-describe('Fix-2 item 6b: .app 建立自己的层叠上下文,压在全局 aurora(z-index:0)之上', () => {
-  it('.photos-root .app 有 position:relative + z-index:1(两套主题通用,不分深浅色)', () => {
+describe('.app establishes its own stacking context, above the global aurora (z-index:0)', () => {
+  it('.photos-root .app has position:relative + z-index:1 (shared across both dark and light themes)', () => {
     const body = ruleBody(read('photos/styles/vue2-parity/photos.scss'), '.photos-root .app {')
     expect(body).toMatch(/position\s*:\s*relative/)
     expect(body).toMatch(/z-index\s*:\s*1\b/)
-    // 不透明底色仍然保留,两件事互相独立、都要成立。
+    // The opaque background is still retained -- the two things are independent of each other, both must hold.
     expect(body).toMatch(/background\s*:\s*var\(--bg\)/)
   })
 })
 
-// Plan F Task 1 (search page D13 alignment + glass light-context fix): the topbar's `.search`
-// box is an owner-approved GLASS exception (PhotosTopbar.vue's own scoped style) that
+// The topbar's `.search`
+// box is a GLASS exception (PhotosTopbar.vue's own scoped style) that
 // deliberately consumes the app's GLOBAL --chip-bg/--chip-border tokens (src/styles/theme.css)
-// instead of this file's own `.photos-root`-scoped parity tokens. Root cause of the "亮色顶部
-// 暗带" (light-top dark-band) the owner reported: `.photos-root.is-light` never redefined
+// instead of this file's own `.photos-root`-scoped parity tokens. Root cause of the reported
+// "light-top dark-band" glitch: `.photos-root.is-light` never redefined
 // those two token NAMES, so in the very common "photos-light + app-global-dark" combination
 // (Photos has its own light/dark toggle, independent of theme.css's app-wide toggle — dark is
 // theme.css's default, no `data-theme="light"` attribute needed to hit it) the glass box fell
@@ -191,34 +202,36 @@ describe('Fix-2 item 6b: .app 建立自己的层叠上下文,压在全局 aurora
 // on a dark AreaShell page — painted on top of THIS page's own near-white `--bg`. This guard
 // closes the blind spot: it was possible to regress the dark-band fix by deleting the
 // `.photos-root.is-light` override below without any existing test in this file catching it.
-describe('搜索框玻璃例外(topbar .search)的暗带根治:--chip-bg/--chip-border 在 is-light 下有亮色语境值', () => {
-  it('.photos-root.is-light 覆盖 --chip-bg/--chip-border(photos 私有,不碰全局 theme.css)', () => {
+describe('search box glass exception (topbar .search) dark-band fix: --chip-bg/--chip-border have light-context values under is-light', () => {
+  it("photos-root.is-light overrides --chip-bg/--chip-border (photos-private, doesn't touch global theme.css)", () => {
     const body = ruleBody(read('photos/styles/vue2-parity/photos.scss'), '.photos-root.is-light {')
     expect(body).toMatch(/--chip-bg\s*:/)
     expect(body).toMatch(/--chip-border\s*:/)
-    // 不是把 theme.css 的深色玻璃值原样抄一份——真的换了一套亮色语境的值,不是摆设。
+    // Not just copying theme.css's dark glass values verbatim -- these are genuinely different light-context values, not just for show.
     expect(body).not.toMatch(/rgba\(255,\s*255,\s*255,\s*0\.26\)/)
   })
 
-  it('.photos-root(深色块)不重定义 --chip-bg/--chip-border ——深色玻璃质感字节不变,继续吃全局 theme.css 的深色值', () => {
+  it(".photos-root (dark block) doesn't redefine --chip-bg/--chip-border — the dark glass look stays byte-identical, still falling through to theme.css's dark values", () => {
     const body = ruleBody(read('photos/styles/vue2-parity/photos.scss'), '.photos-root {')
     expect(body).not.toMatch(/--chip-bg\s*:/)
     expect(body).not.toMatch(/--chip-border\s*:/)
   })
 
-  it('全局 src/styles/theme.css 未被本次修复触碰(暗带根治严格限定在 photos 私有作用域内)', () => {
+  it('global src/styles/theme.css is untouched by this fix (dark-band fix is strictly scoped to photos-private)', () => {
     const themeCss = read('styles/theme.css')
-    // 只做存在性/计数式的粗粒度守卫:深浅两套主题各自的 --chip-bg 声明应保持恰好各一处
-    // (:root 一处 + :root[data-theme="light"] 一处),不应该因为这次修复被误改成别的值或
-    // 多出/少了一处——那将意味着有人把 photos 私有的覆盖误写回了全局文件。按行首匹配
-    // (允许前导空白),排除文件里提到 `--chip-bg` 这个词但只是散文注释的行(如"不复用
-    // --chip-bg:它在纸感主题是纯白……"那一句,不是真的声明)。
+    // Only a coarse existence/count guard: the dark and light themes' respective --chip-bg
+    // declarations should stay at exactly one each (:root once + :root[data-theme="light"] once),
+    // and shouldn't be accidentally changed to a different value or have one added/removed by
+    // this fix -- that would mean someone mistakenly wrote a Photos-private override back into the
+    // global file. Matched at line-start (leading whitespace allowed), excluding lines in the
+    // file that mention the word `--chip-bg` only in prose comments (e.g. the line "doesn't
+    // reuse --chip-bg: it's pure white in the paper theme...", which isn't a real declaration).
     const chipBgCount = themeCss.split('\n').filter((line) => /^\s*--chip-bg\s*:/.test(line)).length
     expect(chipBgCount).toBe(2)
   })
 })
 
-// Plan F Task 6: audit of the lightbox's own is-light chain, closing the same class of blind
+// Audit of the lightbox's own is-light chain, closing the same class of blind
 // spot the search-topbar guard above closes for --chip-bg/--chip-border. --lb-bg (canvas) /
 // --lb-chrome (top bar + filmstrip bottom bar) are photos-private tokens (not global theme.css
 // ones) declared in BOTH of `.photos-root`'s own theme blocks — unlike --chip-bg/--chip-border,
@@ -226,23 +239,23 @@ describe('搜索框玻璃例外(topbar .search)的暗带根治:--chip-bg/--chip-
 // --lb-chrome are redefined in the dark block too (Vue2 parity's own literal values), so the
 // guard here is the mirror shape: assert BOTH blocks declare them, and that light's values are
 // a real different value (not dark's literals copy-pasted under the light selector).
-describe('灯箱(Task 6):--lb-bg/--lb-chrome 在深浅两套主题下都有值,且亮色确实换了语境值', () => {
-  it('.photos-root(深色块)声明 --lb-bg/--lb-chrome 为 Vue2 原始字面值(photos.scss:62-89 真值核对)', () => {
+describe('lightbox: --lb-bg/--lb-chrome have values under both themes, and light genuinely switches to different context values', () => {
+  it(".photos-root (dark block) declares --lb-bg/--lb-chrome as Vue2's original literal values (verified against photos.scss:62-89)", () => {
     const body = ruleBody(read('photos/styles/vue2-parity/photos.scss'), '.photos-root {')
     expect(body).toMatch(/--lb-bg\s*:\s*#000\s*;/)
     expect(body).toMatch(/--lb-chrome\s*:\s*rgba\(0,\s*0,\s*0,\s*0\.6\)\s*;/)
   })
 
-  it('.photos-root.is-light 覆盖 --lb-bg/--lb-chrome —— 近白 oklch 画布 + 白玻璃顶/底栏,不是深色照抄', () => {
+  it('.photos-root.is-light overrides --lb-bg/--lb-chrome — near-white oklch canvas + white-glass top/bottom bars, not a dark copy-paste', () => {
     const body = ruleBody(read('photos/styles/vue2-parity/photos.scss'), '.photos-root.is-light {')
     expect(body).toMatch(/--lb-bg\s*:\s*oklch\(0\.975 0\.004 80\)/)
     expect(body).toMatch(/--lb-chrome\s*:\s*rgba\(255,\s*255,\s*255,\s*0\.8\)/)
-    // 换了真值,不是把深色块的 #000/rgba(0,0,0,0.6) 原样搬进 is-light 块。
+    // Real values changed, not the dark block's #000/rgba(0,0,0,0.6) copied verbatim into the is-light block.
     expect(body).not.toMatch(/--lb-bg\s*:\s*#000/)
     expect(body).not.toMatch(/--lb-chrome\s*:\s*rgba\(0,\s*0,\s*0/)
   })
 
-  it('灯箱画布/顶栏/胶片底栏都吃 --lb-bg/--lb-chrome(不是别的 token 或字面量)——`.lightbox` 现已重新挂进 `.photos-root` 内(Task 5),这两条规则才真正生效', () => {
+  it('lightbox canvas/top bar/filmstrip bottom bar all consume --lb-bg/--lb-chrome (not some other token or literal) — now that `.lightbox` is remounted inside `.photos-root`, these two rules actually take effect', () => {
     const scss = read('photos/styles/vue2-parity/photos.scss')
     expect(ruleBody(scss, '.photos-root .lightbox {')).toMatch(/background\s*:\s*var\(--lb-bg\)/)
     expect(ruleBody(scss, '.photos-root .lb-top {')).toMatch(/background\s*:\s*var\(--lb-chrome\)/)
@@ -250,10 +263,10 @@ describe('灯箱(Task 6):--lb-bg/--lb-chrome 在深浅两套主题下都有值,�
   })
 })
 
-// Plan F Task 6 (brief item 3): sweep the lightbox's own 4 component files for a *bare* color
+// Sweep the lightbox's own 4 component files for a *bare* color
 // literal (no `var(--token…)` wrapper at all, fallback or otherwise) on any surface that should
 // be following `.photos-root.is-light` — the exact "dark-literal fallback that would defeat
-// is-light" defect class the brief calls out. A `var(--lb-chrome, rgba(0,0,0,0.6))`-style
+// is-light" defect class this guards against. A `var(--lb-chrome, rgba(0,0,0,0.6))`-style
 // fallback is explicitly FINE (the token resolves for real once nested inside `.photos-root`,
 // per the case above) — this guard only fires on literals with no token wrapper at all.
 //
@@ -268,7 +281,7 @@ describe('灯箱(Task 6):--lb-bg/--lb-chrome 在深浅两套主题下都有值,�
 // own `--panel-bg-solid` consumer whitelist above: any new bare literal must be explicitly added
 // here, forcing a reviewer to ask "is this really a fixed-contrast-over-arbitrary-content case,
 // or did someone just forget the token?"
-describe('灯箱 4 个组件文件(Task 6):裸色字面量白名单 —— 不新增绕过 is-light 的写死颜色', () => {
+describe('lightbox 4 component files: bare color literal whitelist — no new hardcoded colors that bypass is-light', () => {
   const LIGHTBOX_FILES = [
     'photos/lightbox/PhotoLightbox.vue',
     'photos/lightbox/PhotoFilmstrip.vue',
@@ -280,7 +293,7 @@ describe('灯箱 4 个组件文件(Task 6):裸色字面量白名单 —— 不�
     'photos/lightbox/PhotoFilmstrip.vue::background: rgba(0, 0, 0, 0.55); color: #fff;',
     'photos/lightbox/PhotoInfoPanel.vue::color: rgba(255, 255, 255, 0.72);',
     'photos/lightbox/PhotoInfoPanel.vue::text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65);',
-    // M2 (final review, 2026-08-15): the delete-confirm dialog's trash-icon color matches Vue2
+    // The delete-confirm dialog's trash-icon color matches Vue2
     // PhotosLightbox.vue:154's own hardcoded literal exactly (see this line's own theme-exception
     // comment in PhotoLightbox.vue) -- a deliberate one-off parity match, not a drift back toward
     // hardcoded colors generally.
@@ -303,7 +316,7 @@ describe('灯箱 4 个组件文件(Task 6):裸色字面量白名单 —— 不�
       .map((l) => `${rel}::${l}`)
   }
 
-  it('4 个文件里裸色字面量的完整清单恰好等于已登记的白名单(多一条就红)', () => {
+  it('the full list of bare color literals across the 4 files exactly matches the registered whitelist (one extra entry fails)', () => {
     const found = new Set(LIGHTBOX_FILES.flatMap(bareColorLiteralLines))
     expect(found).toEqual(ALLOWED_BARE_LITERALS)
   })
@@ -323,7 +336,7 @@ describe('灯箱 4 个组件文件(Task 6):裸色字面量白名单 —— 不�
 // idiom as this file's other two describe blocks above): every one of these token names should
 // have ZERO occurrences left in the places area's own component/parity files; any future
 // reintroduction is exactly the class of regression this fix corrects.
-describe('Fix-1 items 1/6: Places 区不再消费全局玻璃/文本 token(只跟全站主题、不跟 Photos 私有 is-light)', () => {
+describe("places area no longer consumes global glass/text tokens (follows only the site-wide theme, not Photos' private is-light)", () => {
   // .vue files: scan only the `<style>` block (via `extractStyleBlock`, which also strips CSS
   // `/* … */` comments) — this file's own `<style>` header comments cite these exact banned
   // token names in prose (documenting the fix), which would otherwise false-positive this
@@ -360,7 +373,7 @@ describe('Fix-1 items 1/6: Places 区不再消费全局玻璃/文本 token(只�
       .map((l) => `${rel}::${l}`)
   }
 
-  it('Places 区组件 + parity scss 里,以上全局 token 的 var(...) 消费方数量恰好为 0', () => {
+  it('across Places components + parity scss, the above global tokens have exactly 0 var(...) consumers', () => {
     const fromVue = VUE_FILES.flatMap((rel) => bannedTokenUsages(rel, extractStyleBlock(read(rel))))
     const fromScss = SCSS_FILES.flatMap((rel) => bannedTokenUsages(rel, read(rel).replace(/\/\*[\s\S]*?\*\//g, '')))
     expect([...fromVue, ...fromScss]).toEqual([])
@@ -370,7 +383,7 @@ describe('Fix-1 items 1/6: Places 区不再消费全局玻璃/文本 token(只�
   // `style="…"` attribute in its TEMPLATE, not its `<style>` block — the sweep above can't see
   // it (extractStyleBlock only reads `<style>…</style>`). Separate raw-source check for that
   // one template-level occurrence.
-  it('PlaceSpotDialog.vue 的地图图钉图标 inline style 不再用 --accent-text', () => {
+  it("PlaceSpotDialog.vue's map pin icon inline style no longer uses --accent-text", () => {
     const raw = read('photos/components/PlaceSpotDialog.vue')
     expect(raw).not.toMatch(/var\(--accent-text\)/)
     expect(raw).toContain('color: var(--accent-hi); flex: none')
@@ -387,7 +400,7 @@ describe('Fix-1 items 1/6: Places 区不再消费全局玻璃/文本 token(只�
 // combination every rule below stayed stuck in its dark appearance. This guard is the lightbox
 // counterpart of the Places whitelist sweep: every one of these token names should have ZERO
 // `var(...)` occurrences left in the 4 lightbox-family component files' `<style>` blocks.
-describe('Fix-2 item 4: 灯箱家族不再消费全局玻璃/文本 token(只跟全站主题、不跟 Photos 私有 is-light)', () => {
+describe("lightbox family no longer consumes global glass/text tokens (follows only the site-wide theme, not Photos' private is-light)", () => {
   const LIGHTBOX_FILES = [
     'photos/lightbox/PhotoLightbox.vue',
     'photos/lightbox/PhotoInfoPanel.vue',
@@ -413,7 +426,7 @@ describe('Fix-2 item 4: 灯箱家族不再消费全局玻璃/文本 token(只跟
       .map((l) => `${rel}::${l}`)
   }
 
-  it('4 个灯箱组件文件里,以上全局 token 的 var(...) 消费方数量恰好为 0', () => {
+  it('across the 4 lightbox component files, the above global tokens have exactly 0 var(...) consumers', () => {
     expect(LIGHTBOX_FILES.flatMap(bannedTokenUsages)).toEqual([])
   })
 })

@@ -1,5 +1,5 @@
 <!--
-  SP8-P5f Task 5 — "Knowledge Roots" page (rail item 7, route `/ai/knowledge/roots`),
+  "Knowledge Roots" page (rail item 7, route `/ai/knowledge/roots`),
   1:1 ported from Vue2 reference the Vue 2 panel @ `7a6ee6b7`
   `src/views/AI/Knowledge/RootsView.vue` (289 lines, fetch via `git -C ../../the Vue 2 panel show 7a6ee6b7:`
   — governance §0.4: that repo's working tree is on another branch, unreliable).
@@ -69,7 +69,7 @@
       rendering as toast gets overlaid + blurred.
       the divergence is the other half: reference `:202` directly echoes `e.response.data.message` to `addError`
       (K5/K58 explicitly forbid echoing backend body) ⇒ this repo non-409 branch uses fixed i18n key instead.
-    · **K58 (form A)**: established practice per `p5f-task-0-report.md` §12 ——
+    · **K58 (form A)**: established practice ——
       **in catch discard `e.message`, show only fixed i18n key, and "no second sentence to compose, so no `': '` prefix"**
       (precedent `QueueView.vue:212-217` / `IndexedFilesView.vue:592-593` / `NoteEditPane.vue:461`).
       reference four places `$t('Operation failed') + ': ' + (e.message || e)` (`:171` `:180` `:216`) and
@@ -94,8 +94,7 @@
     ⇒ HTTP response is **PascalCase**, POST body must use **Go field names** (Go decoder case-insensitive
     but **underscore doesn't match**, `watch_mode` gets **silently discarded**, no error on real device).
     🔴 **bidirectional normalization already in shared package** (`the shared service package's src/wiki.ts:85` `normalizeRoot` /
-    `:136` `createRootBody`) ⇒ **store exports all camelCase** (T0 real-world decision, established in
-    `p5f-task-0-report.md` §4.4), this page only consumes `r.id` / `r.path` / `r.enabled` /
+    `:136` `createRootBody`) ⇒ **store exports all camelCase** (T0 real-world decision), this page only consumes `r.id` / `r.path` / `r.enabled` /
     `r.watchMode` / `r.scanIntervalS` / `r.lastScanAt`, **must not normalize again in page**.
     🔴 **body always via shared package `createRootBody`, do not rewrite** (D3 already in package).
 
@@ -137,7 +136,7 @@
     `setRootEnabled` **function**, caller resumes after function returns, assignment already done.
     **real-world valid criterion = replace in-place update with full array replacement**
     (`wikiRoots.value = wikiRoots.value.map((r) => (r.id === id ? { ...r, enabled } : r))`)
-    → **3 go red**. reasoning and evidence in `RootsView.test.ts` "R9 invariant" comment and T5 report §7.
+    → **3 go red**. reasoning and evidence in `RootsView.test.ts` "R9 invariant" comment.
 
   ═══════════════════ Vue2 → Vue3 forced rewrites (governance §2, not counted as divergence) ═══════════════════
     | Reference (Options API) | This file | Rationale |

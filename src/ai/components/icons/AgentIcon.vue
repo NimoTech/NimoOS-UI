@@ -20,19 +20,19 @@ const PATHS: Record<string, string> = {
   check: '<path d="M4 10l4 4 8-8" />',
   x: '<path d="M5 5l10 10M15 5L5 15" />',
   play: '<path d="M6 4l10 6-10 6V4z" fill="currentColor" stroke="none" />',
-  // SP8-P3b Task 1 — used in TestPanel(P3b) running state. 20-unit coordinate system, stroke uses currentColor,
+  // Used in TestPanel running state. 20-unit coordinate system, stroke uses currentColor,
   // no named color passed. Placed adjacent to play (same media control icon category).
   pause: '<path d="M7 4v12M13 4v12"/>',
   code: '<path d="M7 6l-4 4 4 4M13 6l4 4-4 4M11 4l-2 12" />',
   star: '<path d="M10 2l2.5 5.5 5.5.6-4 4 1 5.5L10 15l-5 2.6 1-5.5-4-4 5.5-.6L10 2z" fill="currentColor" stroke="none" />',
   download: '<path d="M10 3v10M5 9l5 5 5-5"/><path d="M3 17h14"/>',
-  // SP8-P2b acceptance feedback (2026-07-30) new: external link / open in new tab. 20-unit coordinate system, no scale wrapper needed.
+  // New from an earlier review: external link / open in new tab. 20-unit coordinate system, no scale wrapper needed.
   // "Open Phoenix" originally borrowed download, semantically incorrect (it downloads nothing, just opens a webpage).
   external: '<path d="M11 3h6v6"/><path d="M17 3l-8 8"/><path d="M15 11.5V16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h4.5"/>',
   upload: '<path d="M10 17V7M5 11l5-5 5 5"/><path d="M3 3h14"/>',
   trash: '<path d="M3 5h14M8 5V3h4v2M5 5l1 12h8l1-12"/>',
   settings: '<g transform="scale(0.8333)"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></g>',
-  // SP8-P2b Task 1 — 1:1 taken from Vue2 src/views/AI/Skills/SkillIcon.vue:24.
+  // 1:1 taken from Vue2 src/views/AI/Skills/SkillIcon.vue:24.
   // That icon is drawn in a 24-unit box (cx=12/cy=8/M4 21), this file's viewBox is 20 units,
   // so following the settings/book precedent here wrapping scale(0.8333)=20/24. Arc params `0116 0` is
   // the compact notation SVG allows (flag 0, flag 1, x=16), copy as-is without "formatting".
@@ -57,7 +57,7 @@ const PATHS: Record<string, string> = {
   wrench: '<path d="M14.5 5.5a3.2 3.2 0 0 0-4.3 3.9L4 15.6 6.4 18l6.2-6.2a3.2 3.2 0 0 0 3.9-4.3l-2.1 2.1-1.9-1.9 2.1-2.1z"/>',
   clock: '<circle cx="10" cy="10" r="7"/><path d="M10 6v4l2.5 2"/>',
   speaker: '<path d="M4 8h3l4-3v10l-4-3H4V8z"/><path d="M14 7a4 4 0 0 1 0 6"/>',
-  // SP8-P2a Task 1 — settings navigation/topbar icons, aligned with Vue2
+  // Settings navigation/topbar icons, aligned with Vue2
   // src/views/AI/Skills/SkillIcon.vue:43-50.
   // Those 8 in SkillIcon are "drawn in 20-unit box + <g transform="scale(1.2)"> stretched to
   // 24-unit viewBox"; this component's viewBox is already 0 0 20 20, so removing the scale wrapper and using

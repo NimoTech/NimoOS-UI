@@ -18,11 +18,11 @@ export function isConflict(e: unknown): boolean {
   return /\b409\b/.test(String(message ?? ''))
 }
 
-// Task 14 (SP7-P5 people): 404 detection, sharing the same shape-tolerance strategy as isConflict.
+// 404 detection, sharing the same shape-tolerance strategy as isConflict.
 // Its only use is "set as key photo" — the backend uses 404 specifically to mean "this photo
 // has no face for this person", which needs to be distinguished from other failures with a
 // different message (per Vue2 PhotosPersonDetail.vue:656-660).
-// P8a-T10: isConflict already got a word boundary (`/\b409\b/`), aligned here with this
+// isConflict already got a word boundary (`/\b409\b/`), aligned here with this
 // function's `/\b404\b/` — neither will misjudge a string containing 4090/1409/4040/1404 as a
 // conflict/not-found. Traced back to source: isConflict has 5 live call sites
 // (AlbumPickerDialog.vue:143, PhotosFavorites.vue:114, PhotosAlbumDetail.vue:204,

@@ -5,7 +5,7 @@
 //   - Files lands at `/#/files?...` (this app's own Files page, SP4 complete).
 //   - Photos lands at `/#/photos?...` (this app's own Photos page).
 //
-// SP8-P5d Task 5 (governance §16): add openDirInNewTab / agentSessionUrl /
+// Add openDirInNewTab / agentSessionUrl /
 // openAgentSessionInNewTab test cases for three new exports. agentSessionUrl group lands at
 // `/#/ai/agent?session=…`, see corresponding note in openInApp.ts (decision A-8).
 import { describe, it, expect, vi, afterEach } from 'vitest'
@@ -99,7 +99,7 @@ describe('openPhotoInNewTab / openFileInNewTab', () => {
   })
 })
 
-// SP8-P5d Task 5: openDirInNewTab (governance §16 item 1) — verbatim copy from blueprint
+// openDirInNewTab — verbatim copy from blueprint
 // openInApp.js:52-55, reuses existing filesPathUrl from repo (this app's own route),
 // highlight segment always passes empty string.
 describe('openDirInNewTab', () => {
@@ -190,7 +190,7 @@ describe('openPhotoSetInNewTab', () => {
   })
 })
 
-// SP8-P5d Task 5 / A-8 closed 2026-08-19: this app's own /ai/agent now honours ?session=,
+// This app's own /ai/agent now honours ?session=,
 // so these two functions land on this app's own route.
 describe('agentSessionUrl / openAgentSessionInNewTab', () => {
   afterEach(() => { vi.restoreAllMocks() })

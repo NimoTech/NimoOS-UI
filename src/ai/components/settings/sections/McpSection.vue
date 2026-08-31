@@ -1,6 +1,6 @@
 <!--
-  SP8-P4 Task 9 (wrap-up) — ported 1:1 from the Vue 2 panel's `src/views/AI/MCP/McpSection.vue`
-  (136 lines). Its twin sibling is `./SkillsSection.vue` (SP8-P3a/P3b, already reviewed and
+  Ported 1:1 from the Vue 2 panel's `src/views/AI/MCP/McpSection.vue`
+  (136 lines). Its twin sibling is `./SkillsSection.vue` (already reviewed and
   approved) — this file's `<script setup>` style, the structure of the four data methods
   (reload/toggle/delete/save), and the `+` button wiring are all copied from it; no third
   pattern is introduced. Once this file is done, `sections.ts`'s `DEFERRED_SECTIONS` is

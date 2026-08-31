@@ -7,9 +7,9 @@ import zh from '../../../../i18n/zh_cn'
 import McpServerDetail from './McpServerDetail.vue'
 import type { McpServer } from '../../../types/mcpServer'
 
-// SP8-P4 Task 6 —— Align with Vue2 src/views/AI/MCP/McpServerDetail.vue (174 lines)
+// Align with Vue2 src/views/AI/MCP/McpServerDetail.vue (174 lines)
 // lines 1-157.
-// SP8-P4 Task 7 —— Add the entire "Test Connection" section: button :50-53, result panel :87-100,
+// Add the entire "Test Connection" section: button :50-53, result panel :87-100,
 // runTest :158-171, including D8 (localized errors + collapsible technical details) and D11 (in-flight request race guard).
 // Shared constraint §9: After reka Teleport component mounts, await nextTick() before querying document;
 // for async assertions use flushPromises() instead of single await nextTick().
@@ -293,7 +293,7 @@ describe('McpServerDetail', () => {
   })
 })
 
-// SP8-P4 Task 7 —— Test Connection: three states (idle/testing/result), D8 (localized errors + collapsible
+// Test Connection: three states (idle/testing/result), D8 (localized errors + collapsible
 // technical details), D11 (in-flight request race guard). Complete test cases from task spec Step 1, transcribed as-is.
 describe('Test Connection', () => {
   beforeEach(() => { h.testMCPServer.mockReset() })

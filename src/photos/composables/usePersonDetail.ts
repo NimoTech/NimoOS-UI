@@ -11,7 +11,7 @@ import { toPerson, monthKeyLabel, type Person } from '../util/peopleView'
 
 // Vue2 :741 hard-coded limit:300 / offset:0, no pagination. Copy as-is (pagination
 // changes are new feature, record for follow-up).
-// P8a-T10 accounting entry (record only, don't change): this 300 limit is still the only
+// Accounting entry (record only, don't change): this 300 limit is still the only
 // implementation, no "load more" / scroll pagination — when person has 300+ assets,
 // detail page shows only first 300 (matches Vue2 behavior, not a regression this round).
 const ASSET_LIMIT = 300

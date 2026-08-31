@@ -1,4 +1,4 @@
-// TDD spec for Task 6 (SP8-P1b): runAgentRun / attachAgentStream on shared sseRequest.
+// TDD spec for runAgentRun / attachAgentStream on shared sseRequest.
 // sseRequest itself (token injection, 401→refresh→reconnect-once, [DONE], 204, AbortError
 // semantics) is owned by @nimotech/nimoos-service (Task 1) — this transport is a thin
 // wrapper: build headers/body, call sseRequest, route onEvent into dispatchEvent, and

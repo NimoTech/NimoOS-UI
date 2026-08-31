@@ -49,7 +49,7 @@ describe('gridMetrics matches the Vue2-parity stylesheet', () => {
     expect(SRC).toMatch(/\.photos-root \.tile \{[^}]*aspect-ratio:\s*1\s*\/\s*1/)
   })
 
-  // final-review fix (item 5): this test used to anchor CONTENT_INSET to nothing — the
+  // This test used to anchor CONTENT_INSET to nothing — the
   // comment at gridMetrics.ts:19-27 explains that the 40 comes from `.grid`'s own
   // left+right padding (20px each side), but no assertion here actually checked the CSS
   // still agrees. Without this, someone could edit the parity scss's `.grid` padding (or

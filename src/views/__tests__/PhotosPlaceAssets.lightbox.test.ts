@@ -1,6 +1,6 @@
-// Plan F Task 6: PhotosPlaceAssets.vue mounted <PhotoLightbox> with NO event listeners at all
-// (delete/add-to-album silently no-op'd — same false-success bug class Plan F Task 5's fix
-// round 1 found and fixed on PhotosSearch.vue; see PhotosSearch.lightbox.test.ts, the direct
+// PhotosPlaceAssets.vue mounted <PhotoLightbox> with NO event listeners at all
+// (delete/add-to-album silently no-op'd — same false-success bug class an earlier fix
+// found and fixed on PhotosSearch.vue; see PhotosSearch.lightbox.test.ts, the direct
 // style/fixture reference for this file).
 //
 // Uses the REAL useLightbox()/usePlaceAssets()/useTimelineStore()/usePhotosTrash() singletons
@@ -27,7 +27,7 @@ const svc = vi.hoisted(() => ({
     getAssetOcr: vi.fn().mockResolvedValue({ lines: [] }),
     recordView: vi.fn().mockResolvedValue(undefined),
     listFavoriteIds: vi.fn().mockResolvedValue([]),
-    // Task 6: real @delete/Undo pathway (timeline.deleteAssets -> service.photos.deleteAsset,
+    // Real @delete/Undo pathway (timeline.deleteAssets -> service.photos.deleteAsset,
     // Undo -> trash.restore -> service.photos.restoreTrashBatch), same mock shape
     // PhotosSearch.lightbox.test.ts already established for this exact pathway.
     deleteAsset: vi.fn().mockResolvedValue(undefined),
@@ -97,8 +97,8 @@ afterEach(() => {
   document.body.innerHTML = ''
 })
 
-describe('PhotosPlaceAssets.vue 灯箱「删除」接线(Task 6:补真删,原先 @delete 无监听,静默假成功)', () => {
-  it('确认删除 → 调 timeline.deleteAssets(真删路径)+ 从渲染出的网格里移除该项', async () => {
+describe("PhotosPlaceAssets.vue lightbox 'delete' wiring (real delete added, previously @delete had no listener and silently false-succeeded)", () => {
+  it('confirming delete → calls timeline.deleteAssets (real delete path) and removes the item from the rendered grid', async () => {
     const { w } = await mountView('/photos/places/7')
     const timeline = useTimelineStore()
     const deleteSpy = vi.spyOn(timeline, 'deleteAssets').mockResolvedValue(1)
@@ -123,7 +123,7 @@ describe('PhotosPlaceAssets.vue 灯箱「删除」接线(Task 6:补真删,原先
     expect(w.findAll('.tile')).toHaveLength(1)
   })
 
-  it('删除后弹出带 Undo 的 photosToast,且 PhotosToastHost 真的挂载渲染', async () => {
+  it('after deleting, a photosToast with Undo appears, and PhotosToastHost is genuinely mounted and rendered', async () => {
     const { w } = await mountView('/photos/places/7')
     vi.spyOn(useTimelineStore(), 'deleteAssets').mockResolvedValue(1)
     const photosToast = usePhotosToast()
@@ -144,7 +144,7 @@ describe('PhotosPlaceAssets.vue 灯箱「删除」接线(Task 6:补真删,原先
     expect(body().find('[data-role="photos-toast-action"]').exists()).toBe(true)
   })
 
-  it('点 Undo → trash.restore(真实还原路径)+ 重新按当前地点/spot 拉一次资产(带回结果)', async () => {
+  it('clicking Undo → trash.restore (real restore path) and refetches assets for the current place/spot (bringing back the result)', async () => {
     const { w } = await mountView('/photos/places/7')
     vi.spyOn(useTimelineStore(), 'deleteAssets').mockResolvedValue(1)
 
@@ -169,8 +169,8 @@ describe('PhotosPlaceAssets.vue 灯箱「删除」接线(Task 6:补真删,原先
   })
 })
 
-describe('PhotosPlaceAssets.vue 灯箱「加入相册」接线(Task 6:补真挂载,原先 @add-to-album 无监听)', () => {
-  it('灯箱「加入相册」→ AlbumPickerDialog 打开(单张场景,同 PhotosSearch.vue 先例)', async () => {
+describe("PhotosPlaceAssets.vue lightbox 'add to album' wiring (real listener added, previously @add-to-album had none)", () => {
+  it('lightbox "add to album" → AlbumPickerDialog opens (single-asset scenario, following PhotosSearch.vue precedent)', async () => {
     const { w } = await mountView('/photos/places/7')
     await w.get('.tile').trigger('click')
     await flushPromises()

@@ -1,4 +1,4 @@
-// SP8-P5c Task 3 (part 1) —— three pure functions for folder picker.
+// Three pure functions for folder picker.
 // 1:1 ported from the Vue 2 panel's `src/components/common/folderBrowser.js`
 // (main@7a6ee6b7, 34 lines, read via `git show main:` ——
 // governance §1: that repo's working tree is unreliable old branch).

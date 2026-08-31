@@ -1,5 +1,5 @@
 <!--
-  1:1 port from Vue2 src/views/AI/Agent/shell/ThinkingBar.vue (105 lines). SP8-P1c2 Task 8.
+  1:1 port from Vue2 src/views/AI/Agent/shell/ThinkingBar.vue (105 lines).
 
   Vue2 is a "dumb" component: state is entirely held by parent (AgentTopbar → AgentPage → store);
   this component only accepts props and emits explicit events upward — no defineModel, no store reads

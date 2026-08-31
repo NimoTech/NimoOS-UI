@@ -1,4 +1,4 @@
-// SP8-P5a Task 6 —— Ported from Vue2 `src/views/AI/Knowledge/__tests__/indexedFiles.spec.js`
+// Ported from Vue2 `src/views/AI/Knowledge/__tests__/indexedFiles.spec.js`
 // (main@7a6ee6b7). This task only ports `buildListParams`/`anyIndexing` functions,
 // correspondingly only their original test cases (other functions' tests left for tasks
 // porting their bodies).

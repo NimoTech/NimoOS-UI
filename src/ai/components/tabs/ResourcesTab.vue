@@ -1,5 +1,5 @@
 <!--
-  1:1 port from Vue2 src/views/AI/Agent/tabs/ResourcesTab.vue (279 lines). SP8-P1c2 Task 12.
+  1:1 port from Vue2 src/views/AI/Agent/tabs/ResourcesTab.vue (279 lines).
 
   Three sections: authorized resources (AUTHORIZED) / attachments (ATTACHMENTS) / staging area
   (PENDING CHANGES, rendered only when `stagedChanges.length > 0`). Grouping/formatting pure logic

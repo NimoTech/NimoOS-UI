@@ -1,7 +1,6 @@
 // Ported from Vue2 tests/resourcesTabBatch.test.js (164 lines, DOM+emit level 9 assertions) +
 // added 6 new (authorized/attachment section emits and disabled state, download link,
 // snapshot_missing hard disable, commit button disable conditions, three section empty states).
-// SP8-P1c2 Task 12.
 //
 // propsData → props / w.destroy() → w.unmount() / stubbed $t → real zh_cn i18n (createI18n),
 // matches this repo's existing convention (see ActivityTab.test.ts/SystemTab.test.ts).

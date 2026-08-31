@@ -12,7 +12,7 @@ import { groupPhotosByMonth } from '../util/groupPhotosByMonth'
 
 const VIEW_THROTTLE_MS = 60_000
 
-// Task 11 (SP15-P3): NimoOS-Photos#54 turned an absent limit from "everything" into 500, so this
+// NimoOS-Photos#54 turned an absent limit from "everything" into 500, so this
 // list has to be paged or it silently truncates. A generation counter guards the shared state: a
 // slow page that lands after a refresh must be dropped whole rather than appended to a list it no
 // longer belongs to.
@@ -25,12 +25,12 @@ export const usePhotosFavorites = defineStore('photosFavorites', () => {
   const favoritesLoaded = ref(false)
   const favoritesExhausted = ref(false)
   const loadingMore = ref(false)
-  // Task 4 (Plan H): server-ranked "most favorited" top-5 list (GET /favorites/top).
+  // Server-ranked "most favorited" top-5 list (GET /favorites/top).
   const topFavorites = ref<Photo[]>([])
   const topFavoritesLoaded = ref(false)
   let _offset = 0
   let _generation = 0
-  // Review fix round 2: a separate ownership sequence for `loadingMore`, distinct from
+  // A separate ownership sequence for `loadingMore`, distinct from
   // `_generation`. `_generation` answers "is this page's data still current"; `loadingMore`
   // answers "does this call still own the load-more button" — those are different questions.
   // fetchFavorites() forces loadingMore false unconditionally (correct: it is a full reset),
@@ -38,7 +38,7 @@ export const usePhotosFavorites = defineStore('photosFavorites', () => {
   // still arrives after a *second* loadMoreFavorites() has since started, must not be allowed
   // to clear the second call's flag out from under it in its `finally`.
   let _loadMoreSeq = 0
-  // Task 9 (P8a, P3 outstanding wrap-up): independent failure flag — never merge/reuse with
+  // Independent failure flag — never merge/reuse with
   // favoritesLoaded. favoritesLoaded being set to true only on the success path is intentional
   // (see fetchFavorites comment below); a transient failure must be distinguishable by the view
   // as "load failed" rather than "loading" or "confirmed empty", which is the only reason
@@ -71,23 +71,23 @@ export const usePhotosFavorites = defineStore('photosFavorites', () => {
     }
   }
 
-  // Task 11: fetchFavorites now always fetches page one and resets the cursor — call it
+  // fetchFavorites now always fetches page one and resets the cursor — call it
   // for the initial load and for any refresh (toggle invalidation, delete refresh, retry).
   async function fetchFavorites(): Promise<void> {
-    // Task 9 correction: `loadError` used to be reset to false at the top of
-    // this function (before the await), mirroring the "reset before attempt"
-    // instruction this task started with. That was wrong: it created a
+    // Correction: `loadError` used to be reset to false at the top of
+    // this function (before the await), mirroring an early "reset before attempt"
+    // instruction. That was wrong: it created a
     // window, on every retry (success *or* failure), where loadError was
     // false but favoritesLoaded was still false too — and the Favorites view
     // has no dedicated "loading" branch, so during that window it fell
     // through to the v-else branch and rendered an empty grid, transiently
-    // reproducing the exact P3 defect this task exists to fix. Clearing
+    // reproducing the exact defect this fix addresses. Clearing
     // loadError only on confirmed success means the failure UI stays
     // continuously visible from the first failure until a retry actually
     // succeeds — no window where the view can fall through to the wrong
     // branch.
     const gen = ++_generation
-    // Review fix round 2: bump the load-more ownership sequence too, so a loadMoreFavorites()
+    // Bump the load-more ownership sequence too, so a loadMoreFavorites()
     // call already in flight loses ownership of `loadingMore` — its `finally` cannot clobber
     // whatever a later loadMoreFavorites() call sets after this reset. Forcing the value to
     // false here directly is still correct: this is a full reset, not "let the owner decide".
@@ -116,13 +116,13 @@ export const usePhotosFavorites = defineStore('photosFavorites', () => {
     }
   }
 
-  // Task 11: appends the next page behind the load-more button. A generation counter
+  // Appends the next page behind the load-more button. A generation counter
   // guards against a page landing after a refresh happened mid-flight — that page must
   // be dropped whole, not appended to a list it no longer belongs to.
   async function loadMoreFavorites(): Promise<void> {
     if (favoritesExhausted.value || loadingMore.value) return
     const gen = _generation
-    // Review fix round 2: `seq` is this call's claim on `loadingMore`, separate from `gen`.
+    // `seq` is this call's claim on `loadingMore`, separate from `gen`.
     // `gen` alone is not enough to gate the `finally` reset: fetchFavorites() legitimately
     // forces `loadingMore` false (and bumps `_loadMoreSeq`) while this call is still in
     // flight, which lets a *later* loadMoreFavorites() start and take ownership before this
@@ -173,7 +173,7 @@ export const usePhotosFavorites = defineStore('photosFavorites', () => {
       // lands is judged stale and its page dropped whole, rather than appended to a list
       // whose membership just changed underneath it.
       //
-      // Whole-branch review fix (Important 4): this used to ALSO set
+      // Review fix: this used to ALSO set
       // `favoritesExhausted = false` and `_offset = 0` while leaving favoritesList
       // populated. Both were wrong and both were unnecessary:
       //  - wrong, because the Favorites view has no watcher that refetches — only
@@ -190,8 +190,8 @@ export const usePhotosFavorites = defineStore('photosFavorites', () => {
       _generation++
     } catch (e) {
       // Roll back + log only — do NOT rethrow. Every caller invokes this
-      // fire-and-forget (`void fav.toggle(id)`, mirroring P2's
-      // useLightbox.toggleFav precedent); rethrowing here would surface as an
+      // fire-and-forget (`void fav.toggle(id)`, mirroring
+      // useLightbox.toggleFav's own precedent); rethrowing here would surface as an
       // unhandled promise rejection instead of the UI-consistent rollback +
       // diagnostic log this store already provides.
       const rollback = new Set(favIds.value)
@@ -214,7 +214,7 @@ export const usePhotosFavorites = defineStore('photosFavorites', () => {
     })
   }
 
-  // Task 4 (Plan H): server-ranked "most favorited" list (GET /favorites/top) -- Vue2
+  // Server-ranked "most favorited" list (GET /favorites/top) -- Vue2
   // PhotosFavoritesView.vue:391's topFavorites computed does no client-side re-sort/
   // truncation either. Independent load flag from favoritesLoaded: a separate widget with its
   // own failure mode, must not be conflated with the main grid's load state.

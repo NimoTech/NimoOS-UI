@@ -1,8 +1,8 @@
-// Plan H Task 13: `.st-switch` knob literal-white ruling.
-// Same-shaped owner ruling as the `.sv-switch` family (SmartViewCreateDialog.vue Fix-6,
-// 2026-08-14): the knob stays literal `#fff` in both on/off states, matching Vue2
+// `.st-switch` knob literal-white ruling.
+// Same-shaped ruling as the `.sv-switch` family (SmartViewCreateDialog.vue): the knob stays
+// literal `#fff` in both on/off states, matching Vue2
 // photos.scss:2963's own literal `background: white`. Kept in its own file (not
-// PhotosAiCard.test.ts) per brief note -- avoids the mocked-service/store test environment
+// PhotosAiCard.test.ts) -- avoids the mocked-service/store test environment
 // that file already sets up, since this is a pure text-scan assertion over the raw source.
 import fs from 'node:fs'
 import { dirname, resolve } from 'node:path'

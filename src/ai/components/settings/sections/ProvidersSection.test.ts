@@ -1,4 +1,4 @@
-// SP8-P2a Task 10 — ported from Vue2 src/views/AI/Settings/sections/ProvidersSection.vue
+// Ported from Vue2 src/views/AI/Settings/sections/ProvidersSection.vue
 // (249 lines). Brief Step 1's 29 test cases list, landing each one (some split into
 // multiple it() for precise failure location, quantity only increases not decreases).
 //

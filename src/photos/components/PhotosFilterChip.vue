@@ -1,57 +1,55 @@
 <script setup lang="ts">
-// SP7-P7a-T12: PhotosFilterChip.vue -- filter chip primitive (one of the two D14 primitives,
-// consumed by T13/T14/T16/P7b).
+// PhotosFilterChip.vue -- filter chip primitive (one of two shared list-popover primitives,
+// consumed by several host components).
 // Matches Vue2 PhotosSearchView.vue:51-59 character-for-character (cross-checked against
 // PhotosFilterBar.vue:16-24 and confirmed identical; the only two differences are (1) the
 // handler names clearFilter/clearChip and (2) the component tag casing photos-icon/PhotosIcon,
-// neither of which affects the port to this repo -- full comparison writeup in
-// task-12-report.md). Structure: .fchip-wrap (position: relative, the popover positioning
+// neither of which affects the port to this repo). Structure: .fchip-wrap (position: relative, the popover positioning
 // context; the popover mounted in the default slot is a sibling, not a child -- clicks
 // inside the popover do not bubble through the .fchip click handler) -> .fchip (:data-on,
 // @click -> toggle) containing the icon slot + label + chevD icon + (when active) a clear
 // cross -> followed by the default slot mounting the popover.
 //
-// Deviation log 1 (ruled by B7, a deviation in the interface relative to the brief): the
-// brief's original interface was `{ icon: string }`, feeding a glyph name into the shared
+// Deviation log 1 (a deviation in the interface relative to the original design): the
+// original interface was `{ icon: string }`, feeding a glyph name into the shared
 // PhotosIcon component. This repo has no PhotosIcon.vue (confirmed via grep --
 // `find src -name "PhotosIcon.vue"` returns zero hits; the established practice in this
 // Photos area is for each component to inline its own <svg>, precedent SmartViewCard.vue:76-88),
 // so a string name has nowhere to be consumed in this repo -- hardcoding a name -> svg map
-// inside this primitive would just rebuild a mini PhotosIcon, and T13/T14/T16/P7b would keep
-// adding new glyphs to it. Ruling: change icon from a prop to a named #icon slot, and let the
+// inside this primitive would just rebuild a mini PhotosIcon, and every consumer would keep
+// adding new glyphs to it. Decision: change icon from a prop to a named #icon slot, and let the
 // host inline the corresponding <svg> itself. The chevD and x glyphs, which are "fixed chip
 // structure" (they do not vary by host), are still inlined by this component itself and do
 // not go through the slot.
 //
 // Deviation log 2 (glyph values copied 1:1): the chevD `d="m6 9 6 6 6-6"` and x
 // `d="m6 6 12 12M18 6 6 18"` below are copied character-for-character from the the Vue 2 panel
-// src/views/Photos/PhotosIcon.vue corresponding name branch (the P6b final review caught 4
-// glyphs that were missed or copied wrong, none of which the three verification gates
+// src/views/Photos/PhotosIcon.vue corresponding name branch (an earlier review caught 4
+// glyphs that were missed or copied wrong, none of which earlier verification
 // caught), so the test pins this down with an exact assertion on the rendered <path d>.
 //
-// Deviation log 3 (token mapping, ruled by the controller as B2, since superseded by the
-// 2026-08-13 rollback): the Vue2 original chevD color is var(--text-3)
-// (PhotosSearchView.vue:55). T5 had mapped it through New-UI's generic four-tier token scheme
-// (text-3 -> --fg-faint) at the time, a byproduct of the "glassmorphism" exception period.
-// After the 2026-08-13 rollback this component no longer goes through the generic four-tier
+// Deviation log 3 (token mapping, since superseded by a later rollback): the Vue2 original
+// chevD color is var(--text-3)
+// (PhotosSearchView.vue:55). This had previously been mapped through New-UI's generic four-tier token scheme
+// (text-3 -> --fg-faint), a byproduct of the "glassmorphism" exception period.
+// After that rollback this component no longer goes through the generic four-tier
 // mapping -- .photos-root defines --text-3 locally (parity scss :23-26 / light variant
 // :83-86), so chevD writes var(--text-3) directly, matching Vue2 character-for-character,
 // with no need to translate through a mapping layer any more.
 //
 // open prop: Vue2 has no equivalent concept (the chip's visual state is only data-on,
-// there is no separate "is the popover open" dimension). The brief's frozen interface
+// there is no separate "is the popover open" dimension). The interface
 // includes this optional prop, so it is accepted here as-is; whether to actually consume it
-// (hook up a CSS state) is left to T13/T14/T16, to avoid inventing a visual effect that
+// (hook up a CSS state) is left to the host components, to avoid inventing a visual effect that
 // does not exist in Vue2.
-// fix round 1 · M4 (found in the same batch of Important review findings): data-open is
+// Note: data-open is
 // only rendered to the DOM when open === true (:data-open="open ? 'true' : undefined"), it
 // is not rendered unconditionally -- Vue2's .fchip has no such attribute at all, so in the
 // default state (open not passed, or false) the DOM must match Vue2 character-for-character,
 // and must not gain an extra data-open="false" out of nowhere. Whether to attach styling to
-// it is decided by T13; there is currently no CSS consumer.
+// it is decided by the host; there is currently no CSS consumer.
 //
-// Acceptance rollback by the owner (2026-08-13, overturning the "fourth visual exception"
-// that the owner had signed off on during Task 5 -- keeping New-UI glassmorphism for the
+// Rollback (overturning an earlier decision to keep New-UI glassmorphism for the
 // EXIF chip/popover): glassmorphism is invisible under the light theme (the glass effect
 // only reads against a dark backing with a translucent layer on top; even though the parity
 // token table gives complete light-theme values under .photos-root.is-light, the glass
@@ -104,7 +102,7 @@ const emit = defineEmits<{
 </template>
 
 <style scoped>
-/* 2026-08-13 rollback: this whole batch of Vue2-native class rules --
+/* Rollback: this whole batch of Vue2-native class rules --
    .fchip-wrap/.fchip (+:hover/[data-on]/.fchip-icon)/.fchip-x (+:hover) -- already has
    matching bare selectors character-for-character in vue2-parity/photos.scss:2614-2645
    (.fchip-wrap/.fchip/.fchip:hover/.fchip[data-on="true"]/
@@ -134,13 +132,13 @@ const emit = defineEmits<{
 .fchip-x {
   padding: 0;
 }
-/* fix round 1 · M3 (folded in from review, affects four downstream tasks
-   T13/T14/T16/P7b): Vue2 PhotosSearchView.vue:53 uses <photos-icon :name="chip.icon"
+/* Note (affects every downstream consumer of this component): Vue2 PhotosSearchView.vue:53
+   uses <photos-icon :name="chip.icon"
    :size="13"/>, i.e. an svg with width/height of 13px each. After this component switched
    icon from a string prop to a named #icon slot, this size contract cannot just be noted
-   in a report -- :deep(svg) pins whatever svg the host passes in down to 13x13, so no
+   in passing -- :deep(svg) pins whatever svg the host passes in down to 13x13, so no
    matter what size the host writes on its own inlined svg, the rendered result is
-   constrained by this rule, without relying on downstream tasks to remember the number 13
+   constrained by this rule, without relying on every consumer to remember the number 13
    on their own. Parity scss has no equivalent rule (the Vue2 original goes through a :size
    prop rather than a slot + CSS pin), so this is New-UI-specific and is kept. */
 .fchip-icon :deep(svg) {

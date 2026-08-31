@@ -1,5 +1,5 @@
 <!--
-  SP8-P2b Task 4 — 1:1 port from Vue2 src/views/AI/Settings/sections/BlacklistSection.vue (105 lines).
+  1:1 port from Vue2 src/views/AI/Settings/sections/BlacklistSection.vue (105 lines).
 
   [D2 declaration] This section is the only one of 7 sections that consumes settingsStore —
   because Vue2's blacklist state was already in settingsStore.js (the other 6 sections in Vue2

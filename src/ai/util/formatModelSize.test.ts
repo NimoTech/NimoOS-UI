@@ -1,4 +1,4 @@
-// SP8-P2a Task 9 —— brief Step 1, verbatim from task brief, not rewritten.
+// Verbatim reference test values, not rewritten.
 import { describe, it, expect } from 'vitest'
 import { formatModelSize, formatEtaSeconds } from './formatModelSize'
 

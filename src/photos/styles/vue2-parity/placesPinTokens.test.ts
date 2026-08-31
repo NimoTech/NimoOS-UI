@@ -1,25 +1,23 @@
-// Fix-5 (owner acceptance, 2026-08-17): P6a formally overturned. This file used to guard Review
-// I3's fix (Plan E final-fix) — which moved the seven `--pin-*` geo-pin tokens from the global
-// `src/styles/theme.css` into this file's own `.photos-root`/`.photos-root.is-light` blocks so
-// pins would follow Photos' *private* theme instead of the app's *global* one. That relocation
+// The seven `--pin-*` geo-pin tokens used to live in the global
+// `src/styles/theme.css`, then were moved into this file's own `.photos-root`/`.photos-root.is-light`
+// blocks so pins would follow Photos' *private* theme instead of the app's *global* one. That relocation
 // was correct, but the VALUES it carried over (blue, copied byte-for-byte from theme.css) were
-// themselves a standing deviation from Vue2 — flagged at the time as "P6a", left for the owner to
-// judge at acceptance. The owner has now overturned it: Vue2 paints map pins with the PURPLE
+// themselves a standing deviation from Vue2. That has now been corrected: Vue2 paints map pins with the PURPLE
 // `--accent`/`--accent-rgb` family directly (photos-places.scss:367-437), theme-constant with NO
 // light-mode override at all (grep-verified against the Vue 2 panel's real source — confirmed before
 // assuming). PlacesMap.vue's own `<style scoped>` rules that consumed the seven `--pin-*` tokens
 // (and so shadowed parity's already-correct, byte-transcribed purple rules at a cascade tie) have
-// been deleted/trimmed — see that file's own Fix-5 comment. With that done, the seven tokens have
+// been deleted/trimmed — see that file's own comment. With that done, the seven tokens have
 // ZERO remaining consumers anywhere in this repo, so they were removed entirely rather than kept
 // dormant (grep-confirmed: only this file and photos.scss's own removal-comment still mention
 // their names in prose).
 //
 // This test file is rewritten (not deleted) to guard the new end state honestly: the seven tokens
 // are GONE from photos.scss (both theme blocks) and from theme.css (unchanged from before — they
-// never lived there again after Review I3's original migration), and parity's own geo-pin rules
+// never lived there again after the original migration), and parity's own geo-pin rules
 // read the purple `--accent`/`--accent-rgb` family directly, with no `.photos-root.is-light`
 // override at all (matching Vue2's theme-constant behavior). Same raw-source-read idiom as before
-// (see gridMetricsCssParity.test.ts) — simple and honest, per the brief.
+// (see gridMetricsCssParity.test.ts) — simple and honest.
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { extractStyleBlock } from '../../components/__tests__/cssCascade'
@@ -27,7 +25,7 @@ import { extractStyleBlock } from '../../components/__tests__/cssCascade'
 const PHOTOS_SCSS = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
 const PLACES_SCSS = readFileSync('src/photos/styles/vue2-parity/photos-places.scss', 'utf8')
 const THEME_CSS = readFileSync('src/styles/theme.css', 'utf8')
-// `extractStyleBlock` strips CSS comments -- this file's own Fix-5 prose comments (in PlacesMap.vue's
+// `extractStyleBlock` strips CSS comments -- this file's own prose comments (in PlacesMap.vue's
 // `<style scoped>`) quote the OLD `var(--pin-*)` references verbatim to document what was removed,
 // which would otherwise false-positive a naive whole-file text scan for those exact strings.
 const PLACES_MAP_STYLE = extractStyleBlock(readFileSync('src/photos/components/PlacesMap.vue', 'utf8'))

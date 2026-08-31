@@ -99,7 +99,6 @@ describe('SV_QUICK_TEMPLATES', () => {
   })
 })
 
-// COND_SUGGESTIONS / condSuggestionsFor and their tests were deleted in SP15-P2c Task 8
-// along with the "Add condition" popover that was their only consumer (see
-// task-8-report.md's assertion disposition table -- deleted, not re-homed, because the
-// capability itself is gone).
+// COND_SUGGESTIONS / condSuggestionsFor and their tests were deleted
+// along with the "Add condition" popover that was their only consumer -- deleted, not
+// re-homed, because the capability itself is gone.

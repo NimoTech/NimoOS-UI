@@ -1,4 +1,4 @@
-// P6a-T8: PlacesZoomBar.vue — vertical zoom slider on map left side.
+// PlacesZoomBar.vue — vertical zoom slider on map left side.
 // Maps each item to the required test checklist, adds coverage for
 // structure specs 1-5 and dead code removal list (4 items).
 import { describe, it, expect, vi } from 'vitest'

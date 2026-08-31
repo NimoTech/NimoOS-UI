@@ -34,8 +34,8 @@ const idStr = computed(() => String(route.params.id))
 // Must call clearRaidDetail() first: these two requests are sequential, and during that
 // window the page still renders the store's **previous** snapshot. Clicking into the detail
 // page right after replacing a disk would show the pre-replace frame (empty slot + faulty
-// disk, 4 member rows), looking as though the replacement didn't take effect (found during
-// 2026-07-28 real-device acceptance testing).
+// disk, 4 member rows), looking as though the replacement didn't take effect (found in
+// on-device testing).
 function reloadDetail() {
   store.clearRaidDetail()
   store.loadRaid().then(() => store.loadRaidDetail(idStr.value))
@@ -52,7 +52,7 @@ watch(idStr, reloadDetail)
 // (RaidTab.vue:50), so the dialog always has data. New-UI splitting the detail page into its
 // own route missed this load: opening/refreshing /storage/raid/:id directly leaves availDisks
 // empty, so the "replace disk" dropdown only has a placeholder item and no disk can be picked
-// (found during 2026-07-28 real-device acceptance testing). Visiting the volumes/physical
+// (found in on-device testing). Visiting the volumes/physical
 // disks/create page first before coming here happens to already have the data, which is why
 // this gap is easy to miss. Uses useDiskHotplug rather than a bare loadDrives(): it loads on
 // mount and refreshes the candidate disks on disk hotplug -- the same pattern as

@@ -83,7 +83,7 @@ function stripBlockComments(text: string): string {
 //     classes must land on the very same element, so neither alone is
 //     "bare"; only whole single-class compounds are covered by (a).
 // This union (single-bare-class ∪ leftmost-anchor-of-combinator-chains)
-// matches the Plan A final-review compile audit's judgment call (cited
+// matches an earlier compile audit's judgment call (cited
 // count: 312 anchors) — its zero-intersection finding covers exactly this
 // surface. Independently recomputed against the current source: 310
 // distinct bare-class names ∪ 43 distinct leftmost-anchor classes, still

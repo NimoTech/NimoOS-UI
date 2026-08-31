@@ -539,7 +539,7 @@ describe('useFileOps', () => {
   // But the repoint may only happen once the move HAS ACTUALLY HAPPENED, which
   // is two facts, not one. `POST /v1/batch/task` returning 200 is neither of
   // them: it only means the request was accepted, and the move runs later as an
-  // async task. On the owner's device a task that was accepted and then never
+  // async task. On a real device a task that was accepted and then never
   // executed (the backend dequeued a folder holding only empty directories as
   // "already done") repointed the favourites anyway; six retries nested the
   // stored paths six levels deep and left all 16 favourites pointing at paths
@@ -572,7 +572,7 @@ describe('useFileOps', () => {
     })
 
     // The regression itself: accepted, never executed, nothing at the
-    // destination. Repointing here is what destroyed the owner's sidebar.
+    // destination. Repointing here is what destroyed the reporting user's sidebar.
     it('leaves favourites alone when the task claims completion but nothing landed', async () => {
       const { useClipboardStore } = await import('../stores/clipboard')
       const clip = useClipboardStore()

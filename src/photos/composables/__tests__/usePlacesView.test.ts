@@ -311,7 +311,7 @@ describe('usePlacesView', () => {
       expect(pv.view.value).toEqual({ tx: 0, ty: 0, scale: 1 })
     })
 
-    // ── P6b-T8 (P6a seam two): after hasDetailPanel switches to real state, panelFrac takes effect for the first time —
+    // ── After hasDetailPanel switches to real state (seam two), panelFrac takes effect for the first time —
     // these four tests pin down that centerOn/zoomBy/setScale/autoPanTo four consumption paths
     // really use it (existing visibleCenterVb arithmetic tests already cover panelFrac
     // calculation; this just adds "consumer actually uses the new result" layer).
@@ -391,7 +391,7 @@ describe('usePlacesView', () => {
       expect(pv.view.value.ty).toBeCloseTo(25)
     })
 
-    // P6b-T8: with hasDetailPanel()=true, that point ends up at visible center x=290 (not 500) —
+    // With hasDetailPanel()=true, that point ends up at visible center x=290 (not 500) —
     // verify using the invariant "that world point mapped back to screen coords exactly equals visible center",
     // not repeating assertions on tx itself.
     it('With hasDetailPanel()=true: that point ends up at x=290 (not 500)', () => {

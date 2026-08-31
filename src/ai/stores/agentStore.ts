@@ -7,7 +7,7 @@ import { i18n } from '../../i18n'
 import { useAiTheme, type AiTheme } from './aiTheme'
 import type { AgentBlock, AgentStats, AttachmentRef, StreamActions } from '../types'
 
-// SP8-P2a Task 4 — THEME_KEY and theme state moved to `./aiTheme` (app-level shared,
+// THEME_KEY and theme state moved to `./aiTheme` (app-level shared,
 // Agent page and Settings page share source). See that file's header comment for rationale.
 // This file no longer defines it locally.
 // agentStore.js:626,638,650 — selected model persistence key (verbatim alignment).
@@ -115,7 +115,7 @@ export interface AgentSession {
 export type AgentMessage = Record<string, unknown>
 
 /**
- * SP8-P1a Task 2 — AI Agent session/history/theme slice (Pinia factory).
+ * AI Agent session/history/theme slice (Pinia factory).
  *
  * Factory form is a hard constraint: the Photos area will later instantiate an agent with
  * a restricted profile (`useAgentStore('photos')`), and each agentType maintains its own
@@ -141,7 +141,7 @@ export function useAgentStore(agentType?: string) {
     const messages = ref<AgentMessage[]>([])
     // Phase 1a always false — streaming (send/attach) is phase 1b's business; no code path here flips it.
     const busy = ref(false)
-    // SP8-P2a Task 4(D1) — theme is no longer a private ref of this store, but exposed from
+    // (D1) — theme is no longer a private ref of this store, but exposed from
     // the app-level shared store. External signature (store.theme / store.toggleTheme) unchanged,
     // so AgentPage / AgentTopbar / existing test call sites need no changes.
     const aiTheme = useAiTheme()
@@ -152,7 +152,7 @@ export function useAgentStore(agentType?: string) {
     const rightCollapsed = ref(false)
     // agentStore.js:38 — right-column currently active tab; tab selection is not persisted (unlike theme/selectedModel).
     const rightTab = ref<'activity' | 'context' | 'system' | 'resources'>('activity')
-    // Streaming-primitive state (SP8-P1b Task 4/7) — verbatim port target of
+    // Streaming-primitive state — verbatim port target of
     // Vue2 store/agentStore.js:34,39-40. Narrowed now that the transport
     // layer (Task 6) and send/stop/continueRun (Task 7) are wired: the abort
     // controller is a real AbortController, pendingCancel is the in-flight
@@ -161,7 +161,7 @@ export function useAgentStore(agentType?: string) {
     const activitySteps = ref<Record<string, unknown>[]>([])
     const pendingCancel = ref<Promise<unknown> | null>(null)
 
-    // ---- Model bootstrap (SP8-P1b Task 7) — agentStore.js:43-52,599-698 ----
+    // ---- Model bootstrap — agentStore.js:43-52,599-698 ----
     const availableModels = ref<AgentModel[]>([])
     const selectedModel = ref<string | null>(null)
     const lastFallbackNotice = ref<{ from: string | null; to: string | null } | null>(null)
@@ -318,7 +318,7 @@ export function useAgentStore(agentType?: string) {
 
     /**
      * Agent.vue:80,90-96 — localStorage > matchMedia(prefers-color-scheme: dark) > 'light'.
-     * SP8-P2a Task 4(D1) — load-logic body moved to `./aiTheme`'s `hydrateTheme()` (Settings page
+     * (D1) — load-logic body moved to `./aiTheme`'s `hydrateTheme()` (Settings page
      * needs the same logic, can't be store-only). This function stays as pure delegation;
      * external call site (`AgentPage.vue`'s `store.initTheme()`) needs no changes.
      */
@@ -328,7 +328,7 @@ export function useAgentStore(agentType?: string) {
 
     /**
      * agentStore.js:152-154 + Agent.vue:117-119 — toggle and write back to same localStorage key.
-     * SP8-P2a Task 4(D1) — toggle-logic body moved to `./aiTheme`'s `toggleTheme()` so
+     * (D1) — toggle-logic body moved to `./aiTheme`'s `toggleTheme()` so
      * Agent page and Settings page toggle the same state.
      */
     function toggleTheme() {
@@ -350,7 +350,7 @@ export function useAgentStore(agentType?: string) {
       rightTab.value = tab
     }
 
-    // ---- Streaming primitives (SP8-P1b Task 4) ----
+    // ---- Streaming primitives ----
     // Verbatim port of Vue2 store/agentStore.js:64-150. Vue2-isms converted:
     // Vue.observable → the refs above; Vue.set/delete → direct assign (not
     // needed here — no delete-key semantics in these 9); splice(i,1,next)
@@ -1251,7 +1251,7 @@ export function useAgentStore(agentType?: string) {
       activeSessionId,
       messages,
       busy,
-      // SP8-P2a Task 4(D1) — must be computed, not `aiTheme.theme` (bare value is snapshot at read-time,
+      // (D1) — must be computed, not `aiTheme.theme` (bare value is snapshot at read-time,
       // loses reactivity; see aiTheme.ts header comment and this task report Step 6 RED verification).
       theme: computed(() => aiTheme.theme),
       leftCollapsed,

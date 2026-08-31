@@ -1,5 +1,5 @@
 <!--
-  1:1 port from Vue2 src/views/AI/Agent/tabs/SystemTab.vue (56 lines). SP8-P1c2 Task 11.
+  1:1 port from Vue2 src/views/AI/Agent/tabs/SystemTab.vue (56 lines).
 
   User-approved intentional divergence (brief explicitly states): Vue2 `mounted` fetches
   `/sys/utilization` once and never refreshes; here changed to use New-UI's ready-made real-time

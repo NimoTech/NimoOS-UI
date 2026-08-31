@@ -1,4 +1,4 @@
-// SP8-P2a Task 11 — Port from Vue2 src/views/AI/Settings/sections/PrivacySection.vue
+// Port from Vue2 src/views/AI/Settings/sections/PrivacySection.vue
 // (74 lines). Brief Step 1's 10 test cases, landed one by one.
 //
 // Real store (setActivePinia + useSettingsStore()), don't mock @nimotech/nimoos-service

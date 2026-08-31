@@ -1,5 +1,5 @@
 // ===== Nimo AI Settings Section Styles =====
-// SP8-P2a Task 2 — 1:1 file-level port from Vue2
+// 1:1 file-level port from Vue2
 // `src/views/AI/Settings/settings-styles.scss` (316 lines).
 //
 // [Token base] Vue2 hangs :data-theme on `.set-app` and provides tokens via its own tokens.scss.
@@ -185,7 +185,7 @@ textarea.set-input.code { font-family: var(--font-mono); font-size: 12px; line-h
 // See comment at button in ObservabilitySection.vue and pinned test case in settingsStyles.test.ts.
 .px-open { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 500; color: var(--text-on-accent); padding: 6px 12px; border-radius: var(--r-sm); background: var(--accent); cursor: pointer; border: 0; }
 .px-open:hover { background: var(--accent-hover); }
-// SP8-P2b Task 8 — during Task 2 file-level port, missed Vue2 ObservabilitySection.vue:208-211 scoped
+// During an earlier file-level port, missed Vue2 ObservabilitySection.vue:208-211 scoped
 // `<style>` (`.status` / `.status.err`, installing/error inline hints) (same type of omission as
 // sk-shared.scss mentioned in SetSwitch.vue header comment). Adding here, but renamed to `.px-msg` —
 // Vue2's was `scoped`, bare `.status` wouldn't escape component; here is global shared file; bare `.status`
@@ -195,7 +195,7 @@ textarea.set-input.code { font-family: var(--font-mono); font-size: 12px; line-h
 .px-msg { font-size: 13px; color: var(--text-secondary); margin: 8px 18px; }
 .px-msg.err { color: var(--danger); }
 
-// SP8-P2b Task 10 review fix — McpTokensSection.vue component follows zero-<style> convention, but Vue2
+// Review fix — McpTokensSection.vue component follows zero-<style> convention, but Vue2
 // McpTokensSection.vue:245/246 (scoped) does define `.mcp-label`/`.mcp-reveal-warn` styles (`.mcp-x` already
 // adopted by SkModal's `.sk-x`, no need to supplement). Missing these would render explanation labels and
 // warning text in plaintext modal as unstyled default font/black text — undeclared 1:1 visual regression;
@@ -209,7 +209,7 @@ textarea.set-input.code { font-family: var(--font-mono); font-size: 12px; line-h
 .mcp-label { display: block; margin: 0; color: var(--text-secondary); font-size: 13px; }
 .mcp-reveal-warn { color: var(--danger); font-size: 13px; line-height: 1.5; margin: 0; }
 
-// SP8-P2b Task 12 — ChannelsSection.vue (Vue2 sections/ChannelsSection.vue:387-410, scoped <style>).
+// ChannelsSection.vue (Vue2 sections/ChannelsSection.vue:387-410, scoped <style>).
 // Brief Step 3 literally said keep these rules in component's own <style scoped>, but phase-wide convention
 // (constraints §4, already applied twice above for .px-msg / .mcp-label+.mcp-reveal-warn) is zero-<style>
 // component; per constraints §0 the constraints doc overrides a brief written before reconciliation.

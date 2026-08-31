@@ -573,7 +573,7 @@ describe('createAi — skills / mcp servers / mcp tokens / channels', () => {
   })
 })
 
-// SP8-P4/P5 progressive disclosure -- MCP tool approval endpoints. All four
+// Progressive disclosure -- MCP tool approval endpoints. All four
 // live under the same `/v1/ai` prefix as the existing `/mcp/servers*` routes
 // (common.V2APIPath on the backend, `PREFIX = '/ai'` here), not `/v2/ai`.
 describe('createAi — MCP tool approvals (progressive disclosure)', () => {

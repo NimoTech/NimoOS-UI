@@ -1,5 +1,4 @@
 // 1:1 ported from Vue2 src/views/AI/Agent/tabs/ResourcesTab.vue:136-232 pure logic section.
-// SP8-P1c2 Task 12.
 import { describe, it, expect } from 'vitest'
 import {
   groupStagedChanges,

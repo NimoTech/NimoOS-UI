@@ -48,7 +48,7 @@ describe('copyText', () => {
   })
 })
 
-// SP8-P2b round 4 acceptance, 2026-07-30 — user test: copy on the AI settings **page**
+// Feedback from an earlier review — user test: copy on the AI settings **page**
 // works, but all three copy buttons in the **"Create Token" dialog** fail
 // (clipboard is empty).
 //

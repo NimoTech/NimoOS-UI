@@ -1,5 +1,5 @@
-// SP8-P2a Task 2 — Common card/button classes extracted from Vue2 `src/views/AI/Skills/skills-styles.scss`.
-// Settings section (P2a/P2b) and future Skills section (P3) share the same set; therefore independent file,
+// Common card/button classes extracted from Vue2 `src/views/AI/Skills/skills-styles.scss`.
+// The Settings section and Skills section share the same set; therefore independent file,
 // not merged into settings-styles.scss.
 //
 // Source line-by-line mapping:
@@ -86,7 +86,7 @@
   }
 }
 
-// ===== SP8-P2b Task 1 — Dialog shell =====
+// ===== Dialog shell =====
 // 1:1 ported from Vue2 src/views/AI/Skills/skills-styles.scss:575-613.
 // Vue2's three dialogs (token plaintext / add bot / pairing code) were hand-written bare divs using
 // these classes; this repo uses reka Dialog instead (see SkModal.vue), but visual rules kept as-is,
@@ -149,7 +149,7 @@
   .right { margin-left: auto; display: flex; gap: 8px; }
 }
 
-// ===== SP8-P2b Task 1 — Form fields in dialogs =====
+// ===== Form fields in dialogs =====
 // 1:1 ported from Vue2 skills-styles.scss:617-646. Used by Task 12 "add bot" form.
 .sk-field { display: flex; flex-direction: column; gap: 6px; }
 .sk-field-label {
@@ -162,7 +162,7 @@
   }
 }
 .sk-field-hint { font-size: 11px; color: var(--text-tertiary); }
-// SP8-P3b Task 5 — Inline validation error bar (used when AddSkillModal pre-submit local validation hits;
+// Inline validation error bar (used when AddSkillModal pre-submit local validation hits;
 // sits atop .sk-modal-body). Precedent is ChannelsSection add-bot failure .chan-field-err (settings-styles.scss:234);
 // values match verbatim; new .sk-field-err created here with same values, not reusing the chan-prefixed one
 // (that is channels section's own class; reusing would be cross-section reuse).

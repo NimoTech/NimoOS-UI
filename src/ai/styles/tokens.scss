@@ -11,7 +11,7 @@
 //   - `VideoCard.vue`'s `PAL` (video thumbnail placeholder gradient)
 //   - `ImageGridCard.vue`'s `PALETTES` (image grid placeholder mosaic when no thumbnail)
 //   - `SearchFullResults.vue`'s `PALETTES`, `SemanticSearchCard.vue`'s `PALETTES`
-//     (SP8-P1b Task 9 — Vue2 source already had the same `PALETTES` array copied to two files; both
+//     (Vue2 source already had the same `PALETTES` array copied to two files; both
 //     belong to "image-without-thumbnail placeholder mosaic" category, not a new exception)
 // The hex literals at these locations are "skin-agnostic" decorative generative colors (indexed by seed
 // value in block, not representing any semantic state); like `.ic-*` brand identification colors, they
@@ -20,12 +20,12 @@
 // Another registered item (not placeholder mosaic, but identity color): `src/ai/util/mentionFormat.ts`'s
 // `DRIVE_PALETTE` — takes color based on drive/mount point label hash, identifying "which disk this is";
 // skin-agnostic, preserved as-is in both themes; same category as `.ic-*` brand gradients.
-// Another registered item (SP8-P2a Task 2): `src/ai/styles/settings-styles.scss` and
+// Another registered item: `src/ai/styles/settings-styles.scss` and
 // `src/ai/styles/sk-shared.scss` — style files ported 1:1 from Vue2 settings/skills blocks, containing
 // ~20 semi-transparent color literals (mostly --success/--danger/--accent/--warning/--purple transparency
 // variants). Same "file-level portage exception" category as `agent-styles.scss`; original values preserved
 // to guarantee visual 1:1; **neither file may accept new bare colors**; new .vue component <style> blocks
-// are not exempt. SP8-P2b Task 1 addition: `.sk-modal-bg` modal backdrop color `rgba(15, 20, 30, 0.32)`
+// are not exempt. `.sk-modal-bg` modal backdrop color `rgba(15, 20, 30, 0.32)`
 // at end of `sk-shared.scss` is also file-level portage exemption (Vue2 skills-styles.scss:577).
 // =====================================================================
 
@@ -88,7 +88,7 @@
   --line-strong: #D8D3C7;
   --line-faint: #EEEBE3;
 
-  /* SP8-P1c1 Task 7 — glass-layer outer hairline ring (MentionPopover popover shadow);
+  /* Glass-layer outer hairline ring (MentionPopover popover shadow);
      a skin-agnostic ultra-faint stroke, not a semantic color. */
   --hairline-ring: rgba(0, 0, 0, 0.04);
 
@@ -121,7 +121,7 @@
   --grad-iri: linear-gradient(120deg, #5AC8FA 0%, #3B6FD4 30%, #6E5BFF 70%, #AF52DE 100%);
   --grad-iri-soft: linear-gradient(120deg, rgba(90, 200, 250, 0.16), rgba(59, 111, 212, 0.16) 40%, rgba(110, 91, 255, 0.16) 80%);
 
-  /* SP8-P1b Task 8 — soft semantic backgrounds/borders for ported block-renderer badges/rings
+  /* Soft semantic backgrounds/borders for ported block-renderer badges/rings
      (icon-bg chips, MCP call/permission cards, confirm-card ring). Kept as a small fixed set
      (not one-per-Vue2-opacity) so ported components share a single consistent "soft badge"
      language instead of re-deriving ad hoc rgba(). */
@@ -134,7 +134,7 @@
   --danger-soft-border: rgba(215, 73, 59, 0.16);
   --purple-soft: rgba(175, 82, 222, 0.1);
   --purple-soft-border: rgba(175, 82, 222, 0.16);
-  /* SP8-P1b Task 8 fix — a fainter "wash" tier per hue, ~60% of -soft's opacity. Vue2 McpCallCard.vue
+  /* A fainter "wash" tier per hue, ~60% of -soft's opacity. Vue2 McpCallCard.vue
      used two distinct opacities per hue: the state-badge PILL (bolder, matches -soft above) vs.
      segment-head background WASH behind "Call · ARGUMENTS"/"Return · RESULT"/"Return · ERROR" (fainter).
      Collapsing both onto -soft made the wash as saturated as the pill — this tier restores that
@@ -152,14 +152,14 @@
   --scrim-dark: rgba(0, 0, 0, 0.35);
   /* Tiny inset gloss highlight on colored tiles (McpCallCard) — same value in both themes. */
   --gloss-inset: inset 0 0 0 0.5px rgba(255, 255, 255, 0.18);
-  /* SP8-P3b Task 1 — same "colored chip + white inset gloss" family as --gloss-inset above;
+  /* Same "colored chip + white inset gloss" family as --gloss-inset above;
      used by .sk-color-dot (skills-styles.scss) in AddSkillModal color picker. Vue2 source
      (skills-styles.scss:677) uses distinct opacity (0.2) from --gloss-inset's 0.18 — kept as own token
      to preserve Vue2's exact value rather than drift by reusing --gloss-inset (same precedent as
      --modal-scrim-soft being separate from --modal-scrim below). Theme-invariant chrome, same in both. */
   --gloss-inset-dot: inset 0 0 0 0.5px rgba(255, 255, 255, 0.2);
 
-  /* SP8-P1b Task 9 — SearchImageLightbox is a fullscreen black "stage" (photo viewer chrome, like
+  /* SearchImageLightbox is a fullscreen black "stage" (photo viewer chrome, like
      Photos/Preview); intentionally theme-invariant — same rationale as --scrim-dark/--gloss-inset above,
      not a skin surface. */
   --overlay-scrim: rgba(0, 0, 0, 0.92);
@@ -178,7 +178,7 @@
   /* Dim-behind-blur backdrop shared by SearchFileDrawer/SearchFullResults modals — a scrim, not a skin
      surface; same value in both themes (--scrim-dark sibling). */
   --modal-scrim: rgba(0, 0, 0, 0.5);
-  /* SP8-P1c1 (final review, 2026-07-27) — a lighter scrim tier for SlashMenu. Vue2
+  /* A lighter scrim tier for SlashMenu. Vue2
      shell/SlashMenu.vue's overlay literal was rgba(0,0,0,0.3), noticeably lighter than --modal-scrim's 0.5;
      reusing --modal-scrim there would be visible 1:1 deviation; this is separate token with same value
      both themes (a scrim, not a skin surface — same family as --modal-scrim/--scrim-dark). */
@@ -189,7 +189,7 @@
      theme-invariant like items above. */
   --paper-surface: #ffffff;
 
-  /* SP8-P2a Task 6 — iOS-style switch thumb (SetSwitch.vue / .sw::after in sk-shared.scss).
+  /* iOS-style switch thumb (SetSwitch.vue / .sw::after in sk-shared.scss).
      Vue2 source (skills-styles.scss:235-249) had literal `background: white` + `box-shadow: 0 2px 4px
      rgba(0,0,0,0.18)` for round knob. Same family as --paper-surface/--scrim-dark: skin-agnostic
      chrome detail (iOS switches always have white knob regardless of theme), not semantic surface —
@@ -223,7 +223,7 @@
   --grad-photo: linear-gradient(135deg, var(--purple), var(--pink));
   --grad-file: linear-gradient(135deg, var(--accent), var(--teal));
 
-  /* SP8-P3a Task 1 — skill-tile identifier-color gradients (SkillTile.vue swatch picker in Vue2
+  /* Skill-tile identifier-color gradients (SkillTile.vue swatch picker in Vue2
      `SkillTile.vue:19-27`). Decorative, skin-agnostic identifier colors (skill is "blue/purple/pink/etc"
      regardless of theme); same convention as --grad-photo/--grad-file directly above — not redefined
      in dark block. */
@@ -289,13 +289,13 @@
   --line-strong: #3A3A3D;
   --line-faint: #262628;
 
-  /* SP8-P1c1 Task 7 — dark-theme value for --hairline-ring above. */
+  /* Dark-theme value for --hairline-ring above. */
 
   --hairline-ring: rgba(255, 255, 255, 0.06);
 
   --tl-tick: #3C3C3F;
 
-  /* SP8-P1b Task 8 — dark-theme values for soft-badge tokens added above. */
+  /* Dark-theme values for soft-badge tokens added above. */
 
   --warning-soft: rgba(224, 165, 59, 0.18);
   --warning-soft-border: rgba(224, 165, 59, 0.3);
@@ -313,11 +313,11 @@
   --teal-soft: rgba(48, 176, 199, 0.2);
   --scrim-dark: rgba(0, 0, 0, 0.35);
   --gloss-inset: inset 0 0 0 0.5px rgba(255, 255, 255, 0.18);
-  /* SP8-P3b Task 1 — dark-theme value for --gloss-inset-dot above (same value as light block —
+  /* Dark-theme value for --gloss-inset-dot above (same value as light block —
      theme-invariant; see comment there). */
   --gloss-inset-dot: inset 0 0 0 0.5px rgba(255, 255, 255, 0.2);
 
-  /* SP8-P1b Task 9 — same values as light block (all theme-invariant chrome; see comments there);
+  /* Same values as light block (all theme-invariant chrome; see comments there);
      dark-theme copies exist only to satisfy "every token has a value in both blocks" for tokens
      that aren't var()-composed. */
   --overlay-scrim: rgba(0, 0, 0, 0.92);
@@ -333,11 +333,11 @@
   --overlay-nav-border: rgba(255, 255, 255, 0.1);
   --overlay-img-shadow: 0 30px 80px -20px rgba(0, 0, 0, 0.8);
   --modal-scrim: rgba(0, 0, 0, 0.5);
-  /* SP8-P1c1 (final review, 2026-07-27) — dark-theme value for --modal-scrim-soft above
+  /* Dark-theme value for --modal-scrim-soft above
      (see light block comment); same value both themes, like --modal-scrim. */
   --modal-scrim-soft: rgba(0, 0, 0, 0.3);
   --paper-surface: #ffffff;
-  /* SP8-P2a Task 6 — dark-theme value for --switch-thumb/--switch-thumb-shadow above (same values as
+  /* Dark-theme value for --switch-thumb/--switch-thumb-shadow above (same values as
      light block — theme-invariant; see comment there). */
   --switch-thumb: #ffffff;
   --switch-thumb-shadow: 0 2px 4px rgba(0, 0, 0, 0.18);
@@ -361,7 +361,7 @@
   --shadow-pop: 0 18px 50px rgba(0, 0, 0, 0.6);
 }
 
-/* ===== SP8-P2b acceptance round 3 (user decision 2026-07-30: "AI section only, zero desktop impact") =====
+/* ===== Per an earlier review decision: "AI section only, zero desktop impact" =====
    `AppToast` is at root of `App.vue`, not inside `.agent-app`, so it reads theme.css's `:root` toast tokens:
    semi-transparent white bg (`rgba(255,255,255,.28→.12)`) + `--toast-fg` undefined, falls back to `--fg` =
    `#ffffff`. Drawn on AI section's light page (`--bg-app: #FAF9F6`) = white bg + white text = completely

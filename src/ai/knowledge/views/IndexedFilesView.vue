@@ -1,5 +1,5 @@
 <!--
-  SP8-P5b Task 8 — "Indexed Files" page, cut 1: skeleton + filter bar + head meta +
+  "Indexed Files" page, cut 1: skeleton + filter bar + head meta +
   error banner + skeleton screen + empty state. 1:1 ported from the Vue 2 panel's
   reference `src/views/AI/Knowledge/IndexedFilesView.vue`
   (main@7a6ee6b7, 826 lines, read via `git show main:`; codebase review §1: worktree is an
@@ -91,7 +91,7 @@
   with targeted assertions matching T5's pattern.
 
   ══════════════════════════════════════════════════════════════════════
-  SP8-P5b Task 9 — Cut 2: table header row + file rows · inline detail panel ·
+  Cut 2: table header row + file rows · inline detail panel ·
   pagination (reference :146-317). This cut lands the placeholder section T8 left.
 
   Structure mapping (reference line range → this file):
@@ -159,7 +159,7 @@
   full-rebuild confirm modal, `_flashDone` (above), 30s polling's
   `startIndexedPolling()` call inside rebuild actions, route reversal.
   ══════════════════════════════════════════════════════════════════════
-  SP8-P5b Task 10 — Cut 3 (final): three rebuild entry points + dual limits +
+  Cut 3 (final): three rebuild entry points + dual limits +
   K7 confirm modal + sticky bottom action bar + polling closure + route reversal.
   **From here, all 826 lines of reference are landed; this file has no more
   placeholders, empty bodies, or TODOs.**
@@ -170,11 +170,11 @@
     :392     `EXPLICIT_REBUILD_CAP = 500` (front-end hard block)
     :464     `showRebuildAllConfirm` local switch
     :484-485 `selectedCount` / `overExplicitCap`
-    :760-770 `rebuildRow` (T9's empty placeholder, filled in this cut)
+    :760-770 `rebuildRow` (previously an empty placeholder, filled in this cut)
     :772-784 `rebuildSelected`
     :786-789 `openRebuildAllConfirm`
     :791-809 `doRebuildAll` (note: function's closing `},` is at :809; :808 is
-             inner catch close — T8 report said :791-808, off by 1; corrected
+             inner catch close — earlier notes said :791-808, off by 1; corrected
              above in【K14】section's line refs)
     :811-823 `_flashDone` (2200 ms green flash)
 

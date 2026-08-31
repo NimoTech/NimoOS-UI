@@ -1,4 +1,4 @@
-// SP8-P5a Task 7 -- unit tests taken from the task brief a captured device response
+// Unit tests taken from the task brief a captured device response
 // Step 2 skeleton (copied verbatim). Covers the notes + distill + wiki groups of knowledgeStore:
 // setNotesDraftCount / refreshNotesDraftCount / loadNotesSummary / runSearch /
 // loadChunkContext / loadDistillJobs / retryDistill / cancelDistill /

@@ -82,7 +82,7 @@ describe('assetToPhoto', () => {
     expect(assetToPhoto({ id: '1' }).matchScore).toBeNull()
   })
 
-  // P7a-T10 regression (brief structural spec item 7): matchedBy missing field → null; field present → passed through as-is.
+  // Regression (structural spec item 7): matchedBy missing field → null; field present → passed through as-is.
   // grep already confirmed the four fields matchScore/matchedBy/belowCut/isNew all exist in this file
   // (added in P0 or an earlier task); this task doesn't change the implementation, it only adds this previously missing assertion.
   it('matchedBy: null when field is absent, passed through as-is when present', () => {

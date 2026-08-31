@@ -1,5 +1,5 @@
 <!--
-  SP8-P2b Task 3 — settings area modal shell.
+  Settings area modal shell.
 
   Vue2's three modals (McpTokensSection token plaintext / ChannelsSection add bot + pair code)
   are hand-written `.sk-modal-bg` bare div + `@click.self` close, no focus trap, Esc not handled.
@@ -22,7 +22,7 @@ const props = withDefaults(
   { portalTo: '.set-app' },
 )
 const emit = defineEmits<{ (e: 'update:open', v: boolean): void }>()
-// SP8-P3b Task 5 — add an optional footerLeft slot. Vue2 AddSkillModal.vue:96-108 footer is
+// Add an optional footerLeft slot. Vue2 AddSkillModal.vue:96-108 footer is
 // two columns: left `.save-note` (save note + check icon), right `.right` (cancel/create buttons),
 // sk-shared.scss:139-150 `.sk-modal-foot` already supports both `.save-note` and `.right`
 // (latter `margin-left: auto`), but this component originally wedged entire `#footer` slot in `.right` —

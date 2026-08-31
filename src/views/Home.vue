@@ -81,7 +81,7 @@ function refreshApps() {
     // grid fetch" that sweepGone's grace period exists for. Evict right away instead
     // of waiting on the sweep: missingSince is an in-memory Map that resets on every
     // page load, so a user who reloads more often than the 45s grace would otherwise
-    // never reach removal at all (#125 review finding 1).
+    // never reach removal at all.
     if (apps.kvmAvailable === false) layout.evict('vm', { force: true })
     layout.autoPin(apps.desktopDecls(), DIMS, apps.stoppedDesktopKeys())
     // Unified sweep: uninstalled/removed apps (including manually pinned tiles, LinkApp) have their tiles removed once absent past the full grace period

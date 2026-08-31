@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { flushPromises } from '@vue/test-utils'
 
-// SP8-P1c2 Task 2 — right sidebar collapse state + current tab's minimal state/action set.
+// Right sidebar collapse state + current tab's minimal state/action set.
 // vi.hoisted() service mock + setActivePinia pattern copied from agentStore.p1c.test.ts.
 const svc = vi.hoisted(() => ({
   listAgentSessions: vi.fn(), createAgentSession: vi.fn(), deleteAgentSession: vi.fn(),
@@ -12,11 +12,11 @@ const svc = vi.hoisted(() => ({
   listAttachments: vi.fn(), deleteAttachment: vi.fn(),
   listStagedChanges: vi.fn(), commitStagedChanges: vi.fn(),
   revertStagedRun: vi.fn(), revertStagedBatch: vi.fn(), revertStagedItems: vi.fn(),
-  // SP8-P1c2 Task 3 — thinking domain (agentStore.js:656-687).
+  // Thinking domain (agentStore.js:656-687).
   getThinkingDefaults: vi.fn(), getSessionThinking: vi.fn(), patchSessionThinking: vi.fn(),
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: { ai: svc } }))
-// SP8-P1c2 Task 4 — autoTitleFirstTurn (via send()) takes the same regenerateTitle path,
+// autoTitleFirstTurn (via send()) takes the same regenerateTitle path,
 // the test needs to control runAgentRun, so we changed here to named hoisted references
 // (copied from agentStore.test.ts's runSpy/attachSpy pattern), Task2/Task3 existing test cases
 // don't read these two references, unaffected.
@@ -70,7 +70,7 @@ describe('agentStore P1c2 Task2: right sidebar collapse state + tab', () => {
   })
 })
 
-// SP8-P1c2 Task 3 — store thinking domain (agentStore.js:656-698).
+// Store thinking domain (agentStore.js:656-698).
 describe('agentStore P1c2 Task3: thinking domain (loaders/setters)', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -162,7 +162,7 @@ describe('agentStore P1c2 Task3: thinking domain (loaders/setters)', () => {
   })
 })
 
-// SP8-P1c2 Task 4 — store regenerateTitle (ported from agentStore.js:210-244) +
+// Store regenerateTitle (ported from agentStore.js:210-244) +
 // regeneratingTitleFor, and autoTitleFirstTurn changed to take the same path.
 describe('agentStore P1c2 Task4: regenerateTitle + regeneratingTitleFor', () => {
   beforeEach(() => {
@@ -299,7 +299,7 @@ describe('agentStore P1c2 Task4: regenerateTitle + regeneratingTitleFor', () => 
   })
 })
 
-// SP8-P1c2 Task 13 — Vue2 legacy bug fix: activitySteps is never cleared.
+// Vue2 legacy bug fix: activitySteps is never cleared.
 // In Vue2 store/agentStore.js, activitySteps is declared at :39, pushed at :128, patched at :137-140,
 // no clearing point in entire file; switching sessions (:246-293) / creating new (:166-183) / deleting
 // current session (:185-192) don't reset — previous session's running steps will remain in right sidebar.

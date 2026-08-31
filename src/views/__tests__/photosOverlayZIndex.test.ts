@@ -47,10 +47,9 @@ function ruleBodies(text: string, selector: string): string[] {
 
 const MIN_Z = 100
 
-// Each entry: [selector text as it appears in source, files it may be declared in]. Matches the
-// sweep table in acceptance-fix-report.md §F8-r2 exactly -- every sibling-of-`.app` overlay this
-// plan's own pages render.
-// Plan F Task 5: the ".lightbox (component-scoped)" entry that used to live here is retired --
+// Each entry: [selector text as it appears in source, files it may be declared in] -- every
+// sibling-of-`.app` overlay the Photos pages render.
+// The ".lightbox (component-scoped)" entry that used to live here is retired --
 // PhotoLightbox.vue's own local `.lightbox { ... }` rule (position:fixed + z-index:200) was
 // deleted once the lightbox actually nests inside `.photos-root` (byte-duplicate of the very
 // ".lightbox (parity)" entry below; see PhotoLightbox.vue's scoped-style retirement note). The
@@ -65,7 +64,7 @@ const OVERLAYS: Array<{ name: string; selector: string; files: string[] }> = [
   { name: '.picker-scrim', selector: '.picker-scrim {', files: ['photos/styles/vue2-parity/photos.scss'] },
   { name: '.sv-select-bar', selector: '.photos-root .sv-select-bar {', files: ['photos/styles/vue2-parity/photos-smartview.scss'] },
   { name: '.sv-toast', selector: '.photos-root .sv-toast {', files: ['photos/styles/vue2-parity/photos-smartview.scss'] },
-  // Plan G (Ask Nimo): these three previously carried Vue2's original low z-index values
+  // These three previously carried Vue2's original low z-index values
   // (50/50/60) as dead CSS -- nothing consumed them yet. Bumped below alongside the components
   // that finally use them, normalized to this codebase's existing overlay/menu tiers rather than
   // kept at Vue2's raw numbers (see photos-people.scss:1330 (rule start) / :1338 (z-index)'s
@@ -73,27 +72,27 @@ const OVERLAYS: Array<{ name: string; selector: string; files: string[] }> = [
   { name: '.nimo-pop', selector: '.photos-root .nimo-pop {', files: ['photos/styles/vue2-parity/photos.scss'] },
   { name: '.chat-drawer', selector: '.photos-root .chat-drawer {', files: ['photos/styles/vue2-parity/photos.scss'] },
   { name: '.nimo-mp-list', selector: '.photos-root .nimo-mp-list {', files: ['photos/styles/vue2-parity/photos.scss'] },
-  // Plan H Task 1 (F-20), re-skinned in Acceptance Fix-2: PhotosFavorites.vue's save-as-album
+  // PhotosFavorites.vue's save-as-album
   // naming modal scrim -- originally a New-UI-only bespoke `.favsave-scrim` living in the
-  // component's own `<style scoped>`; Fix-2 re-skinned the template onto Vue2
+  // component's own `<style scoped>`; later re-skinned the template onto Vue2
   // PhotosFavoritesView.vue's own `.fav-modal-scrim` anchor, whose rule (bare selector, matching
   // Vue2's own lack of a `.photos-root`-equivalent wrapper) already lived in parity photos.scss
   // byte-exact and unused. Same subtree rule as every other overlay in this table (nests as a
   // `.photos-root` descendant, see the component's template).
   { name: '.fav-modal-scrim', selector: '.fav-modal-scrim {', files: ['photos/styles/vue2-parity/photos.scss'] },
-  // Plan H Task 5: the Favorites slideshow overlay -- parity-sourced (photos.scss), bare
+  // The Favorites slideshow overlay -- parity-sourced (photos.scss), bare
   // top-level selector (no `.photos-root ` prefix, same shape as `.picker-scrim` above), already
   // carries z-index: 400 (well above the 100 floor and above every other overlay in this table).
   { name: '.fav-slideshow', selector: '.fav-slideshow {', files: ['photos/styles/vue2-parity/photos.scss'] },
-  // Plan H Task 8: PhotosTrash.vue's confirm modal scrim -- parity-sourced (photos.scss), bare
+  // PhotosTrash.vue's confirm modal scrim -- parity-sourced (photos.scss), bare
   // top-level selector (no `.photos-root ` prefix, same shape as `.picker-scrim`/`.fav-slideshow`
-  // above). This task's re-shell deleted PhotosTrash.vue's own local duplicate of this rule
+  // above). Its re-shell deleted PhotosTrash.vue's own local duplicate of this rule
   // (redundant with the globally-imported parity copy), so the only surviving declaration lives
   // in the parity file, not the component's own `<style scoped>`.
   { name: '.trash-modal-scrim', selector: '.trash-modal-scrim {', files: ['photos/styles/vue2-parity/photos.scss'] },
 ]
 
-describe('Fix-8 round 2: sibling-of-.app overlays keep an explicit z-index above .app\'s own (1)', () => {
+describe('sibling-of-.app overlays keep an explicit z-index above .app\'s own (1)', () => {
   for (const { name, selector, files } of OVERLAYS) {
     it(`${name} declares position:fixed with an explicit numeric z-index >= ${MIN_Z}`, () => {
       const bodies = files.flatMap((f) => ruleBodies(read(f), selector))
@@ -101,7 +100,7 @@ describe('Fix-8 round 2: sibling-of-.app overlays keep an explicit z-index above
       for (const body of bodies) {
         expect(body, `${selector} is missing position:fixed`).toMatch(/position\s*:\s*fixed/)
         const m = /z-index\s*:\s*(-?\d+)/.exec(body)
-        expect(m, `${selector} has no explicit numeric z-index (or degraded to auto) -- exactly the failure shape the F8 round 2 hypothesis describes`).not.toBeNull()
+        expect(m, `${selector} has no explicit numeric z-index (or degraded to auto) -- exactly the failure shape the hypothesis above describes`).not.toBeNull()
         expect(Number(m?.[1])).toBeGreaterThanOrEqual(MIN_Z)
       }
     })

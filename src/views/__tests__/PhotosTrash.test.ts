@@ -1,4 +1,4 @@
-// Task 9 (SP7-P3): PhotosTrash.vue — mounts Pinia + i18n + a router stub, mocks the shared
+// PhotosTrash.vue — mounts Pinia + i18n + a router stub, mocks the shared
 // package's trash methods (following trash.test.ts's mock shape) + thumbnailUrl. Covers the
 // brief's 7 test points: empty-state gating + hero button disabled, bucketed rendering +
 // thumbnails via the generator + countdown badge, tapping the select circle + bulk bar appearing,
@@ -53,7 +53,7 @@ import { useLightbox } from '../../photos/lightbox/useLightbox'
 const lb = useLightbox()
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
-// Owner-acceptance Fix-5: a couple of the regressions this fix covers (the sort-label copy,
+// A couple of the regressions covered here (the sort-label copy,
 // the bucket subtitle's singular/plural word) render identical text in zh (photosItemSingular
 // and photosItemsCount share the same zh value, Chinese has no plural form) -- an English-locale
 // mount is needed to actually distinguish "1 item" from "N items" in an assertion.
@@ -80,7 +80,7 @@ async function mountView() {
   return w
 }
 
-// Owner-acceptance Fix-5: English-locale variant of mountView(), see the i18nEn comment above.
+// English-locale variant of mountView(), see the i18nEn comment above.
 async function mountViewEn() {
   const router = makeRouter()
   router.push('/photos/trash')
@@ -178,7 +178,7 @@ describe('PhotosTrash.vue', () => {
     const w = await mountView()
 
     expect(w.find('[data-test="trash-empty"]').exists()).toBe(false)
-    // Owner-acceptance Fix-5: bucket wrapper renamed .trash-bucket -> .arc-section (Vue2 :63
+    // Bucket wrapper renamed .trash-bucket -> .arc-section (Vue2 :63
     // reuses the archive view's shared `.arc-section` class, not a page-local reinvention).
     const buckets = w.findAll('.arc-section')
     expect(buckets).toHaveLength(2) // urgent(daysLeft=3) + fresh(daysLeft=29)
@@ -193,7 +193,7 @@ describe('PhotosTrash.vue', () => {
     expect(countdowns.some((t) => t.includes('29'))).toBe(true)
   })
 
-  // Owner-acceptance Fix-5 (screenshot review vs Vue2 PhotosTrashView.vue): Vue2 :55 renders a
+  // Screenshot review vs Vue2 PhotosTrashView.vue: Vue2 :55 renders a
   // leading `Sort` label span before the two sort buttons -- it was missing from this view
   // entirely (parity's own `.lib-sort-label` rule sat unused).
   it('the sort control has a leading "Sort" label, matching Vue2 :55', async () => {
@@ -202,7 +202,7 @@ describe('PhotosTrash.vue', () => {
     expect(w.find('.lib-sort-label').text()).toBe('Sort')
   })
 
-  // Owner-acceptance Fix-5 (screenshot review): the bucket header used to read "1 items ·
+  // Screenshot review: the bucket header used to read "1 items ·
   // Recently deleted items" for a single freshly-deleted photo -- wrong pluralization (Vue2 :68
   // singularizes) and wrong subtitle copy (Vue2's 'fresh' bucket desc is "Auto-deletes after the
   // retention period", :136, not "Recently deleted items"). Also asserts the bucket header now
@@ -228,7 +228,7 @@ describe('PhotosTrash.vue', () => {
     expect(sub).toBe('2 items · Auto-deletes after the retention period')
   })
 
-  // Owner-acceptance Fix-5 (REAL BUG, delete-chain diagnosis follow-up): the hero used to show
+  // REAL BUG (delete-chain diagnosis follow-up): the hero used to show
   // "0.0 MB can be freed" for an item whose real fileSize is 0/absent. Root cause: this isn't a
   // field-name or bytes-vs-MB mismatch in trashAssetToPhoto (verified correct, see that file's
   // own tests) -- it's that Vue2 PhotosTrashView.vue:180 sums `Number(p.sizeMb) || 4.2` per item
@@ -333,7 +333,7 @@ describe('PhotosTrash.vue', () => {
     expect(purgeSpy).toHaveBeenCalledWith(['a'])
   })
 
-  // Owner-acceptance Fix-3 (delete-chain diagnosis): the toast used to unconditionally quote
+  // Delete-chain diagnosis: the toast used to unconditionally quote
   // the click-time selection size, regardless of how many purgeTrash() calls actually
   // succeeded -- trash.purge() now reports the real count and this view must show a distinct
   // "N of M failed" toast for the partial case, not the exact-count success wording.
@@ -385,7 +385,7 @@ describe('PhotosTrash.vue', () => {
     spy.mockRestore()
   })
 
-  // Owner-acceptance Fix-3: the lightbox's "delete" is remapped to permanent purge for
+  // The lightbox's "delete" is remapped to permanent purge for
   // already-trashed assets (onLightboxDelete) -- it used to show the success toast
   // unconditionally, ignoring whether the backend purge actually succeeded.
   it('lightbox permanent-delete shows an error toast (not the purged-success toast) when the backend purge actually fails', async () => {
@@ -453,12 +453,12 @@ describe('PhotosTrash.vue', () => {
     expect(lb.open.value).toBe(false)
   })
 
-  // Task 12 (SP15-P3): while pages remain, the freeable-size figure is only a sum over the
+  // While pages remain, the freeable-size figure is only a sum over the
   // loaded subset — the empty-trash confirmation must not present it as the whole truth.
   const fullPage = () => Array.from({ length: 500 }, (_, i) => asset(`p${i}`, '2026-06-30T00:00:00Z'))
 
   it('uses the size-less empty copy while pages remain', async () => {
-    // Task 12 fix round 2: emptyTrash() now pages in the rest before opening the confirm —
+    // emptyTrash() now pages in the rest before opening the confirm —
     // this test's mock must let that attempt get stuck (not simply keep returning full pages
     // forever, which would loop until trashExhausted flips true and never show the partial
     // copy at all). See "empty-trash when a page gets stuck…" below for the fuller scenario.
@@ -505,11 +505,10 @@ describe('PhotosTrash.vue', () => {
     expect(w2.find('[data-test="trash-loaded-hint"]').exists()).toBe(false)
   })
 
-  // Task 12 fix round 2 (Important 1 & 2, coordinator review): both bulk hero actions
-  // (restore all / empty trash) act on the ENTIRE trash server-side, not just the loaded
-  // page — the confirm dialogs and undo must page in the rest first rather than understate
-  // what will actually happen.
-  describe('bulk hero actions page in the rest before acting (Task 12 fix round 2)', () => {
+  // Both bulk hero actions (restore all / empty trash) act on the ENTIRE trash server-side, not
+  // just the loaded page — the confirm dialogs and undo must page in the rest first rather than
+  // understate what will actually happen.
+  describe('bulk hero actions page in the rest before acting', () => {
     it('empty-trash with pages remaining pages in the rest first and then quotes the full count and size', async () => {
       const rest = [asset('extra1', '2026-06-30T00:00:00Z'), asset('extra2', '2026-06-30T00:00:00Z')]
       svc.photos.listTrash.mockResolvedValueOnce(fullPage()) // initial mount fetch: page one, 500 rows

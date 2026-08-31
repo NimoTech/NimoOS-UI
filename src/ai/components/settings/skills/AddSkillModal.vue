@@ -1,5 +1,5 @@
 <!--
-  SP8-P3b Task 5 — 1:1 port from Vue2 src/views/AI/Skills/AddSkillModal.vue (188 lines).
+  1:1 port from Vue2 src/views/AI/Skills/AddSkillModal.vue (188 lines).
 
   Shell swapped for SkModal (reka Dialog), instead of copying Vue2's bare `.sk-modal-bg` +
   `@click.self` (precedent set by P2b Task 3, visual rules unchanged). Footer uses SkModal's
@@ -72,7 +72,7 @@ import SkModal from '../SkModal.vue'
 import AgentIcon from '../../icons/AgentIcon.vue'
 import { SKILL_COLOR_IDS } from './SkillTile.vue'
 import { validateSkillForm } from '../../../util/skillsErrorKey'
-// SP8-P3b Task 8 — Coordinator pre-disambiguation ①: `SkillFormPayload`/`SkillScript` moved to
+// Coordinator pre-disambiguation ①: `SkillFormPayload`/`SkillScript` moved to
 // `types/skill.ts` and exported (pure relocation, fields unchanged), so `SkillsSection.vue`'s
 // `onCreate` can type-annotate the `@save` payload. See the "Task 8" section in skill.ts's header comment.
 import type { SkillFormPayload } from '../../../types/skill'

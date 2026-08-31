@@ -1,4 +1,4 @@
-// SP8-P6-T4: standing guard that the i18n shards stay disjoint.
+// Standing guard that the i18n shards stay disjoint.
 //
 // Background and the three safety premises are in photosSlice.test.ts's top comment:
 // shards are combined by object spread (`{...base, ...photos, ...ai}`), so a duplicate key

@@ -3,7 +3,7 @@
 // Template :167-176 (.lb-strip) + methods :249-298 (centerActiveThumb / findCenterThumbIndex /
 // updateLocalActiveFromCenter / commitSelection / onStripWheel).
 //
-// Migration delta (see task-8-brief.md):
+// Migration delta:
 //  1) Vue2 `$emit('nav', delta)` (relative paging) → this component emit('select', absolute index),
 //     parent (T6/T9 PhotoLightbox) receives and calls `lb.goTo(i)`.
 //  2) ref_for in v-for unifies to array — each thumbnail shares same ref name (`thumbEls`), Vue3
@@ -107,7 +107,7 @@ watch(() => props.index, () => {
 })
 
 onMounted(() => {
-  // Plan F Task 4 (Vue2 param alignment, see task-4-report.md's filmstrip param table): Vue2
+  // Vue2 param alignment: Vue2
   // mounted() calls `centerActiveThumb()` with no argument -- i.e. the default `smooth = true`
   // (Vue2 PhotosLightbox.vue mounted():279-282) -- so every lightbox open smooth-scrolls the
   // strip to the active thumbnail. This previously passed `false` (instant) here with no
@@ -143,8 +143,8 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-/* Plan F Task 5: `.lb-strip`'s `grid-area`/`display`/`gap`/`padding`/`background`/`border-top`/
-   `overflow-x` are retired -- Fix round 1 had already brought every one of these to byte-exact
+/* `.lb-strip`'s `grid-area`/`display`/`gap`/`padding`/`background`/`border-top`/
+   `overflow-x` are retired -- an earlier fix had already brought every one of these to byte-exact
    parity values (parity photos.scss:648-654 `.photos-root .lb-strip`; `calc(50% - 28px)` is
    `centerActiveThumb()`'s own load-bearing centering math, unchanged, just no longer duplicated
    locally), so keeping the local copies was pure duplication once this component actually nests
@@ -164,11 +164,11 @@ onBeforeUnmount(() => {
    (`height: 0`) achieves the identical "no visible scrollbar" outcome by a different property;
    no need for both. */
 
-/* Plan F Task 5: the whole `.lb-thumb` family (base/`:hover`/`[data-active="true"]`/`img`) is
+/* The whole `.lb-thumb` family (base/`:hover`/`[data-active="true"]`/`img`) is
    retired -- parity's own `.photos-root .lb-thumb` family (photos.scss:656-684) is a full,
    richer replacement (56px thumbs, not 64px -- `.lb-strip`'s `calc(50% - 28px)` centering math
    above assumes parity's own 56px/2=28px, so the local 64px size was already stale the moment
-   Fix round 1 byte-matched the strip's own padding; an outline+scale-pop active state instead of
+   an earlier fix byte-matched the strip's own padding; an outline+scale-pop active state instead of
    a border-color swap; `will-change`/richer transitions). Nothing here survives that parity
    doesn't already implement more completely. */
 

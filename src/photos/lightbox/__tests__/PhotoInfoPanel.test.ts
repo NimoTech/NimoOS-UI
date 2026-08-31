@@ -4,10 +4,11 @@ import { createI18n } from 'vue-i18n'
 import { setActivePinia, createPinia } from 'pinia'
 import zh from '../../../i18n/zh_cn'
 import PhotoInfoPanel from '../PhotoInfoPanel.vue'
-// 样式断言读组件源文本(scoped <style> 的声明在 jsdom 里拿不到)——同 P6b-T7 的
-// 「先锚定规则体、再断言属性」体例。
+// Style assertions read the component's source text (scoped <style> declarations aren't
+// accessible in jsdom) -- following the same "anchor the rule body first, then assert
+// properties" convention used elsewhere.
 import PANEL_SRC from '../PhotoInfoPanel.vue?raw'
-// Plan F Task 5: `.lb-info`'s `grid-area`/`.map-mini`'s `height` no longer have local copies
+// `.lb-info`'s `grid-area`/`.map-mini`'s `height` no longer have local copies
 // (retired -- both were byte-duplicates of parity's own `.photos-root .lb-info`/`.map-mini`, see
 // PhotoInfoPanel.vue's scoped-style retirement note). Read parity's source instead now that it's
 // what actually governs.
@@ -27,14 +28,17 @@ import { useAgentStore } from '../../../ai/stores/agentStore'
 import { useAskNimo } from '../../composables/useAskNimo'
 import type { Photo } from '../../util/assetToPhoto'
 
-// 复用既有剪贴板 util(src/files/util/clipboard.ts 的 HTTP 非安全上下文兜底写法)——打桩验证调用,
-// 不重复测 copyText 内部降级逻辑(那部分已有 src/files/util/clipboard.test.ts 覆盖)。
+// Reuses the existing clipboard util (src/files/util/clipboard.ts's HTTP non-secure-context
+// fallback approach) -- stubbed here to verify the call, without re-testing copyText's internal
+// fallback logic (already covered by src/files/util/clipboard.test.ts).
 const copyText = vi.fn((_text: string) => Promise.resolve())
 vi.mock('../../../files/util/clipboard', () => ({ copyText: (t: string) => copyText(t) }))
 
-// Task 15B(SP7-P5 两笔记账收口):灯箱人脸 chip 引入 usePhotosPeople() 后,本组件依赖
-// Pinia——三处宿主(时间线/收藏/相册详情)已各自 setActivePinia,这里补上组件自身单测的
-// 同款前置(P3 T4 的同类教训:忘挂 Pinia 会红,不是本组件逻辑错)。
+// Since the lightbox face chip introduced usePhotosPeople(), this component depends on
+// Pinia -- its three host pages (timeline/favorites/album detail) each already call
+// setActivePinia, so this file's own unit tests need the same setup (a lesson learned
+// elsewhere: forgetting to mount Pinia turns the test red, and it's not a bug in this
+// component's own logic).
 const svc = vi.hoisted(() => ({
   photos: {
     listPersons: vi.fn(
@@ -74,7 +78,7 @@ beforeEach(() => {
   setActivePinia(createPinia())
   svc.photos.listPersons.mockClear().mockResolvedValue({ persons: [], facesIndexedUpTo: null })
   svc.photos.personFaceThumbnailUrl.mockClear()
-  // Task 15 (Plan G): this file's own beforeEach -- Preflight F-13, onGiveNimo now calls
+  // This file's own beforeEach -- onGiveNimo now calls
   // useAskNimo().openWith(), which calls ensureNimoAgentInit() internally.
   const agent = useAgentStore('photos')
   agent.loadAvailableModels = vi.fn(async () => {})
@@ -127,86 +131,89 @@ describe('PhotoInfoPanel', () => {
     expect(w.find('.map-pin').exists()).toBe(true)
   })
 
-  // Plan F Task 3: root class renamed from the invented `.info-panel` to parity's real anchor
+  // Root class renamed from the invented `.info-panel` to parity's real anchor
   // `.lb-info` (grid-area: info), and `.map-mini`'s height corrected to parity's 132px.
-  // Plan F Task 5: both style assertions below are retargeted to parity's source -- `grid-area`/
+  // Both style assertions below are retargeted to parity's source -- `grid-area`/
   // `height` no longer have local copies (retired as byte-duplicates, see PhotoInfoPanel.vue's
   // scoped-style retirement note); parity's `.photos-root .lb-info`/`.photos-root .map-mini`
   // solely govern now that this component nests inside `.photos-root`.
-  describe('结构:.lb-info 锚点 + grid-area(Plan F Task 3, retargeted to parity in Task 5)', () => {
-    it('根元素渲染为 .lb-info(不是旧的 .info-panel)', () => {
+  describe('structure: .lb-info anchor + grid-area', () => {
+    it('the root element renders as .lb-info (not the old .info-panel)', () => {
       const w = mountPanel(makePhoto())
       expect(w.find('.lb-info').exists()).toBe(true)
       expect(w.find('.info-panel').exists()).toBe(false)
     })
 
-    it('.lb-info 规则里带 grid-area: info(作为 PhotoLightbox 网格的直接子元素)', () => {
+    it('the .lb-info rule includes grid-area: info (as a direct child of the PhotoLightbox grid)', () => {
       const m = /\.photos-root \.lb-info\s*\{([^}]*)\}/.exec(PARITY_SRC)
       expect(m).not.toBeNull()
       expect(m![1]).toMatch(/grid-area:\s*info/)
     })
 
-    it('.map-mini 高度对齐 Vue2/parity 的 132px(此前是 140px)', () => {
+    it('.map-mini height matches Vue2/parity\'s 132px (previously 140px)', () => {
       const m = /\.photos-root \.map-mini\s*\{([^}]*)\}/.exec(PARITY_SRC)
       expect(m).not.toBeNull()
       expect(m![1]).toMatch(/height:\s*132px/)
     })
   })
 
-  // I3 (final review, 2026-08-15): `.lb-info { display:flex; flex-direction:column; gap:16px }` +
+  // `.lb-info { display:flex; flex-direction:column; gap:16px }` +
   // `.info-section { ...; gap:6px }` were an unregistered pixel deviation -- Vue2 stacks sections
   // flush (padding 12px 20px + border-bottom, no gap at all, parity :690-691), not with a 16px/6px
   // flex gap layered on top. Assert both rules stop declaring flex/flex-direction/gap so parity's
   // flush stacking governs.
-  describe('.lb-info / .info-section 不再叠加 flex gap(I3, 对齐 Vue2 的贴靠堆叠)', () => {
-    // 只在真正的 <style scoped> 块内找规则 -- 本文件顶部 template 注释里就引用过
-    // "`.lb-info { grid-area: info; ... }`" 这样一段解释性文字(描述 parity 的规则长什么样),
-    // 若直接对整份 PANEL_SRC 用无锚定正则,会先命中注释里的这段示例文本而不是真正的 CSS 规则,
-    // 静默产生假阳性(2026-08-15 final review 排查实证过)。
+  describe('.lb-info / .info-section no longer stack an extra flex gap (aligning with Vue2\'s flush stacking)', () => {
+    // Only look for rules inside the actual <style scoped> block -- this file's own template
+    // comment at the top already quotes an explanatory snippet like
+    // "`.lb-info { grid-area: info; ... }`" (describing what parity's rule looks like); running an
+    // unanchored regex over the whole PANEL_SRC would match that example text in the comment
+    // before the real CSS rule, silently producing a false positive (confirmed by an earlier
+    // investigation).
     const STYLE_BLOCK = /<style[^>]*>([\s\S]*)<\/style>/.exec(PANEL_SRC)![1]
 
-    it('.lb-info 本地规则不声明 display/flex-direction/gap', () => {
+    it('the local .lb-info rule declares no display/flex-direction/gap', () => {
       const m = /\.lb-info\s*\{([^}]*)\}/.exec(STYLE_BLOCK)
-      expect(m, '找不到 .lb-info 规则').not.toBeNull()
+      expect(m, 'could not find the .lb-info rule').not.toBeNull()
       expect(m![1]).not.toMatch(/display:\s*flex/)
       expect(m![1]).not.toMatch(/flex-direction/)
       expect(m![1]).not.toMatch(/gap/)
     })
 
-    it('.info-section 本地规则不声明 display/flex-direction/gap', () => {
+    it('the local .info-section rule declares no display/flex-direction/gap', () => {
       const m = /(?<!\.)\.info-section\s*\{([^}]*)\}/.exec(STYLE_BLOCK)
-      expect(m, '找不到 .info-section 规则').not.toBeNull()
+      expect(m, 'could not find the .info-section rule').not.toBeNull()
       expect(m![1]).not.toMatch(/display:\s*flex/)
       expect(m![1]).not.toMatch(/flex-direction/)
       expect(m![1]).not.toMatch(/gap/)
     })
 
-    it('parity 的 .photos-root .info-section 仍是 padding + border-bottom 的贴靠堆叠', () => {
+    it('parity\'s .photos-root .info-section is still a flush stack via padding + border-bottom', () => {
       const m = /\.photos-root \.info-section\s*\{([^}]*)\}/.exec(PARITY_SRC)
-      expect(m, '找不到 parity 的 .photos-root .info-section').not.toBeNull()
+      expect(m, "could not find parity's .photos-root .info-section").not.toBeNull()
       expect(m![1]).toMatch(/padding:\s*12px 20px/)
       expect(m![1]).toMatch(/border-bottom/)
     })
   })
 
-  // 用户 2026-07-31 验收要求:去掉 OSM 内嵌页自带的页脚文字(Report a problem /
-  // Make a Donation / Website and API terms)。iframe 跨域、内部元素无法用 CSS 隐藏,
-  // 只能外层裁切;裁切必须上下对称,否则 OSM 自己的标记会掉到 .map-pin 下方错位。
-  describe('OSM 页脚裁切(用户 2026-07-31 验收要求)', () => {
+  // Removes OSM's own embedded-page footer text (Report a problem /
+  // Make a Donation / Website and API terms). The iframe is cross-origin, so internal elements
+  // can't be hidden via CSS -- only the outer crop works; the crop must be symmetric top/bottom,
+  // otherwise OSM's own marker ends up misaligned below .map-pin.
+  describe('OSM footer crop', () => {
     const rule = (sel: string): string => {
       const m = new RegExp(`${sel}\\s*\\{([^}]*)\\}`).exec(PANEL_SRC)
       expect(m).not.toBeNull()
       return m![1]
     }
 
-    it('iframe 上下对称加高并上移(裁掉页脚 + 地图中心仍对齐盒子中心)', () => {
+    it('the iframe is symmetrically taller and shifted up (crops the footer + keeps the map center aligned with the box center)', () => {
       const body = rule('\\.map-mini iframe')
       expect(body).toMatch(/top:\s*-48px/)
-      expect(body).toMatch(/height:\s*calc\(100% \+ 96px\)/) // 2 × 48,对称
+      expect(body).toMatch(/height:\s*calc\(100% \+ 96px\)/) // 2 × 48, symmetric
       expect(body).toMatch(/position:\s*absolute/)
     })
 
-    it('补了自绘归属声明(ODbL 要求署名,不能连 credit 一起裁掉)', () => {
+    it('adds a self-drawn attribution notice (ODbL requires attribution, so the credit can\'t be cropped away with the footer)', () => {
       const photo = makePhoto({ latitude: 31.23, longitude: 121.47, place: 'Shanghai' })
       const w = mountPanel(photo)
       const credit = w.find('.map-credit')
@@ -214,9 +221,9 @@ describe('PhotoInfoPanel', () => {
       expect(credit.text()).toContain('OpenStreetMap')
     })
 
-    it('归属声明的固定浅色带 theme-exception(压在任意瓦片上,颜色不可预测)', () => {
+    it('the attribution notice has a theme-exception fixed light color (it sits on top of arbitrary tiles, whose color is unpredictable)', () => {
       const body = rule('\\.map-credit')
-      // color-guard 的豁免窗口是逐行状态机 —— 注释必须紧贴被豁免的那一条声明
+      // The color-guard exemption window is a line-by-line state machine -- the comment must sit right above the exempted declaration
       expect(PANEL_SRC).toMatch(/theme-exception[^\n]*\n\s*color:\s*rgba\(255, 255, 255, 0\.72\)/)
       expect(body).toMatch(/pointer-events:\s*none/)
     })
@@ -228,7 +235,7 @@ describe('PhotoInfoPanel', () => {
     expect(w.find('iframe').exists()).toBe(false)
   })
 
-  it('hides the people/nimo-sees sections when faces/tags are empty (P2 timeline path)', () => {
+  it('hides the people/nimo-sees sections when faces/tags are empty (the timeline data path so far)', () => {
     const photo = makePhoto({ faces: [], tags: [], scene: null })
     const w = mountPanel(photo)
     expect(w.find('[data-section="people"]').exists()).toBe(false)
@@ -243,22 +250,23 @@ describe('PhotoInfoPanel', () => {
     expect(w.findAll('.face-chip')).toHaveLength(2)
     expect(w.find('.face-chip img').exists()).toBe(false) // people list empty → no unique match, placeholder only
     expect(w.find('[data-section="nimo-sees"]').exists()).toBe(true)
-    // Plan F Task 3: renamed from `.tag-chip` to parity's real anchor `.tag[data-kind="ai"]`.
+    // Renamed from `.tag-chip` to parity's real anchor `.tag[data-kind="ai"]`.
     expect(w.findAll('.tag[data-kind="ai"]')).toHaveLength(2)
   })
 
-  // Task 15B(SP7-P5 两笔记账收口):人脸 chip 真头像。前置事实纠正(见 task-15-brief.md):
-  // 后端没有 asset-scoped face-thumbnail 端点,Photo.faces 只是人名字符串数组——这里做的是
-  // 「用人名反查人物列表拿 personId,唯一命中才显示真头像」的增强,超出 Vue2 原有的首字母占位。
-  describe('人脸 chip 真头像(增强,超出 Vue2 1:1,登记为偏离)', () => {
-    it('faces 非空且人物列表里有唯一同名 → 渲染 <img>,src 走 personFaceThumbnailUrl 且带 ver', async () => {
+  // Face-chip real avatars. Prerequisite fact correction: the backend has no asset-scoped
+  // face-thumbnail endpoint, Photo.faces is just an array of name strings -- what's implemented
+  // here is an enhancement that looks up the person list by name to get a personId, and only
+  // shows a real avatar on a unique match, beyond what Vue2 originally does with its initial placeholder.
+  describe('face-chip real avatars (an enhancement beyond Vue2 1:1, logged as a deviation)', () => {
+    it('faces non-empty and there is a unique same-name match in the person list → renders <img>, src goes through personFaceThumbnailUrl with ver', async () => {
       svc.photos.listPersons.mockResolvedValue({
         persons: [{ id: 'pid-1', name: 'Alice', coverFaceId: 'face-9' }],
         facesIndexedUpTo: null,
       })
       const photo = makePhoto({ faces: ['Alice'] })
       const w = mountPanel(photo)
-      await Promise.resolve() // fetchPeople 的 await
+      await Promise.resolve() // fetchPeople's await
       await Promise.resolve()
       await w.vm.$nextTick()
 
@@ -268,7 +276,7 @@ describe('PhotoInfoPanel', () => {
       expect(svc.photos.personFaceThumbnailUrl).toHaveBeenCalledWith('pid-1', 'face-9')
     })
 
-    it('重名(两个人同名)→ 仍是首字母占位,且首字母大写(personInitial,顺带修正 f[0] 未大写的坏点)', async () => {
+    it('duplicate names (two people share a name) → still falls back to the initial placeholder, uppercased (personInitial, incidentally fixing the un-uppercased f[0] bug)', async () => {
       svc.photos.listPersons.mockResolvedValue({
         persons: [
           { id: 'pid-1', name: 'alice', coverFaceId: 'face-1' },
@@ -283,10 +291,10 @@ describe('PhotoInfoPanel', () => {
       await w.vm.$nextTick()
 
       expect(w.find('.face-chip img').exists()).toBe(false)
-      expect(w.find('.face-avatar').text()).toBe('A') // personInitial('alice') = 'A',不是未大写的 'a'
+      expect(w.find('.face-avatar').text()).toBe('A') // personInitial('alice') = 'A', not the un-uppercased 'a'
     })
 
-    it('faces 为空 → 不触发 fetchPeople(负向断言,避免每次开图白拉一次)', async () => {
+    it('faces empty → does not trigger fetchPeople (negative assertion, avoiding a wasted fetch every time an image opens)', async () => {
       const photo = makePhoto({ faces: [] })
       mountPanel(photo)
       await Promise.resolve()
@@ -295,9 +303,9 @@ describe('PhotoInfoPanel', () => {
       expect(svc.photos.listPersons).not.toHaveBeenCalled()
     })
 
-    it('faces 非空且 people.peopleLoaded 已是 true(上游已加载过)→ 不重复 fetchPeople', async () => {
+    it('faces non-empty and people.peopleLoaded is already true (loaded upstream already) → does not re-fetchPeople', async () => {
       const people = usePhotosPeople()
-      await people.fetchPeople() // 预置成已加载
+      await people.fetchPeople() // pre-set to already loaded
       svc.photos.listPersons.mockClear()
 
       const photo = makePhoto({ faces: ['Alice'] })
@@ -309,12 +317,12 @@ describe('PhotoInfoPanel', () => {
     })
   })
 
-  // Fix-2 item 2 (owner acceptance, 2026-08-16): the "Hand off to Nimo" button is restored per
-  // Vue2 PhotosLightbox.vue:84-87 -- this case used to assert its ABSENCE (Task 7's original
-  // delta #1); flipped to assert presence + a safe no-op click (real wiring is Plan G's job, same
-  // precedent as PersonHero.vue's onAskNimo).
-  describe('「交给 Nimo」按钮(Fix-2 item 2,Vue2 PhotosLightbox.vue:84-87 复原)', () => {
-    it('渲染 .give-nimo,data-test=lb-give-nimo,文案取 photosHandOffToNimo', () => {
+  // The "Hand off to Nimo" button is restored per
+  // Vue2 PhotosLightbox.vue:84-87 -- this case used to assert its ABSENCE (an earlier
+  // delta note #1); flipped to assert presence + a safe no-op click (real wiring is a later
+  // phase's job, same precedent as PersonHero.vue's onAskNimo).
+  describe('"Hand off to Nimo" button (restored per Vue2 PhotosLightbox.vue:84-87)', () => {
+    it('renders .give-nimo, data-test=lb-give-nimo, text from photosHandOffToNimo', () => {
       const w = mountPanel(makePhoto())
       const btn = w.find('[data-test="lb-give-nimo"]')
       expect(btn.exists()).toBe(true)
@@ -322,12 +330,12 @@ describe('PhotoInfoPanel', () => {
       expect(btn.text()).toBe(zh.photosHandOffToNimo)
     })
 
-    // Task 15 (Plan G): wires the previously no-op onGiveNimo to useAskNimo().openWith() with
+    // Wires the previously no-op onGiveNimo to useAskNimo().openWith() with
     // Vue2's exact canned prompt (PhotosLightbox.vue:84 -- `$t('Edit this photo: {title}',
     // { title: photo.title })`, always photo.title as-is, no filePath-basename derivation).
     // filePath is deliberately set to a DIFFERENT basename than title here, to prove the prefill
     // tracks title only and is not silently re-derived from the file path.
-    it('点击后打开 Ask Nimo,预填文案取 photo.title(不做 filePath basename 派生)', async () => {
+    it('clicking opens Ask Nimo, the prefill text comes from photo.title (no filePath basename derivation)', async () => {
       const photo = makePhoto({ title: 'sunset', filePath: '/a/b/unrelated-name.jpg' })
       const w = mountPanel(photo)
       await w.find('[data-test="lb-give-nimo"]').trigger('click')
@@ -335,14 +343,14 @@ describe('PhotoInfoPanel', () => {
       expect(useAskNimo().prefill.value).toBe('编辑这张照片：sunset')
     })
 
-    it('photo.title 缺失(null/undefined)时回退到 photo.id', async () => {
+    it('falls back to photo.id when photo.title is missing (null/undefined)', async () => {
       const photo = makePhoto({ title: undefined as unknown as string, id: 'p42' })
       const w = mountPanel(photo)
       await w.find('[data-test="lb-give-nimo"]').trigger('click')
       expect(useAskNimo().prefill.value).toBe('编辑这张照片：p42')
     })
 
-    it('visible=false 时按钮也不渲染(随整个面板一起隐藏)', () => {
+    it('the button also doesn\'t render when visible=false (hidden along with the whole panel)', () => {
       const w = mountPanel(makePhoto(), false)
       expect(w.find('[data-test="lb-give-nimo"]').exists()).toBe(false)
     })
@@ -374,24 +382,24 @@ describe('PhotoInfoPanel', () => {
     vi.useRealTimers()
   })
 
-  // Fix-2 item 2 (owner acceptance, 2026-08-16): slide-in open/close transition, an owner-directed
-  // net addition over Vue2 (which has none -- bare `v-if`, see this component's Fix-2 style-block
-  // comment). jsdom doesn't run CSS transitions, so this is a raw-source assertion (same idiom as
+  // Slide-in open/close transition, a
+  // net addition over Vue2 (which has none -- bare `v-if`, see this component's style-block
+  // comment about it). jsdom doesn't run CSS transitions, so this is a raw-source assertion (same idiom as
   // PhotoLightbox.test.ts's own `.lb-swap-*`/`.lb-confirm` transition-name/timing checks).
-  describe('详情栏开合的滑入过渡(Fix-2 item 2,owner-directed net addition)', () => {
-    it('<aside class="lb-info"> 被 <transition name="lb-info-slide"> 包裹', () => {
+  describe('the info panel\'s slide-in open/close transition (a net addition)', () => {
+    it('<aside class="lb-info"> is wrapped in <transition name="lb-info-slide">', () => {
       expect(PANEL_SRC).toMatch(/<transition name="lb-info-slide">\s*<aside v-if="visible && photo" class="lb-info">/)
     })
 
-    it('过渡时长/缓动用房子统一的 cubic-bezier(0.22, 0.61, 0.36, 1),只变 transform/opacity', () => {
+    it('transition duration/easing uses the house cubic-bezier(0.22, 0.61, 0.36, 1), only changing transform/opacity', () => {
       const activeRule = /\.lb-info-slide-enter-active,\s*\.lb-info-slide-leave-active\s*\{([^}]*)\}/.exec(PANEL_SRC)
-      expect(activeRule, '找不到 .lb-info-slide-enter-active/-leave-active 规则').not.toBeNull()
+      expect(activeRule, 'could not find the .lb-info-slide-enter-active/-leave-active rule').not.toBeNull()
       expect(activeRule![1]).toMatch(/transition:\s*transform 0\.28s cubic-bezier\(0\.22, 0\.61, 0\.36, 1\), opacity 0\.22s cubic-bezier\(0\.22, 0\.61, 0\.36, 1\)/)
     })
 
-    it('进入前/离开后状态:向右偏移 + 透明,不含任何布局属性(不会挤动 .lb-main)', () => {
+    it('pre-enter/post-leave state: offset to the right + transparent, no layout properties at all (won\'t reflow .lb-main)', () => {
       const endStateRule = /\.lb-info-slide-enter-from,\s*\.lb-info-slide-leave-to\s*\{([^}]*)\}/.exec(PANEL_SRC)
-      expect(endStateRule, '找不到 .lb-info-slide-enter-from/-leave-to 规则').not.toBeNull()
+      expect(endStateRule, 'could not find the .lb-info-slide-enter-from/-leave-to rule').not.toBeNull()
       const body = endStateRule![1]
       expect(body).toMatch(/transform:\s*translateX\(24px\)/)
       expect(body).toMatch(/opacity:\s*0/)

@@ -1,4 +1,4 @@
-// Shared type contracts for the AI Agent stream family (SP8-P1b).
+// Shared type contracts for the AI Agent stream family.
 // No imports — earliest consumer is the mapper family (searchMapper/streamMappers).
 
 export interface AgentBlock { type: string; [k: string]: unknown }        // spread via v-bind="block"

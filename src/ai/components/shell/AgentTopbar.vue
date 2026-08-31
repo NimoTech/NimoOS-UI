@@ -5,19 +5,19 @@
   spot for 1c to backfill. The 500ms-debounce + flush-immediately-on-blur semantics for
   the title input are preserved verbatim (DEBOUNCE_MS, onInput/onBlur/flushSave).
 
-  SP8-P1c2 Task 2 — the right-panel toggle button has been backfilled (Vue2
+  The right-panel toggle button has been backfilled (Vue2
   shell/AgentTopbar.vue:43-45, 1:1): added prop `rightCollapsed` (matches Vue2 :73,
   defaults to false) + emit `toggle-right`. ModelPicker, ThinkingBar, and the AI-rename
   button are still left for later tasks.
 
-  SP8-P1c2 Task 8 — ThinkingBar's second row is now mounted (Vue2
+  ThinkingBar's second row is now mounted (Vue2
   shell/AgentTopbar.vue:47-54, 1:1): added prop `thinking` (shape matches a subset of the
   store's ThinkingState), split apart and passed as ThinkingBar's four props; ThinkingBar's
   `update:enabled`/`update:level` are remapped here to `thinking-enabled`/`thinking-level`
   and forwarded up to AgentPage (same as Vue2's two matching lines
   `@update:enabled="$emit('thinking-enabled', ...)"` / `@update:level="..."`).
 
-  SP8-P1c2 Task 9 — ModelPicker mounted + AI-rename button backfilled (verbatim from
+  ModelPicker mounted + AI-rename button backfilled (verbatim from
   Vue2 shell/AgentTopbar.vue): added props `availableModels`/`selectedModel` (passed
   straight through to ModelPicker), `regeneratingTitleFor` (used together with sessionId
   to derive isAnyRegenerating/isExplicitRegenerating, Vue2 :93-100); added emits

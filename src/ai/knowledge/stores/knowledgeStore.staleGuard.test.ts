@@ -1,4 +1,4 @@
-// SP8-P5b Task 3 —— K15: `loadAllJobs` / `loadIndexedFiles` / `loadDistillJobs`
+// K15: `loadAllJobs` / `loadIndexedFiles` / `loadDistillJobs`
 // three actions each with store instance-local epoch stale guard (async stale guard
 // discipline sixth hit).
 //

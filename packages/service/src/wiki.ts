@@ -173,11 +173,11 @@ export function createWiki(http: AxiosInstance) {
       return typeof res.data === 'string' ? res.data : String(res.data == null ? '' : res.data)
     },
 
-    /* SP8-P5a Task 2 structural deviation (review deemed reasonable): these four
+    /* Structural deviation (review deemed reasonable): these four
      * methods in the blueprint wiki.js:93-96 are `return api.post(...)` / `return api.delete(...)` etc, handing the
      * axios response object straight to the caller as-is (the caller then takes `.data` itself). This package uniformly changes them to
      * `await` + `return res.data`, pulling the "strip one envelope layer" responsibility into the package, consistent with this file's
-     * other methods (getRoots/getNode/…) and T1 notes.ts's established layering (K1:
+     * other methods (getRoots/getNode/…) and notes.ts's established layering (K1:
      * single-layer data retrieval —— the consumer shouldn't have to strip another layer). Request verb/URL/body are copied line-for-line from the blueprint,
      * only the "unwrap" step was moved; this is not a behavior change. */
     async createRoot(body: Record<string, unknown>): Promise<unknown> {

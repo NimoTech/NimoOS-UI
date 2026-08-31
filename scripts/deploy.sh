@@ -22,4 +22,17 @@ find /var/lib/nimoos/www/assets /var/lib/nimoos/www/app/assets -type f -mtime +1
 # Old bookmarks and home-screen shortcuts still point at /app/#/… — keep that path working
 # as a redirect that carries the hash over (see the script's own header).
 ./scripts/write-app-redirect.sh /var/lib/nimoos/www
-echo "Deployed to /var/lib/nimoos/www/  →  http://<host>/#/"
+# The Gateway's components probe reads www/version.json to report "NimoOS UI";
+# without it the UI shows as offline in the system-status tab. Written after the
+# rsync above on purpose: that rsync --deletes unmanaged files at the www root,
+# so this file must be (re)created last on every deploy.
+if [ -f ../NimoOS-Build/release/versions.conf ] && [ -f ../NimoOS-Build/release/lib/version_inject.sh ]; then
+  # shellcheck disable=SC1091
+  source ../NimoOS-Build/release/versions.conf
+  source ../NimoOS-Build/release/lib/version_inject.sh
+  FULL_VERSION="$(resolve_full_version)"
+else
+  FULL_VERSION="dev+0.g$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+fi
+printf '{"version":"%s"}\n' "$FULL_VERSION" > /var/lib/nimoos/www/version.json
+echo "Deployed to /var/lib/nimoos/www/  →  http://<host>/#/  (version.json: $FULL_VERSION)"

@@ -16,7 +16,7 @@ import type { ResultRow, SourceBadge } from '../search/types'
 
 // Unified search in the dialog: ⌘K opens this glass command panel, Enter displays grouped results below.
 //
-// ── Data flow (from SP9-P7 using real backend; two hardcoded demos removed) ──────────────────
+// ── Data flow (using real backend; two hardcoded demos removed) ──────────────────
 //   useSearchQuery (request lifecycle + expiry guard)
 //     → service.search.agentTool (POST /v1/ai/search/agent/tool, four-source aggregation)
 //     → buildSearchView (merge dedup + five-level ranking + category/tag derivation) + deriveDegrade (downgrade/empty-state status codes)

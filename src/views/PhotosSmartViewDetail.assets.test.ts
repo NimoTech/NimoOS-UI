@@ -1,4 +1,4 @@
-// SP15-P2a-T3: the manual asset interactions on the smart view detail page.
+// The manual asset interactions on the smart view detail page.
 // Target is Vue 2 899af59b:src/views/Photos/PhotosSmartViewDetail.vue.
 // Note the device reality this cannot cover: producing an excluded row requires
 // removing an *automatically matched* asset, and every smart view on the test
@@ -40,7 +40,7 @@ vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 // `lb.open.value`/etc directly in a `watch()` and its template's `v-if` -- the original
 // `{ openAt: vi.fn() }` fake had none of those, so simply mounting the page after this fix
 // crashed every case in this file. See PhotosSmartViewDetail.test.ts's own copy of this same fix
-// (or acceptance-fix-report.md §F12) for the full explanation of the two-step (`vi.hoisted`
+// for the full explanation of the two-step (`vi.hoisted`
 // placeholder, then `Object.assign` with real `ref()`s once `vue` is loaded) construction.
 const lbMock = vi.hoisted(() => ({ openAt: vi.fn<(...args: unknown[]) => void>() }))
 vi.mock('../photos/lightbox/useLightbox', () => ({ useLightbox: () => lbMock }))
@@ -109,7 +109,7 @@ function seed(opts: { matched?: unknown[]; excluded?: unknown[] } = {}) {
   return s
 }
 
-// SP15-P2c Task 6 re-homing. Two things moved under every test below:
+// Two things moved under every test below:
 //   * `sv-select-toggle` (Select/Cancel, in the header) became `sv-edit-toggle` (Edit/Done) --
 //     the same `selecting` state, renamed `edit`, reached from the target's single toggle.
 //   * `sv-add-photos` left the header for the edit-mode bottom bar, so it is only reachable
@@ -225,7 +225,7 @@ describe('add photos', () => {
   // Final review, finding 3: Vue2 :288 hands this picker a *static* `$t('Add selected')`,
   // while the album pages hand it their counting `Add ({count})` label. This screen shipped
   // with the album pages' counting label, deferring to PhotosLibraryPicker's deviation (b) —
-  // but that deviation only justifies leaving the existing album consumers alone; it says
+  // but that only justifies leaving the existing album consumers alone; it says
   // nothing about a new one. The prop accepts either shape, so this asserts the one Vue2
   // actually passes here.
   it('passes the static "Add selected" submit label Vue2 gives this picker, not the counting one', async () => {

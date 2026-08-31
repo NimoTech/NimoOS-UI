@@ -1,5 +1,5 @@
 <!--
-  SP8-P2a Task 11 — 1:1 port from Vue2
+  1:1 port from Vue2
   `src/views/AI/Settings/sections/ThinkingDefaultsSection.vue` (73 lines). **This section
   bypasses the store** — on mount it directly calls `service.ai.getThinkingDefaults()`, on
   change it directly calls `putThinkingDefaults()` (Vue2 did the same, copied as-is). One

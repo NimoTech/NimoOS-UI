@@ -1,4 +1,4 @@
-// SP15-P2b: the Albums page shows manual albums and smart albums in one grid, ranked
+// The Albums page shows manual albums and smart albums in one grid, ranked
 // against each other by a single sort control. Ported from Vue2
 // 939a7d3a:PhotosAlbumsView.vue:381-393 (smartAlbums / mixedAlbums) and :670-700
 // (applySort).
@@ -6,7 +6,7 @@
 // This lives in a pure module rather than in the view for one reason: the comparators
 // have to read a different field per kind and treat a missing timestamp specially, and
 // that is exactly the kind of branch where a component-level test passes for the wrong
-// reason (the same trap momentLayout.ts was pulled out for in P1).
+// reason (the same trap momentLayout.ts was pulled out for).
 //
 // Deviation from Vue2, registered: its `applySort` sorts in place and returns the same
 // array. Here it returns a new one, matching the convention the rest of this directory

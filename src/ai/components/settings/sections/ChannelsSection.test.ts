@@ -5,7 +5,7 @@ import { setActivePinia, createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
 import zh from '../../../../i18n/zh_cn'
 
-// SP8-P2b Task 12 — carries over the 7 component-level cases from Vue2's
+// Carries over the 7 component-level cases from Vue2's
 // src/views/AI/Settings/__tests__/ChannelsSection.spec.js (numbered 1-7, each comment
 // notes the corresponding spec.js it() title), plus 16 more from the brief (numbered
 // 8/10-24; number 9 is the unported "Vue2 watch:isAdmin can never fire in this repo"

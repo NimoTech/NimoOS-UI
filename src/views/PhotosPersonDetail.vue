@@ -1,17 +1,16 @@
 <script setup lang="ts">
-// Task 14 (SP7-P5 People): person detail view container — the largest single item this
-// sprint. Ported line-by-line against the Vue 2 panel's
+// Person detail view container. Ported line-by-line against the Vue 2 panel's
 // src/views/Photos/PhotosPersonDetail.vue (1561 lines): four-state gating (skeleton /
-// load failed + retry / person not found / normal) + PersonHero (T10) +
-// three tabs (self-drawn co-occurrence strip on the timeline + PersonAssetGrid T11 /
-// PersonPlacesTab T12 / PersonRelationsTab T13) + selection-mode floating bar +
+// load failed + retry / person not found / normal) + PersonHero +
+// three tabs (self-drawn co-occurrence strip on the timeline + PersonAssetGrid /
+// PersonPlacesTab / PersonRelationsTab) + selection-mode floating bar +
 // **seven self-drawn dialogs** (rename / create album / "no photos available" notice /
-// remove confirm / delete confirm / hero picker / merge into another person — the brief's
-// list names six; the third is Vue2's promptDialog info mode :845-851, added back per
-// disclosure B) + PhotoLightbox (P2) wiring.
+// remove confirm / delete confirm / hero picker / merge into another person — six core
+// dialogs; the third is Vue2's promptDialog info mode :845-851, added back per
+// disclosure B) + PhotoLightbox wiring.
 //
-// This file only orchestrates: data lives in usePersonDetail (T9), writes go through
-// usePhotosPeople (T2) / usePhotosAlbums (P4), display is T10-T13. The call/success/failure
+// This file only orchestrates: data lives in usePersonDetail, writes go through
+// usePhotosPeople / usePhotosAlbums, display is handled by the three tabs. The call/success/failure
 // three-part flow for all nine actions lives here.
 //
 // ── Hard rules, item by item ──────────────────────────────────────────────
@@ -29,16 +28,15 @@
 //     an empty state on the first frame).
 //  4) All id comparisons use String() value comparison, never reference equality.
 //
-// ── Deliberate deviations from Vue2 (all logged; either the brief requires them or this
-//    sprint's "porting discipline" does) ─────────────────────────────────
+// ── Deliberate deviations from Vue2 (all documented here) ────────────────
 //  A) In Vue2, hero/tab content is one giant component; here it's split into four
 //     subcomponents T10-T13, and the container just wires up emits.
 //  B) Vue2 uses a single promptDialog object to carry four modes: rename/album/detach/info;
 //     here it's split into four independent switches + their own state (following the P3/P4
 //     convention of each dialog drawing itself rather than sharing a common shell; CSS
 //     classes are shared). Vue2's fourth mode, info (:845-851, "no photos available to add to
-//     an album"), isn't on the brief's six-dialog list, but it's a real UI element that exists
-//     in Vue2 — added back as the seventh dialog rather than dropped (logged in the report).
+//     an album"), isn't among the six core dialogs, but it's a real UI element that exists
+//     in Vue2 — deliberately added back as the seventh dialog rather than dropped.
 //  C) Favorite / relation grouping: Vue2 is fire-and-forget with no rollback (:764-768,
 //     :951-955). Here it's an optimistic patch + precise rollback on failure + toast
 //     (disclosures 3/4; the store layer already rethrows).
@@ -53,15 +51,15 @@
 //     backend id is a number, Number.prototype has no slice, so it throws a TypeError
 //     outright. Here: String(id).slice(0, 8).
 //  H) Merge failure: stays on the current page + closes the dialog in finally, following
-//     Vue2 (a known flaw the brief explicitly says not to fix).
-//  I) The hero dialog's four toasts (:681, 683, 694, 696): the brief said to merge them into
-//     two, but checking back against the source found the two entry points' copy genuinely
+//     Vue2 (a known flaw, deliberately left unfixed here).
+//  I) The hero dialog's four toasts (:681, 683, 694, 696): an earlier draft proposed merging
+//     them into two, but checking back against the source found the two entry points' copy genuinely
 //     differs in meaning ("reset back to the key photo" vs "change to this selected one") —
 //     the coordinator's ruling 3 decided **not to merge them**, adding two keys instead,
 //     photosPersonHeroResetToast / photosPersonHeroResetFailed, branching on
 //     assetId === null (see saveHero).
-//  J) Merge candidate pool: Vue2 uses allPeople (including unnamed) (:517); the brief
-//     specifies people.named excluding self. Followed the brief. Side effect: candidate
+//  J) Merge candidate pool: Vue2 uses allPeople (including unnamed) (:517); this
+//     deliberately uses people.named excluding self instead. Side effect: candidate
 //     names are always non-empty (namedOf guarantees name.trim() !== ''), so Vue2's
 //     :406/410 fallback `p.name || $t('Unnamed')` is unreachable here and doesn't render
 //     (not a missing render).
@@ -70,9 +68,9 @@
 //     component unmounts the child so the watch never fires at all; here the component stays
 //     mounted, so without the short-circuit it would fire a wasted load('undefined')
 //     (PhotosAlbumDetail.vue:323 has the same gap, logged there; plugged directly here).
-//  L) Co-occurrence strip avatar size 72px: the brief says 56; checked back against the Vue2
-//     source, photos-people.scss:701-703 `.coappear-card .ring { width:72px; height:72px }`
-//     — went with the source (same lesson as T13's 36px).
+//  L) Co-occurrence strip avatar size 72px: matches the Vue2 source (verified against
+//     photos-people.scss:701-703 `.coappear-card .ring { width:72px; height:72px }`), not
+//     the 56px an earlier draft suggested — went with the source (same lesson as T13's 36px).
 //  M) Gating expanded from three states to four (coordinator's ruling 4): Vue2 only
 //     console.errors on load failure (:746); the view can't tell "load failed" apart from
 //     "this person doesn't exist" — both are a blank screen. T9's failed flag was added
@@ -154,9 +152,8 @@ type Tab = 'timeline' | 'places' | 'relations'
 
 const { t } = useI18n()
 const { themeClass } = usePhotosTheme()
-// Plan D Task 3 (re-skin): the same shared composable as T2 (PhotosPeople.vue) / Plan C Task 2
-// (PhotosAlbums.vue) — the collapsed state is a singleton across every page in the Photos area,
-// not started fresh here.
+// The same shared composable as PhotosPeople.vue / PhotosAlbums.vue — the collapsed state is a
+// singleton across every page in the Photos area, not started fresh here.
 const { collapsed, toggle: onToggleCollapse } = useSidebarCollapse()
 const route = useRoute()
 const router = useRouter()
@@ -242,7 +239,7 @@ const allPhotos = computed<Photo[]>(() => detail.flatPhotos())
 // is empty.
 const displayName = computed(() => detail.person.value?.name || t('photosPersonThisPerson'))
 
-// Plan D Task 3 (re-skin): PhotosTopbar's detail-state copy, matched verbatim against Vue2's
+// PhotosTopbar's detail-state copy, matched verbatim against Vue2's
 // PhotosPeopleTopbar.vue:7-8/36 (`view === 'detail'` branch) — title = the person's name, with
 // empty-name falling back to $t('Unnamed person') (the same fallback key as PersonHero.vue:90's
 // heroTitle, not a second one); sub-line = the fixed copy "Person detail · faces & relations",
@@ -410,7 +407,7 @@ async function onPickRelation(relation: string): Promise<void> {
   }
 }
 
-// 3) Rename (Vue2 :910-918 + deviation D). applyRename is the actual submit — shared by both the
+// 3) Rename (Vue2 :910-918). applyRename is the actual submit — shared by both the
 // naming path and dupNameAnyway (mirroring how Vue2's confirmDialog rename branch :1031 and
 // nameAnywayDupConfirm :1009 share one applyRename helper function).
 // Guard rationale: the failure path **doesn't close the dialog** (deliberate), so the
@@ -565,7 +562,7 @@ async function confirmMerge(): Promise<void> {
   merging.value = true
   try {
     await people.mergePersonInto(personId.value, target.id)
-    // P8a-T10: the same fallback as PhotosPeople.vue's merge toast, so an unnamed target
+    // The same fallback as PhotosPeople.vue's merge toast, so an unnamed target
     // doesn't render as 'merged into ""'.
     // Note: mergeCandidates (:184-188) only draws from people.named, so name.trim() is
     // always non-empty (disclosure J); and target is the object reference captured when the
@@ -779,7 +776,7 @@ watch(() => route.params.id, (raw) => {
 </script>
 
 <template>
-  <!-- Plan D Task 3 (re-skin): the same established structure as T2 (PhotosPeople.vue) /
+  <!-- The same established structure as PhotosPeople.vue /
        PhotosAlbums.vue:353-367 —
        .photos-root[themeClass] > .app[data-collapsed] > PhotosSidebar + main.main >
        PhotosTopbar + .photos-main. The four-state gate as a whole moved into .photos-main, so it
@@ -789,14 +786,14 @@ watch(() => route.params.id, (raw) => {
     <div class="app" :data-collapsed="collapsed">
       <PhotosSidebar :collapsed="collapsed" />
       <main class="main">
-        <!-- Fix round 1 (controller ruling on Deviation A, 2026-08-14): no `back` here —
+        <!-- No back button here —
              Vue2 truth (PhotosPeopleTopbar.vue:6-9/36) is that the People detail topbar always
              shows title+sub, never a back chevron; the back affordance lives in the hero
              (Vue2 `.detail-hero .back`; here that's PersonHero's own `hero-back` button, wired
              to `goToPeopleList` below via `@back`). PhotosTopbar's `back` prop is mutually
              exclusive with title/sub in its own template (built for PhotosSearch.vue's
              exit-search case) — passing it here would have hidden this page's title/sub
-             entirely, which is what Deviation A flagged. -->
+             entirely. -->
         <PhotosTopbar
           :collapsed="collapsed"
           :title="topbarTitle"
@@ -955,7 +952,7 @@ watch(() => route.params.id, (raw) => {
       </main>
     </div>
 
-    <!-- Plan D Task 3 (re-homing overlays): the selection-state floating bar (Vue2 :232-244),
+    <!-- The selection-state floating bar (Vue2 :232-244),
          the seven dialogs below it, and AlbumPickerDialog all move inside .photos-root together
          (a sibling position to .app) — parity's `.photos-root .selection-bar` /
          `.photos-root .person-dialog-scrim` selectors are descendant selectors that can't reach a
@@ -1074,8 +1071,8 @@ watch(() => route.params.id, (raw) => {
     </div>
   </div>
 
-  <!-- ── Dialog 7 (Vue2 promptDialog's info mode :845-851; added back beyond the brief's
-       six-dialog list) ── -->
+  <!-- ── Dialog 7 (Vue2 promptDialog's info mode :845-851; added beyond the original
+       six-dialog scope because it's a real Vue2 UI element) ── -->
   <div v-if="noPhotosOpen" class="person-dialog-scrim" data-test="person-no-photos-dialog" @click.self="noPhotosOpen = false">
     <div class="person-dialog">
       <div class="person-dialog-head">
@@ -1292,10 +1289,10 @@ watch(() => route.params.id, (raw) => {
 </template>
 
 <style scoped>
-/* Plan D Task 3 (re-skin) shadowing cleanup: the transitional `.sidebar` width pin and the
-   flex-row `.photos-layout` rule (Fix round 1's stopgap, back when this page's root only wore
+/* Shadowing cleanup: the transitional `.sidebar` width pin and the
+   flex-row `.photos-layout` rule (a stopgap from back when this page's root only wore
    `.photos-root` without its own `.app` grid) are both dead now — the real `.app` CSS Grid
-   this task gave the page supplies the sidebar's column width directly, same as
+   this page now has supplies the sidebar's column width directly, same as
    PhotosPeople.vue/PhotosAlbums.vue's own re-skin. `.photos-main` stays: no parity selector
    exists by that name (it's this page's own scroll-region scaffolding), same as those two
    pages' own local copy. */

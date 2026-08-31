@@ -26,7 +26,7 @@ const toast = useToast()
 // is clicked, update:open(false) is triggered before the @click-emitted confirm event.
 // If the open flag and target share the same ref, the update:open handler will zero
 // out target first, so confirm reads null, and store.uninstall is never called
-// (SP5-P1 final review CRITICAL). Following SharesPage.vue's delDlg pattern: pack
+// (found in an earlier review). Following SharesPage.vue's delDlg pattern: pack
 // open and app into the same ref, only close open after confirm reads it,
 // and have the update:open handler only modify open, not app.
 const uninstallDlg = ref<{ open: boolean; app: InstalledApp | null }>({ open: false, app: null })

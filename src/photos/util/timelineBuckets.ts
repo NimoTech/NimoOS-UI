@@ -1,4 +1,4 @@
-// SP15-P3 data layer. The bucketed timeline splits one huge /timeline response
+// Bucketed timeline data layer: splits one huge /timeline response
 // into a cheap month directory plus per-month asset pages, so these helpers own
 // the two things that must not drift: the month key/title (shared with the
 // legacy path) and the cache-invalidation rule for a refreshed directory.

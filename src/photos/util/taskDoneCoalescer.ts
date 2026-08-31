@@ -1,13 +1,13 @@
 // Ported verbatim (logic unchanged, types added) from the Vue 2 panel
 // src/views/Photos/taskDoneCoalescer.js (createTaskDoneCoalescer, :11-45).
 //
-// NOTE — API shape deviates from the task-2 brief's assumed signature
+// NOTE — API shape deviates from an earlier assumed signature
 // `createTaskDoneCoalescer(announce, delayMs=2600) -> { push, flushNow, dispose }`.
 // The real Vue2 source takes a single options object `{ messageFor, emit, delay }`
 // and returns `{ push, flush, cancel }`: `messageFor(task)` renders a task to a
 // display string (falsy return = skip, don't buffer/emit at all), and `emit`
 // receives the final *joined string* for the whole batch, not an array of tasks.
-// Ported as-is per "Vue2 source wins"; see task-2-report.md for the full note.
+// Ported as-is per "Vue2 source wins".
 //
 // Merges multiple task-done events within the "same wave" (index / video embedding / OCR /
 // face clustering) into a single notification, avoiding several toasts popping at once or

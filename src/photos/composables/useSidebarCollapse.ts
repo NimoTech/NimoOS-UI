@@ -1,8 +1,8 @@
-// Plan C, Task 2: extracted verbatim from Photos.vue's own `collapsed` ref +
-// localStorage persistence + narrow-mode drawer branch (Task 3/4's
-// onToggleCollapse, PhotosTimeline.vue:965 parity) — behavior-preserving.
+// Extracted verbatim from Photos.vue's own `collapsed` ref +
+// localStorage persistence + narrow-mode drawer branch (onToggleCollapse,
+// PhotosTimeline.vue:965 parity) — behavior-preserving.
 // Photos.vue becomes the first consumer (its own tests stay green untouched);
-// the five re-shelled album/for-you views (Task 2) share it too.
+// the five re-shelled album/for-you views share it too.
 //
 // Module-level singleton (usePhotosTheme.ts's own precedent), not per-view
 // state: Photos.vue used to hold `collapsed` locally and only shared it with
@@ -29,7 +29,7 @@ function init() {
 export function useSidebarCollapse(): { collapsed: Ref<boolean>; toggle: () => void } {
   init()
   const state = collapsed as Ref<boolean>
-  // Task 3/4's final-review fix (Photos.vue history): on a ≤768px viewport
+  // A fix from Photos.vue's history: on a ≤768px viewport
   // PhotosSidebar renders as its own fixed drawer instead of the desktop
   // two-column grid track, so flipping `collapsed` there is a no-op (it only
   // ever drives the `.app[data-collapsed]` desktop column-width rule, which

@@ -9,7 +9,7 @@ const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh 
 describe('Home P4b', () => {
   beforeEach(() => { setActivePinia(createPinia()); localStorage.clear() })
   it('renders the dock and opens add panel from topbar', async () => {
-    // SP9-P8: the SearchDialog mounted by Home uses useRoute()/useRouter(), so mounting must include the router plugin.
+    // The SearchDialog mounted by Home uses useRoute()/useRouter(), so mounting must include the router plugin.
     const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: { render: () => null } }] })
     const w = mount(Home, { global: { plugins: [i18n, router] } })
     await w.vm.$nextTick()

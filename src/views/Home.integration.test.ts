@@ -37,7 +37,7 @@ import Home from './Home.vue'
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
-// SP9-P8: the SearchDialog mounted by Home consumes the deep link ?q= via useRoute()/useRouter(),
+// The SearchDialog mounted by Home consumes the deep link ?q= via useRoute()/useRouter(),
 // so mounting must include the router plugin (a minimal memory route table, not the real src/router).
 function makeRouter() {
   return createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: { render: () => null } }] })
@@ -94,7 +94,7 @@ describe('Home integration', () => {
     vi.useRealTimers()
   })
 
-  // #125 review finding 1: the KVM tile must not linger for up to 45s (or forever,
+  // The KVM tile must not linger for up to 45s (or forever,
   // across reloads) once the probe has confirmed the service is unreachable. This
   // fails against the pre-fix code, which only let sweepGone's grace-period clock
   // start on the first missing poll -- the DEFAULT-layout `vm` tile would still be

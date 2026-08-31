@@ -382,7 +382,7 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped lang="scss">
-// SP8-P1c1 patch task 2 — shell rules (container/list/item/empty/foot/kbd)
+// Shell rules (container/list/item/empty/foot/kbd)
 // moved into shared mixins (src/ai/styles/popover.scss) so SlashPopover.vue
 // can render as the visually identical panel the user asked for. Every
 // `@include` below reproduces its prior literal declaration block unchanged —

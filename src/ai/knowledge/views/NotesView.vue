@@ -1,5 +1,5 @@
 <!--
-  SP8-P5d Task 6 — "Notes" page (rail item 4), 1:1 port from Vue2 blueprint
+  "Notes" page (rail item 4), 1:1 port from Vue2 blueprint
   the Vue 2 panel (main@7a6ee6b7) `src/views/AI/Knowledge/NotesView.vue` (271 lines,
   read via `git show 7a6ee6b7:`, governance §1: working tree of old branch is not
   trusted).
@@ -79,7 +79,7 @@
   turn blueprint's implicit throw into no-op, not zero behavior change).
 
   [NoteEditPane.vue landed in T7] At T6 submission this file didn't exist, inlined a
-  zero-logic placeholder component replacing static import (see p5d-task-6-report.md §7).
+  zero-logic placeholder component replacing static import.
   T7 created real `../components/NoteEditPane.vue`, per plan §T7 / brief §2
   "auto-chamber" guard requirement (see NotesView.test.ts corresponding describe block),
   already swapped this import back to real component, placeholder implementation deleted.

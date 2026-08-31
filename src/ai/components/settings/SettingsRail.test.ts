@@ -5,7 +5,7 @@ import { createI18n } from 'vue-i18n'
 import SettingsRail from './SettingsRail.vue'
 import zh from '../../../i18n/zh_cn'
 
-// SP8-P2a Task 7 — partially ported from Vue2
+// Partially ported from Vue2
 // `src/views/AI/Settings/__tests__/SettingsRail.spec.js`.
 // Three assertions on GROUPS in this file have been taken over by sections.test.ts (Task 3);
 // here take over its methods assertions (onSelect / toggleGroup / initial expand), and upgrade Vue2's

@@ -1,5 +1,5 @@
 <!--
-  SP8-P5f Task 4 — Allowlist page (rail item 8, route `/ai/knowledge/allowlist`),
+  Allowlist page (rail item 8, route `/ai/knowledge/allowlist`),
   migrated 1:1 from the Vue 2 panel's blueprint `src/views/AI/Knowledge/AllowlistView.vue`
   (main@7a6ee6b7, 249 lines, diffed against that commit —
   governance §0.4: that repo's working tree is on a different branch, cannot be trusted).

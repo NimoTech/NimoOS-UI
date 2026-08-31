@@ -482,8 +482,8 @@ describe('photosPeople store', () => {
     })
   })
 
-  // Task 7 (Plan D, SP7-P5 People): the Hidden people section + hide/unhide actions, mirroring
-  // Vue2 hidePersonAction/fetchHiddenPeople/unhidePerson (photos.js:1585-1633).
+  // The Hidden people section + hide/unhide actions, mirroring Vue2
+  // hidePersonAction/fetchHiddenPeople/unhidePerson (photos.js:1585-1633).
   describe('hiddenPeople / hidePerson / unhidePerson', () => {
     it('fetchHiddenPeople success → hiddenPeople is filled with Person[], and hiddenPeopleLoaded/hiddenPeopleSupported are both true', async () => {
       ;(service.photos.listHiddenPersons as any).mockResolvedValueOnce([rawPerson({ id: 'h1', name: 'Zed' })])

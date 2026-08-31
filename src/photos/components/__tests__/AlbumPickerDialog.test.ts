@@ -1,4 +1,4 @@
-// Task 5 (SP7-P4 albums): AlbumPickerDialog.vue — "add to album" picker.
+// AlbumPickerDialog.vue — "add to album" picker.
 // Mount Pinia + i18n (use real zh_cn entries, not hand-written mini locale — this component's core
 // behavior is interpolating message itself). Mock shared package @nimotech/nimoos-service, verify end-to-end
 // via real usePhotosAlbums()/useToast() stores: click album item → assert underlying service.photos.batchAddToAlbum
@@ -310,7 +310,7 @@ describe('AlbumPickerDialog.vue', () => {
 // title/count rows). jsdom doesn't compute cascade/specificity, so this is a raw-source assertion
 // (same idiom as color-guard.test.ts/photosGlassSurfaces.test.ts's own rule-body reads) rather
 // than a rendered-DOM measurement.
-describe('AlbumPickerDialog.vue 尺寸(Fix-2 item 3:放大 + 视口响应)', () => {
+describe('AlbumPickerDialog.vue sizing (enlarged + viewport-responsive)', () => {
   const SRC = fs.readFileSync(path.resolve(__dirname, '../AlbumPickerDialog.vue'), 'utf8')
   const PARITY_SRC = fs.readFileSync(
     path.resolve(__dirname, '../../styles/vue2-parity/photos.scss'),
@@ -319,26 +319,26 @@ describe('AlbumPickerDialog.vue 尺寸(Fix-2 item 3:放大 + 视口响应)', () 
 
   function ruleBody(text: string, selector: string): string {
     const i = text.indexOf(selector)
-    expect(i, `找不到选择器 ${selector}`).toBeGreaterThan(-1)
+    expect(i, `selector not found: ${selector}`).toBeGreaterThan(-1)
     const open = text.indexOf('{', i)
     const close = text.indexOf('}', open)
     return text.slice(open + 1, close)
   }
 
-  it('本地 .album-picker-panel 覆盖为 width: min(520px, 90vw); max-height: min(640px, 80vh)', () => {
+  it('local .album-picker-panel override is width: min(520px, 90vw); max-height: min(640px, 80vh)', () => {
     const styleBlock = /<style[^>]*>([\s\S]*)<\/style>/.exec(SRC)![1]
     const body = ruleBody(styleBlock, '.album-picker-panel')
     expect(body).toMatch(/width:\s*min\(520px,\s*90vw\)/)
     expect(body).toMatch(/max-height:\s*min\(640px,\s*80vh\)/)
   })
 
-  it('parity 自己的 280px/360px 小尺寸原值未被误改(本地覆盖赢在同特异性平局，不是改了共享真源）', () => {
+  it("parity's own 280px/360px original small size is untouched (the local override wins a same-specificity tie, the shared source of truth was not changed)", () => {
     const body = ruleBody(PARITY_SRC, '.photos-root .album-picker-panel')
     expect(body).toMatch(/width:\s*280px/)
     expect(body).toMatch(/max-height:\s*360px/)
   })
 
-  it('.album-picker-body 仍是 parity 的内部滚动(overflow-y: auto; flex: 1),放大后长列表不撑破对话框', () => {
+  it('.album-picker-body still uses parity internal scrolling (overflow-y: auto; flex: 1), so a long list does not blow out the dialog after enlarging', () => {
     const body = ruleBody(PARITY_SRC, '.photos-root .album-picker-body')
     expect(body).toMatch(/overflow-y:\s*auto/)
     expect(body).toMatch(/flex:\s*1/)
@@ -352,19 +352,21 @@ describe('AlbumPickerDialog.vue 尺寸(Fix-2 item 3:放大 + 视口响应)', () 
   // title span's inherited `color` instead falls all the way through to the GLOBAL
   // `src/styles/theme.css` `body { color: var(--fg) }` -- which only follows the app-wide
   // `[data-theme]` attribute, not Photos' private `.photos-root.is-light` toggle. Same defect
-  // class as Fix-2 item 4 (Places/lightbox), a third independent surfacing of it. jsdom doesn't
+  // class as a bug seen elsewhere too (Places/lightbox), a third independent surfacing of it. jsdom doesn't
   // compute cross-stylesheet cascade/inheritance, so this is a raw-source assertion (same idiom
   // as this describe block's own sizing checks above) rather than a computed-style read.
-  it('.album-picker-title-text 有显式局部 color: var(--text-1)(不再靠继承落到全局 --fg)', () => {
+  it('.album-picker-title-text has an explicit local color: var(--text-1) (no longer falls through inheritance to the global --fg)', () => {
     const styleBlock = /<style[^>]*>([\s\S]*)<\/style>/.exec(SRC)![1]
-    // 锚定真正的规则(选择器紧跟 `{`),不是这条规则上方注释里同名的反引号引用
-    // (那条注释本身还提到了 `body { color: var(--fg) }` 这样的字面示例,朴素的
-    // indexOf(selector) 会先命中注释里的类名提及,再抓到注释自己那对花括号里的示例文本)。
+    // Anchor on the actual rule (the selector immediately followed by `{`), not the backtick-quoted
+    // mention of the same selector name in the comment above this rule (that comment also mentions
+    // a literal example like `body { color: var(--fg) }`, so a naive indexOf(selector) would first
+    // hit the class-name mention in the comment, then grab the example text inside the comment's
+    // own curly braces).
     const body = ruleBody(styleBlock, '.album-picker-title-text {')
     expect(body).toMatch(/color:\s*var\(--text-1\)/)
   })
 
-  it('.album-picker-close(✕ 按钮)已是局部 --text-2/--text-1,不受本次修复影响(先行核对未回归)', () => {
+  it('.album-picker-close (the ✕ button) already uses local --text-2/--text-1 and is unaffected by this fix (verified no regression)', () => {
     const styleBlock = /<style[^>]*>([\s\S]*)<\/style>/.exec(SRC)![1]
     const base = ruleBody(styleBlock, '.album-picker-close {')
     expect(base).toMatch(/color:\s*var\(--text-2\)/)

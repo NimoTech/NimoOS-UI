@@ -21,7 +21,7 @@
 //  4) Amber badge: Vue2 used a literal `linear-gradient(135deg,#FF9F0A,#FF6B5C)` and
 //     `rgba(255,159,10,0.15)/#FF9F0A`. This repo forbids bare color literals. `.mo-badge`
 //     reuses --warn-fg (theme.css:155/:510) for its flat fill -- kept as-is, cosmetic-only
-//     gradient-to-flat deviation, unaffected by the item-6 fix below since its text is a
+//     gradient-to-flat deviation, unaffected by the .mo-span-mini color fix below since its text is a
 //     literal white on a solid fill, always legible regardless of theme. `.mo-span-mini`
 //     (below, near .sv-stats) originally reused the --warn-bg/--warn-fg *pair* the same way,
 //     but that one is a translucent tint sitting directly on the page background, not a solid
@@ -32,13 +32,12 @@
 //     spec) + `color-mix` reproducing Vue2's own 0.15 alpha exactly -- see that rule's own
 //     comment for the full trace.
 //  5) .mo-card .sv-name's two-line clamp is copied as-is (scss:254-259).
-//  6) [flagged during review, deliberately not acted on] The badge star is
-//     fill-only. Vue 2 renders it through <photos-icon name="star">, which both fills *and*
-//     strokes the same path (PhotosIcon.vue:193 `fillOverride` returns the colour for 'star'
-//     while `strokeOverride` returns it too, at stroke-width 1.6 with round caps and joins).
-//     The path data is identical; only the 1.6px outline is absent. At the 9px this badge
-//     renders at, that outline is sub-pixel, so it stays as-is — logged because this branch
-//     registers every deviation, not because it is worth changing.
+//  6) The badge star is fill-only, deliberately left as-is. Vue 2 renders it through
+//     <photos-icon name="star">, which both fills *and* strokes the same path (PhotosIcon.vue:193
+//     `fillOverride` returns the colour for 'star' while `strokeOverride` returns it too, at
+//     stroke-width 1.6 with round caps and joins). The path data is identical; only the 1.6px
+//     outline is absent. At the 9px this badge renders at, that outline is sub-pixel, so it's
+//     not worth changing.
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
@@ -218,17 +217,17 @@ function thumbUrl(id: string): string {
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 .sv-conds { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 12px; }
-/* Fix-2 item 4/6 (owner acceptance, 2026-08-13): background corrected from `--chip-bg`
-   (global, non-`.photos-root`-shadowed, glass-gradient in dark mode) to parity's own
-   `--surface-3` -- Vue2's real base `.sv-cond` background (photos-smartview.scss:91-97), one
-   rung lighter than what was here before (`--chip-bg`/--surface-2, not `--chip-bg-hi`/
-   --surface-3) -- a plain value drift, not just a theming one. Same fix applied to
-   PhotosAlbumDetail.vue's and AlbumConvertToSmartDialog.vue's own copies of this chip. */
+/* Background corrected from `--chip-bg` (global, non-`.photos-root`-shadowed, glass-gradient in
+   dark mode) to parity's own `--surface-3` -- Vue2's real base `.sv-cond` background
+   (photos-smartview.scss:91-97), one rung lighter than what was here before (`--chip-bg`/
+   --surface-2, not `--chip-bg-hi`/--surface-3) -- a plain value drift, not just a theming one.
+   Same fix applied to PhotosAlbumDetail.vue's and AlbumConvertToSmartDialog.vue's own copies of
+   this chip. */
 .sv-cond { padding: 2px 8px; border-radius: var(--chip-radius, 999px); background: var(--surface-3); color: var(--text-2); font-size: 11px; }
 .sv-stats { display: flex; align-items: center; gap: 10px; font-size: 11.5px; color: var(--text-4); font-variant-numeric: tabular-nums; }
 .sv-stats b { color: var(--text-1); font-weight: 600; }
 .mo-week-badge { color: var(--success); }
-/* Fix-2 item 6 (owner acceptance, 2026-08-13): was `background: var(--warn-bg); color:
+/* Was `background: var(--warn-bg); color:
    var(--warn-fg)` -- both *global*, non-`.photos-root`-shadowed tokens, so in photos light
    mode (data-theme still dark) this stayed the dark pairing: a very faint 8%-alpha orange wash
    sitting directly on the parity light surface underneath, with the same bright orange text on

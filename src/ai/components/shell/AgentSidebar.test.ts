@@ -62,7 +62,7 @@ describe('AgentSidebar', () => {
   // first dispatches update:open(false), then dispatches the @click confirm handler.
   // deleteDlg packs open and the pending-delete id into the same ref, and
   // v-model:open only touches .open, never .id, so the confirm handler can still
-  // read the correct id (same reproduction technique as the SP5-P1 regression case
+  // read the correct id (same reproduction technique as the regression case
   // in InstalledAppsPage.test.ts: a real mount + a real reka dialog + attachTo
   // document.body, no mocking reka).
   it('clicking a session row emits select; clicking delete only opens the AlertDialog, and delete is only emitted after confirm', async () => {
@@ -166,7 +166,7 @@ describe('AgentSidebar', () => {
     expect(img.attributes('src')).toContain('v1/users/avatar?token=tok-1')
   })
 
-  // SP8-P1c2 Task 7: avatarVersion was moved from a component-local ref up into
+  // avatarVersion was moved from a component-local ref up into
   // the useUserProfile store. These two cases prove: (1) the avatar URL's &v=
   // reads the store's value (initial value 1), and (2) a store version change
   // drives a recompute of the URL in an already-mounted component — this is the

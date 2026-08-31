@@ -1,4 +1,4 @@
-// SP8-P5a Task 10 — KnowledgeLayout shell test.
+// KnowledgeLayout shell test.
 // Test skeleton is copied verbatim from the task brief (a captured device response Step 2),
 // with three classes of assertions strengthened per governance doc §9 "Test Quality" and
 // coordinator requests (marked "strengthened" at each location):

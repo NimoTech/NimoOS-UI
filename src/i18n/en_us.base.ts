@@ -897,7 +897,7 @@ export default {
   // (the Time Machine stage / snapshot settings modal / restore destination modal / file
   // conflict dialog strings for the Vue2-parity rebuild). Several of the brief's proposed
   // names turned out to duplicate an EXISTING key's exact English text -- those are reused,
-  // not re-added; see task-1-report.md for the full brief-name -> actual-key mapping table.
+  // not re-added; for the full brief-name -> actual-key mapping table.
   tmExit: 'Exit Time Machine',
   tmRestoreSelection: 'Restore selection',
   tmStepLater: 'Later snapshot',

@@ -1,6 +1,6 @@
-// SP7-P7a-T5 fix round 1 · I1: PhotosThreshSlider.vue — quality threshold slider primitive in smart view.
-// Extracted from SmartViewCreateDialog.vue for reuse in T5/T8/T14, contract (props/emits) frozen,
-// independently covers its own structure + emit + styling (consumer T5's test only needs to verify "wiring", not repeat these).
+// PhotosThreshSlider.vue — quality threshold slider primitive in smart view.
+// Extracted from SmartViewCreateDialog.vue for reuse across multiple smart-view dialogs, contract (props/emits) frozen,
+// independently covers its own structure + emit + styling (each consumer's own test only needs to verify "wiring", not repeat these).
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
@@ -46,7 +46,7 @@ describe('emit', () => {
   })
 })
 
-// ── styling (core of fix round 1 · I1): anchor rule body first, then assert properties, file-level toContain doesn't count ──
+// ── styling: anchor rule body first, then assert properties, file-level toContain doesn't count ──
 describe('styling: track + thumb + marks spacing (previously zero slider-thumb across repo, device would degrade to default gray control)', () => {
   it('.sv-slider is appearance:none accent-gradient track, track height 6px', () => {
     const rules = parseCssRules(extractStyleBlock(photosThreshSliderRaw))
@@ -54,9 +54,9 @@ describe('styling: track + thumb + marks spacing (previously zero slider-thumb a
     expect(rule).toBeDefined()
     expect(rule?.body).toMatch(/appearance:\s*none/)
     expect(rule?.body).toContain('background: linear-gradient(to right, var(--accent-soft-2), var(--accent))')
-    // fix wave F6 (final review required item, mutation proof: changing 6px→16px all 116 cases pass——
-    // previously this track height had zero assertion). This component is reused in 3 places:
-    // SearchSaveSmartView / SmartViewCreateDialog / T6; if track height is broken no one catches it,
+    // Mutation proof: changing 6px→16px all 116 cases pass——
+    // previously this track height had zero assertion. This component is reused in multiple places
+    // (SearchSaveSmartView / SmartViewCreateDialog / other smart-view consumers); if track height is broken no one catches it,
     // added to existing anchored rule body assertion here, not opening a new test.
     expect(rule?.body).toContain('height: 6px')
   })
@@ -87,8 +87,7 @@ describe('styling: track + thumb + marks spacing (previously zero slider-thumb a
     expect(rule?.body).toContain('margin-top: 4px')
   })
 
-  // fix round 1 (discovered in task-8 review batch, controller-authorized addition): low-priority
-  // bare .sv-slider in Vue2 photos.scss:2817 has cursor:pointer on track itself (not just thumb pseudo-element), previously missed.
+  // Low-priority: bare .sv-slider in Vue2 photos.scss:2817 has cursor:pointer on track itself (not just thumb pseudo-element), previously missed.
   it('.sv-slider track itself also has cursor: pointer (not just thumb pseudo-element)', () => {
     const rules = parseCssRules(extractStyleBlock(photosThreshSliderRaw))
     const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-slider')

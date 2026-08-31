@@ -1,4 +1,4 @@
-// SP7-P7b-T1: EXIF filter predicates.
+// EXIF filter predicates.
 // Ported from the Vue 2 panel tests/photosFilterUtils.test.js (58 lines), with the
 // "excludes archived ids" case dropped per D17/F2 (the archive loop is fully dead in
 // Vue2 and was never migrated to New-UI), plus an added F1 regression case.

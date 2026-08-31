@@ -85,7 +85,7 @@ describe('photosFavorites store', () => {
     expect(s.favoritesList).toEqual([])
     expect(s.favoritesLoaded).toBe(false)
   })
-  // Task 9 (P3 leftover, closed out): added a loadError flag whose semantics are entirely
+  // Added a loadError flag whose semantics are entirely
   // independent of favoritesLoaded -- on failure loadError=true while favoritesLoaded stays
   // false (the two must not be merged or substituted for each other).
   it('fetchFavorites failure: loadError becomes true, favoritesLoaded stays false (they have different semantics)', async () => {
@@ -109,7 +109,7 @@ describe('photosFavorites store', () => {
     await s.fetchFavorites()
     expect(s.loadError).toBe(false)
   })
-  // Review Important 1's added guard case: the retry itself also fails -- loadError must
+  // An added guard case from review: the retry itself also fails -- loadError must
   // still be true (must not be cleared merely by "entering a retry"), and
   // favoritesList/favoritesLoaded's state must also be consistent with "never succeeded once".
   it('reject -> retry -> reject: loadError is still true afterward, favoritesList/favoritesLoaded are consistent with never having succeeded', async () => {
@@ -130,7 +130,7 @@ describe('photosFavorites store', () => {
     expect(service.photos.exportFavoritesUrl).toHaveBeenCalled()
   })
 
-  // Task 4 (Plan H): server-ranked "most favorited" top-5 list (GET /favorites/top),
+  // Server-ranked "most favorited" top-5 list (GET /favorites/top),
   // independent from the main favoritesList/favoritesLoaded pair -- see the comment on
   // fetchTopFavorites in favorites.ts for why it must not be conflated with them.
   it('fetchTopFavorites loads the server-ranked top-5 list and marks itself loaded', async () => {
@@ -151,9 +151,9 @@ describe('photosFavorites store', () => {
     expect(fav.topFavorites).toEqual([])
   })
 
-  // Task 11 (SP15-P3): NimoOS-Photos#54 turned an absent limit from "everything" into
+  // NimoOS-Photos#54 turned an absent limit from "everything" into
   // 500, so the favorites list has to be paged or it silently truncates.
-  describe('pagination (Task 11)', () => {
+  describe('pagination', () => {
     const A = (id: string) => ({ id, mimeType: 'image/jpeg' })
     const page = (n: number, from = 0) => Array.from({ length: n }, (_, i) => A(`f${from + i}`))
 
@@ -237,7 +237,7 @@ describe('photosFavorites store', () => {
       expect(s.favoritesTotal).toBe(1234)
     })
 
-    // Whole-branch review, Important 4: this used to assert that toggle() itself
+    // This used to assert that toggle() itself
     // reset the cursor/exhaustion flag. It does not any more, and it never needed
     // to — fetchFavorites() rewinds both unconditionally on every path, which is
     // what this test now pins. (The old version could not fail either way: its
@@ -255,7 +255,7 @@ describe('photosFavorites store', () => {
       expect(s.favoritesExhausted).toBe(true)
     })
 
-    // Whole-branch review, Important 4: the defect this replaces. With fewer than one
+    // The defect this replaces. With fewer than one
     // page of favorites the list is complete, and starring a photo must not make it
     // advertise itself as partial — the view's subset hint and "Load more" button are
     // both `v-if="!favoritesExhausted"`, and pressing that button re-requested (500, 0)
@@ -277,12 +277,12 @@ describe('photosFavorites store', () => {
       expect(s.favoritesList).toHaveLength(3)
     })
 
-    // Review fix (Important 2): toggle()'s success path did not bump _generation, which a
+    // toggle()'s success path did not bump _generation, which a
     // purely sequential test cannot see. Interleave a slow loadMoreFavorites() with a
     // toggle() that lands first: the stale page must be dropped whole, or the list
     // silently duplicates rows.
     //
-    // Whole-branch review, Important 4: toggle() no longer rewinds the cursor, so the tail
+    // toggle() no longer rewinds the cursor, so the tail
     // of this test now pins the cursor staying WHERE THE LIST ACTUALLY ENDS (page two)
     // instead of the rewound zero. The property under test is unchanged: the dropped page
     // must not have moved the cursor by its own row count.
@@ -315,7 +315,7 @@ describe('photosFavorites store', () => {
       expect(service.photos.listFavorites).toHaveBeenLastCalledWith(500, 500)
     })
 
-    // Review fix round 2: `loadingMore` must have a call-scoped owner, separate from
+    // `loadingMore` must have a call-scoped owner, separate from
     // `_generation`. fetchFavorites() forces `loadingMore` false unconditionally (correct:
     // it is a full reset), which lets a *second* loadMoreFavorites() start and claim the
     // flag before the *first* one (still in flight from before the reset) settles. If the

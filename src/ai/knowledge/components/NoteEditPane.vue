@@ -1,5 +1,5 @@
 <!--
-  SP8-P5d Task 7 —— `NoteEditPane.vue` **upper half** (top bar + draft banner + main-column editor).
+  `NoteEditPane.vue` **upper half** (top bar + draft banner + main-column editor).
   Ported 1:1 from the Vue 2 panel's blueprint
   `src/views/AI/Knowledge/NoteEditPane.vue` (338 lines, read via `git show 7a6ee6b7:`).
 

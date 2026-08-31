@@ -1,4 +1,4 @@
-// SP8-P3a Task 2 — align JSON tags byte-for-byte with backend DTO `NimoOS-AI/service/skills.go:10-32`.
+// Align JSON tags byte-for-byte with backend DTO `NimoOS-AI/service/skills.go:10-32`.
 // Field order and naming correspond one-to-one with the backend struct; no new fields, no omissions
 // (`trigger_human` see separate explanation below). Backend `GET /v1/ai/skills` and
 // `GET /v1/ai/skills/:id` both directly `c.JSON(200, out)` bare-serialize this struct (or its

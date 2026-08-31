@@ -11,9 +11,8 @@ export interface DateRange {
   label: string
   start: string // 'YYYY-MM-DD'
   end: string | null // 'YYYY-MM-DD'; null = single day (hi falls back to start, see dateInRange/calCells)
-  // Change-of-decision (SP7-P7a-T13 A3 decision, task 13 authorized minimal changes to an already-closed file):
-  // quickRange / yearRange each get their own criterion key. T13's SearchDatePopover needs to check "is the current
-  // draft equal to a particular quick-range button"; brief originally planned to compare label strings (Vue2
+  // quickRange / yearRange each get their own criterion key. SearchDatePopover needs to check "is the current
+  // draft equal to a particular quick-range button"; the original plan was to compare label strings (Vue2
   // `draft.date.label === q` where q is the original English text), but this repo stores label as localized text after
   // t() — when the locale switches, the same quick-range has different labels in the two languages, and the criterion
   // fails. key is the input enum of quickRange / the year number of yearRange, unaffected by locale; the criterion is
@@ -51,10 +50,9 @@ export type QuickKey = 'today' | 'last7' | 'last30' | 'thisYear' | 'lastYear'
 export const QUICK_KEYS: readonly QuickKey[] = ['today', 'last7', 'last30', 'thisYear', 'lastYear']
 
 // i18n key for each quick-range option's label.
-// Decision record (brief §10 + our verification): brief section 10 says thisYear → photosSearchThisYear, but the
-// 54-key table has "This year" corresponding to the actual key photosSearchYear (table was generated and verified
-// row by row by script, see task-9-report.md). Executing per decision "if spelling differs in the table, amend section 10
-// to match the table", using photosSearchYear here.
+// Note: thisYear maps to photosSearchYear, not photosSearchThisYear — the 54-key i18n
+// table has "This year" corresponding to the actual key photosSearchYear, so this follows
+// the table's spelling.
 export const QUICK_LABEL_KEYS: Record<QuickKey, string> = {
   today: 'photosSearchToday',
   last7: 'photosSearchLast7Days',

@@ -1,4 +1,4 @@
-// SP7-P7a-T5: SmartViewCreateDialog.vue — Smart view creation dialog tests. Each case
+// SmartViewCreateDialog.vue — Smart view creation dialog tests. Each case
 // corresponds to the 'required cases' list. Mounts Pinia + i18n
 // (real zh_cn/en_us entries), mocks @nimotech/nimoos-service (only uses thumbnailUrl),
 // uses real usePhotosSmartViews() store — directly reads/writes store.preview /
@@ -59,7 +59,7 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-// ── Structure inventory (brief Step 1, condition 1: 6 left sections + 4 right sections + 5 templates + 2 footer buttons) ─
+// ── Structure inventory (6 left sections + 4 right sections + 5 templates + 2 footer buttons) ─
 describe('structure inventory', () => {
   it('open:false → scrim does not render', () => {
     const w = mountDialog({ open: false })
@@ -279,7 +279,7 @@ describe('two switches', () => {
   })
 })
 
-// ── Templates: descEn contract (T1) ──────────────────────────────────────────────
+// ── Templates: descEn contract ──────────────────────────────────────────────
 describe('templates', () => {
   it('click the 1st template row → name/desc become i18n values, threshold becomes 75, chips are derived from descEn (includes family gathering)', async () => {
     const w = mountDialog({ open: true })
@@ -424,11 +424,11 @@ describe('hover state background', () => {
 })
 
 // ── Foreground color compliance: .sv-modal-icon is the only element in this component
-// that asserts --on-accent usage per the brief's literal requirement (the other two
-// --on-accent usages — .sv-switch[data-on]'s knob, .sv-btn-primary's text — are
-// findings from source review/extension of existing patterns, already documented in the
-// component file header comment and task report; we don't repeat the assertion here to
-// avoid dual maintenance of truth between assertion and comment). The component has no
+// that literally asserts --on-accent usage (the other two --on-accent usages —
+// .sv-switch[data-on]'s knob, .sv-btn-primary's text — are already covered elsewhere
+// in this file and are already documented in the component file's own header comment;
+// we don't repeat the assertion here to avoid dual maintenance of truth between
+// assertion and comment). The component has no
 // other photo-bearing elements (.sv-preview-grid img is pure image, no overlay text). ──
 describe('foreground color compliance', () => {
   it('.sv-modal-icon uses --accent solid fill + --on-accent foreground', () => {
@@ -453,10 +453,10 @@ describe('narrow screen rules', () => {
   })
 })
 
-// ══════════════════════════════ Fix round 1 ══════════════════════════════
+// ══════════════════════════════ Token-family and knob-color follow-ups ══════════════════════════════
 
-// ── I2: Template row sparkles icon color ────────────────────────────────────────────
-describe('template row icon color (fix round 1 · I2)', () => {
+// ── Template row sparkles icon color ────────────────────────────────────────────
+describe('template row icon color', () => {
   // Note: the token family this file's whole style
   // block uses switched from New-UI's global tokens (--accent-text/--fg/--chip-bg/etc, none
   // shadowed on `.photos-root`, so none followed the private photos-is-light toggle) to
@@ -469,14 +469,14 @@ describe('template row icon color (fix round 1 · I2)', () => {
   })
 })
 
-// ── I3: the other --on-accent positive assertion (.sv-modal-icon is covered in the "foreground color compliance" describe) ──
+// ── The other --on-accent positive assertion (.sv-modal-icon is covered in the "foreground color compliance" describe) ──
 // Note: the `.sv-switch[data-on="true"]::after` case below this
 // comment used to assert the knob turns `--on-accent` when on -- that was the bug itself
 // (the knob picked up the accent tone on toggle-on in this repo's dark theme, contradicting
-// Vue2's own invariant knob colour and the owner's explicit "the knob keeps one colour in both
-// states" requirement). Replaced with the corrected assertion in the describe block further
-// down ("Fix-5: the switch knob keeps one colour in both states").
-describe('foreground color compliance supplementary (fix round 1 · I3: the other --on-accent positive assertion)', () => {
+// Vue2's own invariant knob colour, which stays one colour in both
+// states). Replaced with the corrected assertion in the describe block further
+// down ("the switch knob keeps one colour in both states").
+describe('foreground color compliance supplementary (the other --on-accent positive assertion)', () => {
   it('.sv-btn-primary uses --accent solid fill + --on-accent foreground', () => {
     const rules = parseCssRules(extractStyleBlock(smartViewCreateDialogRaw))
     const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-btn-primary')
@@ -486,16 +486,16 @@ describe('foreground color compliance supplementary (fix round 1 · I3: the othe
   })
 })
 
-// ── Fix-5: the switch knob keeps one colour in both states, it
+// ── Invariant switch-knob colour: the knob keeps one colour in both states, it
 //    does not change with on/off ──────────
 // Root cause: parity's own `.photos-root .sv-switch[data-on="true"]::after`
 // (photos-smartview.scss:786-789) only moves the knob (`left: 16px`) -- it never overrides
 // `background`, so Vue2's knob is the exact same colour whether the switch is on or off. This
 // file's own `[data-on="true"]::after` rule used to add `background: var(--on-accent)`, making
 // the knob track state (near-white off, `--on-accent`'s dark-navy value on, in this repo's dark
-// theme) -- a straight bug, not a deviation from Vue2, reproduced in the owner's own screenshot
-// (Keep it live toggled on).
-describe('Fix-5: the switch knob keeps one colour in both states (it does not change with data-on)', () => {
+// theme) -- a straight bug, not a deviation from Vue2, reproduced in a screenshot of the running
+// app (Keep it live toggled on).
+describe('the switch knob keeps one colour in both states (it does not change with data-on)', () => {
   it('.sv-switch[data-on="true"]::after only moves the knob, it never overrides background (one knob colour in both states)', () => {
     const rules = parseCssRules(extractStyleBlock(smartViewCreateDialogRaw))
     const onKnob = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-switch[data-on="true"]::after')
@@ -507,13 +507,13 @@ describe('Fix-5: the switch knob keeps one colour in both states (it does not ch
   })
 })
 
-// ── Fix-6 (owner decision, 2026-08-14): knob is invariant white across EVERY theme, not just
-// both on/off states -- Fix-5's `var(--text-1)` correctly stayed constant across on/off but is
-// itself a theme-flipping token (dark under `.photos-root.is-light`), so the owner's actual
+// ── Follow-up: knob is invariant white across EVERY theme, not just
+// both on/off states -- the previous fix's `var(--text-1)` correctly stayed constant across on/off but is
+// itself a theme-flipping token (dark under `.photos-root.is-light`), so the actual
 // requirement ("white in both themes and both states") was still unmet. `--text-1` is no longer
 // used for the knob at all; light mode gets a paired border+shadow rule to keep a flat white
 // knob visible against its own near-white off-track. ──────────────────────────────────────
-describe('Fix-6: the switch knob stays white across themes (no longer the theme-flipping --text-1)', () => {
+describe('the switch knob stays white across themes (no longer the theme-flipping --text-1)', () => {
   it('.sv-switch::after knob background is a literal white, not var(--text-1)', () => {
     const rules = parseCssRules(extractStyleBlock(smartViewCreateDialogRaw))
     const baseKnob = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-switch::after')
@@ -535,8 +535,8 @@ describe('Fix-6: the switch knob stays white across themes (no longer the theme-
   })
 })
 
-// ── M1: Esc close (previously undeclared net-new, retroactively registered + test) ────
-describe('Esc close (fix round 1 · M1)', () => {
+// ── Esc close (previously undeclared net-new, retroactively registered + test) ────
+describe('Esc close', () => {
   it('when open:true, press Esc → emit update:open(false)', async () => {
     const w = mountDialog({ open: true })
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
@@ -552,8 +552,8 @@ describe('Esc close (fix round 1 · M1)', () => {
   })
 })
 
-// ── M5: .sv-preview-grid img rendering path had zero coverage before (seeds always empty in 33 cases) ─
-describe('preview-grid rendering (fix round 1 · M5)', () => {
+// ── .sv-preview-grid img rendering path had zero coverage before (seeds always empty in 33 cases) ─
+describe('preview-grid rendering', () => {
   it('store.preview.seeds not empty → renders corresponding number of img, src from thumbnailUrl(seed,"large"), with loading=lazy', () => {
     const store = usePhotosSmartViews()
     store.preview = { count: 2, seeds: ['seed-a', 'seed-b'], thresholdActive: true }
@@ -566,8 +566,8 @@ describe('preview-grid rendering (fix round 1 · M5)', () => {
   })
 })
 
-// ── M6: Autofocus (explicit in brief structure spec §3) + keyboard operability had zero assertion ──
-describe('autofocus (fix round 1 · M6)', () => {
+// ── Autofocus + keyboard operability had zero assertion before ──
+describe('autofocus', () => {
   it('open:true → name input field automatically receives focus', async () => {
     const w = mount(SmartViewCreateDialog, {
       props: { open: true },
@@ -580,7 +580,7 @@ describe('autofocus (fix round 1 · M6)', () => {
   })
 })
 
-describe('switch keyboard operability (fix round 1 · M6, added tabindex + Enter/Space)', () => {
+describe('switch keyboard operability (added tabindex + Enter/Space)', () => {
   it('both switches have tabindex=0, and both Enter/Space can toggle', async () => {
     const w = mountDialog({ open: true })
     const live = w.find('[data-test="sv-switch-live"]')
@@ -592,8 +592,8 @@ describe('switch keyboard operability (fix round 1 · M6, added tabindex + Enter
   })
 })
 
-// ── M7: onUnmounted did not call store.cancelPreview() before (orphaned preview requests when leaving route) ──
-describe('unmount (fix round 1 · M7)', () => {
+// ── onUnmounted did not call store.cancelPreview() before (orphaned preview requests when leaving route) ──
+describe('unmount', () => {
   it('component unmounts → store.cancelPreview() is called', () => {
     const store = usePhotosSmartViews()
     const spy = vi.spyOn(store, 'cancelPreview')
@@ -603,11 +603,10 @@ describe('unmount (fix round 1 · M7)', () => {
   })
 })
 
-// ═════════════════════ Fix round 2 (task-8 review batch findings, controller approval
-// including this file) ═════════════════════
+// ═════════════════════ Style parity follow-ups ═════════════════════
 
-// ── M1: .sv-switch missed transition/box-shadow contributed by low-priority rule at photos.scss:2819-2820 ──
-describe('.sv-switch track transition + thumb shadow (fix round 2 · M1)', () => {
+// ── .sv-switch missed transition/box-shadow contributed by low-priority rule at photos.scss:2819-2820 ──
+describe('.sv-switch track transition + thumb shadow', () => {
   it('.sv-switch track background change has transition', () => {
     const rules = parseCssRules(extractStyleBlock(smartViewCreateDialogRaw))
     const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-switch')
@@ -623,12 +622,12 @@ describe('.sv-switch track transition + thumb shadow (fix round 2 · M1)', () =>
   })
 })
 
-// ══════════════════════════ SP15-P2b Task 4: embedded mode ══════════════════════════
+// ══════════════════════════ Embedded mode ══════════════════════════
 // Vue2 939a7d3a:PhotosSmartAlbumCreate.vue:20-21 (two-layer wrapper), :232-241 (props),
 // :271-277 (effectiveName/canSubmit), :325 (onScrimClick). The Albums page mounts this
 // dialog embedded in place of its own footer when the "Let Nimo draft it" fill option is
 // picked; standalone mode (PhotosSmartViews.vue's own mount) is untouched.
-describe('embedded mode (SP15-P2b Task 4)', () => {
+describe('embedded mode', () => {
   it('embedded mode drops its own scrim, header, and name field', async () => {
     const w = mountDialog({ open: true, embedded: true, initialName: 'Trip' })
     expect(w.find('[data-test="sv-modal-scrim"]').exists()).toBe(false)
@@ -713,7 +712,7 @@ describe('embedded mode (SP15-P2b Task 4)', () => {
     expect(w.emitted('update:open')).toBeUndefined()
   })
 
-  // SP15-P2b Task 4 review fix round 1 · Important: in embedded mode the ghost Cancel
+  // In embedded mode the ghost Cancel
   // button is the *only* way to back out without submitting — it is not gated by
   // v-if="!embedded" the way the header close button and Name field are, and the Escape
   // listener is never attached in embedded mode (see the test above), so it cannot cover

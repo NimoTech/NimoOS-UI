@@ -1,4 +1,4 @@
-// SP8-P5e Task 3 — 1:1 port from Vue2
+// 1:1 port from Vue2
 // the Vue 2 panel's `src/views/AI/Knowledge/searchAggregate.js` (main@7a6ee6b7, 79 lines,
 // byte-identical, verified by P5c §4.4 comparison process — comment Chinese→English only,
 // zero functional change).

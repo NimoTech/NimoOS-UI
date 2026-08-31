@@ -252,7 +252,7 @@ export function useFileOps() {
   // Two gates, because an accepted request is NOT a completed move. `POST
   // /v1/batch/task` returning 200 only means the task was queued; it then runs
   // asynchronously and can still do nothing at all. Repointing on the 200 alone
-  // is what wrecked the owner's sidebar: the backend dequeued a folder holding
+  // is what wrecked a real user's sidebar: the backend dequeued a folder holding
   // only empty directories as "already done" without ever executing it, the
   // paste was retried six times, and all 16 favourites ended up nested six
   // levels deep at paths that never existed.

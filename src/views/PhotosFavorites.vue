@@ -1,20 +1,20 @@
 <script setup lang="ts">
-// Task 8 (SP7-P3): favorites view -- reuses the PhotosGrid base to render favorited items
-// (Task 1's usePhotosFavorites supplies data/actions), wires up zip export + empty state +
-// tab filter + lightbox (P2's useLightbox singleton). The shell was originally copied from
+// Favorites view -- reuses the PhotosGrid base to render favorited items
+// (usePhotosFavorites supplies data/actions), wires up zip export + empty state +
+// tab filter + lightbox (useLightbox singleton). The shell was originally copied from
 // Photos.vue's (timeline view, src/views/Photos.vue) AreaShell/photos-layout/photos-main.
 // Route registration is left to T10.
 //
-// Plan H Task 1 (re-shell): the transitional AreaShell/.photos-layout shell has been swapped
+// The transitional AreaShell/.photos-layout shell has been swapped
 // for Photos.vue/PhotosPeople.vue's own `.photos-root > .app[data-collapsed][data-selecting] >
 // PhotosSidebar + main.main > PhotosTopbar + .photos-main` structure (useSidebarCollapse shared
 // singleton). AlbumPickerDialog and the save-as-album modal moved from template-root siblings
 // of the old AreaShell wrapper to inside `.photos-root` (siblings of `.app`), alongside the
-// Plan G AskNimoHost mount. Full detail in task-1-report.md.
-// Task 9 (SP7-P4 albums) adds: selection-toolbar batch "add to album" and lightbox single-item
+// AskNimoHost mount.
+// Adds: selection-toolbar batch "add to album" and lightbox single-item
 // "add to album", following the same pickerOpen/pickerIds + openAlbumPicker(ids) pattern as
-// Photos.vue, wired to AlbumPickerDialog (T5).
-// Task 10 (SP7-P4 albums, closing out a P3 deferred item): "save as album" -- follows Vue2
+// Photos.vue, wired to AlbumPickerDialog.
+// "Save as album" -- follows Vue2
 // PhotosFavoritesView.vue :21-23 (entry button) / :455-478 (openSaveAlbum/confirmSaveAlbum).
 // The naming-modal structure follows the --popup-bg/token usage of PhotosAlbums.vue's (T7)
 // new-album modal, trimmed of the source-picker part this task doesn't need. Esc-close uses a
@@ -69,7 +69,7 @@ const selected = ref<Array<string | number>>([])
 
 const isEmpty = computed(() => fav.favoritesLoaded && (fav.favoritesList?.length ?? 0) === 0)
 
-// Acceptance Fix-1 (owner finding, Plans G+H): the filter row is All + THREE mutually-exclusive
+// The filter row is All + THREE mutually-exclusive
 // dropdowns (People / Places / Years), plus a Sort Recent/Oldest toggle -- follows Vue2
 // PhotosFavoritesView.vue's `filter` data() (:329, single string: 'all' | 'p:<name>' |
 // 'l:<place>' | 'y:<year>') + `sort` data() (:328). Task 6 had modeled this as an independent
@@ -170,8 +170,8 @@ function onFilterDocumentClick(e: MouseEvent): void {
 }
 onMounted(() => document.addEventListener('mousedown', onFilterDocumentClick))
 
-// Task 15A (SP7-P5, closing out two ledger items): the hero stats' three cards -- follows Vue2
-// PhotosFavoritesView.vue :369-385 (byPersonAll/byPlaceAll/byYearAll). Acceptance Fix-1 moved
+// The hero stats' three cards -- follows Vue2
+// PhotosFavoritesView.vue :369-385 (byPersonAll/byPlaceAll/byYearAll). This port moved
 // byPerson/byPlace/byYear up next to byPersonAll/byPlaceAll/byYearAll above (the People/Places/
 // Years dropdowns' option sources) since Vue2 :426-428 defines them as slices/pass-throughs of
 // those same "All" computeds, not independent re-derivations -- kept as one source of truth.
@@ -208,7 +208,7 @@ function toggleSelect(id: string | number) {
 }
 function cancelSelection() { selected.value = [] }
 
-// Task 9 (SP7-P4 albums): the "add to album" entry point (selection-toolbar batch / lightbox
+// The "add to album" entry point (selection-toolbar batch / lightbox
 // single item) -- follows the same unified pattern as Photos.vue, wired to AlbumPickerDialog
 // (T5). @added clears the selection state; the favorites list itself is unaffected and doesn't
 // need a refresh.
@@ -314,10 +314,10 @@ onUnmounted(() => {
 // Once PhotosGrid has a non-empty selected, onTileClick internally switches into the "keep
 // selecting" branch instead of "open photo" -- without a matching selection toolbar, ticking
 // one checkbox would lock the whole grid's click behaviour into selection mode with no way
-// out (Review Finding 1, filling this in to match the Photos.vue:59-66 batch-delete precedent
+// out (filling this in to match the Photos.vue:59-66 batch-delete precedent
 // -- not a new feature surface, just giving the selected/toggle-select already wired to
 // PhotosGrid a UI with an exit).
-// Owner-acceptance Fix-3 (delete-chain diagnosis): store.deleteAssets already reports the
+// Delete-chain diagnosis: store.deleteAssets already reports the
 // ACTUAL success count (per-id try/catch in timeline.ts), but this toast used to quote it
 // unconditionally as if `count === total` always held -- with 0 actually deleted it would
 // have shown "0 item(s) moved to Recently Deleted" as a plain success toast, the exact
@@ -338,7 +338,7 @@ async function onBatchDelete(ids: Array<string | number>) {
 }
 
 function onOpenTile(photo: Photo, _list: undefined, startMs: number) {
-  // Acceptance Fix-1: no more tab filter to also apply -- the paging set is just the
+  // No more tab filter to also apply -- the paging set is just the
   // person/place/year-filtered, sorted, grouped favorites (matches Vue2's own flatList,
   // :404: `this.grouped.flatMap(g => g.photos)`).
   const list = filteredMonths.value.flatMap((m) => m.photos)
@@ -372,7 +372,7 @@ function onExport() {
   toast.show(t('photosFavExporting'), 4000)
 }
 
-// Owner-acceptance Fix-3 (delete-chain diagnosis): a single-item delete only has two possible
+// Delete-chain diagnosis: a single-item delete only has two possible
 // outcomes (1 or 0 actually deleted) -- this used to show the success toast unconditionally
 // regardless of what store.deleteAssets actually reported, same swallow-and-lie shape as
 // onBatchDelete above.
@@ -412,7 +412,7 @@ let slideTimer: ReturnType<typeof setTimeout> | undefined
 
 // Vue2 :439's slidePhotos: `return this.sorted.length ? this.sorted : this.favorites` -- the
 // filtered+sorted set when non-empty, else the FULL unfiltered/unsorted favorites list (not
-// filteredMonths flattened). Acceptance Fix-1: there is no more tab filter, so this branch is
+// filteredMonths flattened). There is no more tab filter, so this branch is
 // reachable only if a person/place/year selection somehow yields zero photos -- which can't
 // happen in practice since the three dropdowns' own options are derived from the same
 // favorites list (byPersonAll/byPlaceAll/byYearAll), so any selectable value always matches at
@@ -588,7 +588,7 @@ function onSlideKey(e: KeyboardEvent): void {
               </div>
             </div>
 
-            <!-- Task 11 (SP15-P3): the hero stats and facet dropdowns below are all derived from
+            <!-- The hero stats and facet dropdowns below are all derived from
                  fav.favoritesList, which is only the pages fetched so far while pagination is
                  still catching up — say so out loud instead of silently under-reporting. -->
             <div v-if="!fav.favoritesExhausted" class="fav-loaded-hint" data-test="fav-loaded-hint">
@@ -627,7 +627,7 @@ function onSlideKey(e: KeyboardEvent): void {
               </div>
             </div>
 
-            <!-- Acceptance Fix-1 (owner finding, Plans G+H): the filter row -- follows Vue2
+            <!-- The filter row -- follows Vue2
                  PhotosFavoritesView.vue :112-203 verbatim: an "All <count>" chip + THREE
                  mutually-exclusive dropdowns (People / Places / Years, each disabled when its
                  own option list is empty), a flex spacer, then a Sort Recent/Oldest segmented
@@ -762,7 +762,7 @@ function onSlideKey(e: KeyboardEvent): void {
                 @add-to-album="openAlbumPicker([...selected])"
                 @ask-nimo="useAskNimo().openWith(t('photosGridAskNimoRecap', { count: selected.length }))"
               />
-              <!-- Acceptance Fix-1: Vue2 Favorites has no right-edge timeline scrubber at all
+              <!-- Vue2 Favorites has no right-edge timeline scrubber at all
                    (see PhotosGrid.vue's `showScrubber` prop comment) -- `tab="all"` is now a
                    fixed literal, not a reactive ref, since there is no tab-filter UI left to
                    drive it. -->
@@ -793,7 +793,7 @@ function onSlideKey(e: KeyboardEvent): void {
          AreaShell wrapper). -->
     <AlbumPickerDialog v-model:open="pickerOpen" :asset-ids="pickerIds" @added="onAlbumAdded" />
 
-    <!-- Acceptance Fix-2 (owner finding, screenshot-verified): re-skinned onto Vue2
+    <!-- Re-skinned onto Vue2
          PhotosFavoritesView.vue's own `.fav-modal*` class family (:275-306) -- parity photos.scss
          already carried these rules byte-exact (transcribed but unused until now), so landing the
          template on the same class names is the whole fix; no new CSS needed beyond the Vue2->Vue3
@@ -953,7 +953,7 @@ function onSlideKey(e: KeyboardEvent): void {
    style does not have. */
 .fav-stat-sub { font-size: 11px; color: var(--text-3); font-weight: 400; }
 
-/* Acceptance Fix-2: the save-as-album naming modal's own bespoke `.favsave-*` rules (purple CTA,
+/* The save-as-album naming modal's own bespoke `.favsave-*` rules (purple CTA,
    --popup-bg card, heavier blur scrim) are retired -- the template now uses Vue2
    PhotosFavoritesView.vue's own `.fav-modal*` class names, and parity photos.scss already
    carries every one of those rules byte-exact (unscoped, imported globally via

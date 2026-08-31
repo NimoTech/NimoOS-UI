@@ -1,5 +1,5 @@
 // 1:1 ported from Vue2 src/views/AI/Agent/tabs/ResourcesTab.vue:136-232(groupedStagedChanges
-// computed + badgeFor/formatPath/formatSize/kindIcon/relativeTime methods). SP8-P1c2 Task 12.
+// computed + badgeFor/formatPath/formatSize/kindIcon/relativeTime methods).
 //
 // relativeTime returns i18n key name + params, not translation — same "return key name not translation"
 // convention as docErrorKey() in attachmentMeta.ts / subKey in systemTiles.ts; the actual

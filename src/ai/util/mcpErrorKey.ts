@@ -1,4 +1,4 @@
-// SP8-P4 Task 3 — MCP partition "backend string → i18n key" mapping.
+// MCP partition "backend string → i18n key" mapping.
 //
 // Why not use `apiError.apiErrorMessage`: its file header has its own warning
 // (`apiError.ts:18-20`) — return value may still be backend English original (FastAPI's

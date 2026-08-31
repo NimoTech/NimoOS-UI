@@ -83,7 +83,7 @@ async function load() {
 }
 
 /** Renders the server-level wildcard as a sentence a user understands
- *  instead of the backend's bare `"*"` convention (裁定 3 in the brief). */
+ *  instead of the backend's bare `"*"` convention (a deliberate design decision). */
 function toolLabel(name: string): string {
   return name === '*' ? t('aiMcpApprovalsAllTools') : name
 }

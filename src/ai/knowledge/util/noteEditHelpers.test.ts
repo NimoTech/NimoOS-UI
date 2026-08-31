@@ -1,4 +1,4 @@
-// SP8-P5d Task 3 —— Inherit Vue2's existing `__tests__/noteEditHelpers.spec.js` (2 cases,
+// Inherit Vue2's existing `__tests__/noteEditHelpers.spec.js` (2 cases,
 // governance §4.3), plus more thorough than original spec (each branch + early exit paths).
 import { describe, it, expect } from 'vitest'
 import { parseTags, conflictMessage } from './noteEditHelpers'

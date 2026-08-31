@@ -1,4 +1,4 @@
-// SP8-P1b Task 4 — provide/inject seam.
+// Provide/inject seam.
 //
 // Purpose: in future Photos embed scenario, allow the root component to provide a
 // restricted profile store (`useAgentStore('photos')`), so deep child components (e.g.

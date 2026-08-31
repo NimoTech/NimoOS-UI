@@ -1,5 +1,5 @@
 <!--
-  SP8-P2a Task 6 — new primitive replacing Vue2 `$buefy.dialog.prompt` (New-UI has no
+  New primitive replacing Vue2 `$buefy.dialog.prompt` (New-UI has no
   confirm dialog with an input field). Structure copied from `src/components/ui/AlertDialog.vue`,
   plus one <input> bound to a local ref.
 

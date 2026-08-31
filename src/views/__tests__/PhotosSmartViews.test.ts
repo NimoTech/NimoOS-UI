@@ -4,22 +4,21 @@
 // following PhotosPeople.test.ts's existing mounting pattern), mocking the shared package's
 // photos methods.
 //
-// SP15-P2b Task 5 (Vue2 939a7d3a): the smart-view grid, its hero, the create tile, and the
-// create dialog all moved to PhotosAlbums.vue (Tasks 3/4) — this page is Moments-only now.
+// As of Vue2 939a7d3a: the smart-view grid, its hero, the create tile, and the
+// create dialog all moved to PhotosAlbums.vue — this page is Moments-only now.
 // Every test in this file that exercised a smart-view list responsibility (fetching the
 // list, the loading skeleton, the hero create button, the create-tile/dialog, a card's
 // `@open`, and the two CSS structural checks on `.svs-banner`/`.sv-create-btn`) has been
 // deleted rather than rewritten to keep passing against the new shape — that functionality
-// and its coverage now live on PhotosAlbums.vue (see PhotosAlbums.test.ts, added in Tasks
-// 3/4). See task-5-report.md for the exact old-case → new-home mapping.
+// and its coverage now live on PhotosAlbums.vue (see PhotosAlbums.test.ts).
 //
 // What survives here: the `aiSmartViewOff` → `settings.fetchAiFeatures()` dedup behaviour
 // (this page still consumes that store directly, unrelated to the smart-view list) and the
-// `.app` grid responsive CSS structural check (Plan C Task 2 re-shell: was a `.photos-layout`
+// `.app` grid responsive CSS structural check (from the re-shell: was a `.photos-layout`
 // check before the page moved onto the Vue2 `.app` grid shell). The Moments band itself — rendering,
 // gating, drag-reorder, the new slim settings hint, and the h2→h1 promotion — is covered in
-// the sibling file `../PhotosSmartViews.moments.test.ts` (SP15-P1-T5's established home for
-// band behaviour; this branch's new cases were added there, not duplicated here).
+// the sibling file `../PhotosSmartViews.moments.test.ts` (the established home for
+// band behaviour; new cases were added there, not duplicated here).
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
@@ -52,7 +51,7 @@ function makeRouter() {
     routes: [
       { path: '/photos/smart-views', name: 'photos-smart-views', component: PhotosSmartViews },
       { path: '/photos/moments/:id', name: 'photos-moment-detail-stub', component: { template: '<div/>' } },
-      // P8a-T6 (§7e-9): the settings link points at /photos/settings?section=ai — the stub
+      // (§7e-9): the settings link points at /photos/settings?section=ai — the stub
       // route lets RouterLink actually resolve an href, otherwise vue-router warns "no match".
       { path: '/photos/settings', name: 'photos-settings-stub', component: { template: '<div/>' } },
     ],
@@ -78,7 +77,7 @@ beforeEach(() => {
 })
 
 describe('PhotosSmartViews.vue — aiFeatures fetch dedup (§7e-15, unrelated to the smart-view list)', () => {
-  // P8a-T6 (§7e-10): aiSmartViewOff has been folded into the photosSettings store, this page no
+  // (§7e-10): aiSmartViewOff has been folded into the photosSettings store, this page no
   // longer reads getConfig directly itself — onMounted goes through settings.fetchAiFeatures(),
   // the same absorption precedent as PhotosPeople.vue.
   //
@@ -113,7 +112,7 @@ describe('PhotosSmartViews.vue — aiFeatures fetch dedup (§7e-15, unrelated to
 // ── style block structural assertions (?raw, following the existing color-guard /
 // PersonAssetGrid.test.ts precedent) ──
 describe('PhotosSmartViews.vue — style block structural check', () => {
-  // Plan C Task 2: after the re-skin the sidebar width is owned by the `.app` CSS grid
+  // After the re-skin the sidebar width is owned by the `.app` CSS grid
   // column, so narrowing to ≤768px now collapses the whole sidebar column (the same
   // `.app { grid-template-columns: 1fr; }` as Photos.vue) rather than setting `gap: 0` on
   // `.photos-layout`.
@@ -129,7 +128,7 @@ describe('PhotosSmartViews.vue — style block structural check', () => {
 // ('For You', PhotosTimeline.vue:190) and sub = topbarSubContext's DEFAULT branch (navMap has
 // no 'smart' entry, PhotosTimeline.vue:229-234) -- the same full-library count line the topbar
 // already computes on its own by default, so no `sub` override is needed from this page.
-describe('Fix-1 item 1: PhotosTopbar restored (title=For You, default full-library sub)', () => {
+describe('PhotosTopbar restored (title=For You, default full-library sub)', () => {
   it('renders the topbar with title=For You, no search box', async () => {
     const { w } = await mountView()
     expect(w.findComponent(PhotosTopbar).exists()).toBe(true)

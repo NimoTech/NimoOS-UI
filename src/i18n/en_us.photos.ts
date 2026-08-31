@@ -1,10 +1,14 @@
-// SP7-P8b:相册区文案分片。
+// Photos album-section copy, split into its own file.
 //
-// 为什么独立成文件:分片约定(新键只落分片,免得几条并行线在同一文件上相撞,
-// 见 src/i18n/index.ts 的注释)。相册区 700 多行文案自成一块,主表不必跟着变厚。
+// Why a separate file: new keys land only in their own slice file, so several parallel
+// workstreams don't collide on one shared file (see the comment in src/i18n/index.ts). The
+// album section's 700+ lines of copy form a self-contained block, so the main table doesn't
+// have to keep growing alongside it.
 //
-// 内容是从 en_us.base.ts(即原 en_us.ts)原样搬来的 photos* 前缀键(顺序、注释、行尾标记全部保留),
-// 一个字没改 —— 等价性由 __tests__/photosSlice.test.ts 与抽取当时的 JSON 快照逐键比对证明。
+// The content was carried over as-is from en_us.base.ts (formerly en_us.ts) — every
+// photos*-prefixed key, in its original order, with its original comments and end-of-line
+// markers. Not a single character was changed — equivalence is proven key-for-key by
+// __tests__/photosSlice.test.ts against a JSON snapshot taken at extraction time.
 export default {
   // ── Photos ──
   photosTitle: 'Photos',
@@ -18,10 +22,10 @@ export default {
   photosTabOcr: 'OCR',
   photosTabVideos: 'Videos',
   photosItemsCount: '{count} items',
-  // Owner-acceptance Fix-5: singular sibling of photosItemsCount, matching Vue2's
+  // Singular sibling of photosItemsCount, matching Vue2's
   // `{{ b.photos.length !== 1 ? $t('items') : $t('item') }}` conditional (currently only
   // consumed by PhotosTrash.vue's bucket subtitle -- the other photosItemsCount call sites
-  // are untouched by this fix, out of scope here).
+  // are untouched here, out of scope).
   photosItemSingular: '{count} item',
   photosSelectedCount: '{count} selected',
   photosDelete: 'Delete',
@@ -30,7 +34,7 @@ export default {
   photosNoPhotosHint: 'Photos will appear here once indexed',
   photosUnknownDate: 'Unknown Date',
   photosDeletedToast: '{count} item(s) moved to Recently Deleted',
-  // Owner-acceptance Fix-3: honest partial-failure toast for the "move to Recently Deleted"
+  // Honest partial-failure toast for the "move to Recently Deleted"
   // flow (PhotosFavorites.vue's onBatchDelete/onLightboxDelete) -- store.deleteAssets already
   // returns the ACTUAL success count (per-id try/catch), this key surfaces it instead of
   // silently reporting the click-time selection size as if every item succeeded. Zero-success
@@ -97,7 +101,7 @@ export default {
   photosFavExport: 'Download as ZIP',
   photosFavExporting: 'Preparing download…',
   photosFavCount: '{count} favorites',
-  // Task 3 (Plan H) review fix: hero stats sub-line -- Vue2 bolds ONLY the raw
+  // Hero stats sub-line -- Vue2 bolds ONLY the raw
   // number (`<b>{{ photoCount }}</b> {{ $t('photos_count') }}`), the noun sits
   // outside <b>, so these are noun-only keys (not "{n} photos" one-piece
   // strings) matching Vue2 PhotosFavoritesView.vue:11-12's photos_count/videos
@@ -105,11 +109,11 @@ export default {
   photosFavHeroPhotosNoun: 'photos',
   photosFavHeroVideosNoun: 'videos',
   photosFavHeroKeptForever: 'kept forever',
-  // Task 4 (Plan H): pinned-highlights strip (server-ranked top 5, GET /favorites/top) --
+  // Pinned-highlights strip (server-ranked top 5, GET /favorites/top) --
   // Vue2 PhotosFavoritesView.vue:89-90.
   photosFavPinnedTitle: 'Pinned highlights',
   photosFavPinnedSub: 'Your most-favorited moments · Nimo curated',
-  // Task 5 (Plan H): slideshow -- Vue2 PhotosFavoritesView.vue:18-19 (entry button) /
+  // Slideshow -- Vue2 PhotosFavoritesView.vue:18-19 (entry button) /
   // :237-273 (playback overlay: close, prev/next, pause/play, 3 speed presets).
   photosFavSlideshow: 'Slideshow',
   photosFavSlideClose: 'Close (Esc)',
@@ -140,7 +144,7 @@ export default {
   photosTrashCanFree: 'can be freed',
   photosTrashItems: 'items',
   photosTrashSelectedCount: '{count} selected',
-  // Owner-acceptance Fix-5: Vue2 PhotosTrashView.vue template:55 puts a leading label span
+  // Vue2 PhotosTrashView.vue template:55 puts a leading label span
   // before the two sort buttons ($t('Sort')) -- this key was missing entirely, so the label
   // span was never rendered (parity's own `.lib-sort-label` rule at photos.scss went unused).
   // Named per-view like the sibling photosFavSort/photosSearchSort/photosAlbumSort keys
@@ -155,9 +159,9 @@ export default {
   photosTrashBucketSoon: 'Deleting in 8–14 days',
   photosTrashBucketLater: 'Deleting in 15–21 days',
   photosTrashBucketFresh: 'Deleted recently',
-  // Owner-acceptance Fix-5: all four descriptions below were paraphrases, not Vue2's actual
+  // All four descriptions below were paraphrases, not Vue2's actual
   // copy -- corrected to match Vue2 PhotosTrashView.vue:133-136's BUCKETS `desc` fields
-  // verbatim (the owner's screenshot review specifically caught the 'fresh' one showing
+  // verbatim (a screenshot review specifically caught the 'fresh' one showing
   // "Recently deleted items" instead of Vue2's "Auto-deletes after the retention period";
   // the other three had the same kind of drift, caught in the same-view sweep).
   photosTrashBucketUrgentDesc: 'Will be gone soon — recover now if needed',
@@ -174,14 +178,14 @@ export default {
   // ── Photos: Toast messages ──
   photosTrashRestoredToast: '{count} item(s) restored to Library',
   photosTrashPurgedToast: '{count} item(s) permanently deleted · {size} MB freed',
-  // Owner-acceptance Fix-3: trash.ts's purge() now reports the ACTUAL per-item success count
+  // trash.ts's purge() now reports the ACTUAL per-item success count
   // (Promise.allSettled, not the old swallow-and-lie Promise.all) -- this key covers the
   // 0 < success < total case. Freed-size is intentionally omitted here (same reasoning as
   // photosTrashEmptiedToastPartial below: it was only ever a sum over the full requested
   // selection, which overstates it once some of those items never actually got purged).
   photosTrashPurgedPartialToast: 'Permanently deleted {ok} item(s), {fail} failed',
   photosTrashEmptiedToast: 'Trash emptied · {size} MB freed',
-  // Task 12 (SP15-P3): while pages remain, the freed-size figure is only computed from the
+  // While pages remain, the freed-size figure is only computed from the
   // loaded subset — these size-less variants are used instead until trashExhausted.
   photosTrashEmptiedToastPartial: 'Trash emptied',
   photosTrashEmptyBodyPartial: "This frees up space on the NAS. Once gone, the originals can't be recovered.",
@@ -198,11 +202,11 @@ export default {
   photosAlbumNew: 'New album',
   photosAlbumNewHint: 'Click to create or ask Nimo',
   photosAlbumUntitled: 'Untitled',
-  // SP15-P2b Task 3: the mixed grid's section subtitle when both manual and smart albums
+  // The mixed grid's section subtitle when both manual and smart albums
   // are empty (939a7d3a:PhotosAlbumsView.vue). Inserted here, next to the rest of the
   // "no albums" copy cluster, rather than by the photosAlbums* family's scattered global
   // order.
-  // fix round 1 (Important 3): photosAlbumsEmptyTitle/photosAlbumsEmptyHint, which used to
+  // photosAlbumsEmptyTitle/photosAlbumsEmptyHint, which used to
   // sit right above this key, are deleted (grep-confirmed zero other consumers) -- they
   // backed a standalone empty-state panel that duplicated this subtitle's own "No albums
   // yet" copy once smart albums joined the grid. Vue2 has no such panel either (see the
@@ -246,14 +250,14 @@ export default {
   photosAlbumRenameHint: 'Change the album name',
   photosAlbumConvertToSmart: 'Convert to Smart Album',
   photosAlbumConvertToSmartHint: 'Nimo keeps adding matches automatically',
-  // Task 5 (#117 short titles): see zh_cn.photos.ts's comment on this pair -- Rename/Duplicate/
+  // Short menu titles (#117): see zh_cn.photos.ts's comment on this pair -- Rename/Duplicate/
   // Download as ZIP/Delete reuse existing short keys verbatim; only Convert is new.
   photosAlbumMenuConvert: 'Convert',
-  // Whole-branch review, Important 2: see zh_cn.photos.ts's comment on this key -- the menu
+  // See zh_cn.photos.ts's comment on this key -- the menu
   // entry's desc is a distinct target string from the convert modal's subtitle above.
   photosAlbumMenuConvertHint: 'Turn into a Smart Album that keeps updating',
   photosAlbumDuplicateHint: 'Copy the photos as a new album',
-  // ── Task 7: album -> smart album conversion dialog ──
+  // ── Album -> smart album conversion dialog ──
   photosAlbumConvertSuggestHint: 'Nimo suggests these conditions — final matching is decided when the Smart Album is created',
   photosAlbumConvertLockHint: 'Your {n} photos stay locked in. Nimo will keep adding new matches for this theme.',
   photosAlbumConverting: 'Converting…',
@@ -265,7 +269,7 @@ export default {
   photosAlbumDeleteHint: 'Photos stay in your library',
   photosAlbumDeleteTitle: 'Delete "{name}"?',
   photosAlbumDeleteBody: 'The album wrapper is removed but the {count} items stay in your library.',
-  // Whole-branch review, Important 3: see zh_cn.photos.ts -- the select bar's copy is distinct
+  // See zh_cn.photos.ts -- the select bar's copy is distinct
   // from the tile tooltip's in the target and must not mention the cover shortcut.
   photosAlbumHintSelectDrag: 'Click to select · Drag to reorder',
   photosAlbumHintSelectDragCover: 'Click to select · Drag to reorder · ★ to set cover',
@@ -275,14 +279,14 @@ export default {
   photosAlbumSortManual: 'Manual order',
   photosAlbumSortTaken: 'Date taken',
   photosAlbumSortAdded: 'Date added',
-  // SP15-P2c Task 3: the detail-page skeleton shared with the smart-view detail page.
+  // The detail-page skeleton shared with the smart-view detail page.
   // photosDetailItems/photosDetailVideos are the lowercase header-stats words that follow a
   // bold number ("12 items"), not the sidebar stat-cell captions (photosMoPhotos /
   // photosAlbumStatVideos) -- the English differs in case, so they are separate keys.
   photosDetailCreatedAt: 'Created {date}',
   photosDetailItems: 'items',
   photosDetailVideos: 'videos',
-  // Task 4: About section's "Time span" row label. Distinct from photosMoTime (moment detail's
+  // About section's "Time span" row label. Distinct from photosMoTime (moment detail's
   // own About row calls its third field "Time", a different label for a different thing).
   photosDetailTimeSpan: 'Time span',
   photosAlbumCurrentCover: 'Current cover',
@@ -318,7 +322,7 @@ export default {
   photosAddToAlbumEmpty: 'No albums yet — create one first.',
   photosAddToAlbumNew: '+ New album',
   // ── Photos: Favorites view - Save as Album ──
-  // Acceptance Fix-2 (owner finding): Vue2 PhotosFavoritesView.vue reuses the exact same
+  // Vue2 PhotosFavoritesView.vue reuses the exact same
   // $t('Save as Album') string for both the hero button (:22) and the modal header title
   // (:282) -- aligned to Vue2's literal value and reused for both here too (the previous
   // separate photosFavSaveAlbumTitle key, whose value differed from Vue2, is retired rather
@@ -328,25 +332,25 @@ export default {
   // Vue2 :291's input placeholder -- a literal hardcoded string (not templated with the
   // current year, unlike the pre-filled default value above), transcribed verbatim.
   photosFavSaveAlbumPlaceholder: 'e.g. Favorites · 2026',
-  // 评审 Important 2:补 Vue2 PhotosFavoritesView.vue:267-268/279-281 的副标题+脚注(T3
-  // 键清单漏列)。英文值逐字取自 Vue2 源(插值变量对齐成 {count})。
+  // Adds Vue2 PhotosFavoritesView.vue:267-268/279-281's subtitle + footnote (missing from the
+  // original key list). English values taken verbatim from the Vue2 source (interpolation
+  // variable aligned to {count}).
   photosFavSaveAlbumSub: 'Snapshot {count} favorited photos into a new album',
   photosFavSavedToast: '"{name}" saved · {count} photos',
   photosFavSaveFailed: 'Save failed',
   photosFavSaveAlbumNote: "The album becomes a static snapshot — it won't update when you favorite new photos. You can always make a new one later.",
-  // ── Photos: People (SP7-P5, task-3). en values are verbatim Vue2 $t() literal
+  // ── Photos: People. en values are verbatim Vue2 $t() literal
   // arguments (Vue2 uses the English string itself as the i18n key).
   photosPeople: 'People',
-  // Plan D Task 2 (re-shell): the PhotosTopbar `sub` line for this page's index route. Vue2's
+  // The PhotosTopbar `sub` line for this page's index route. Vue2's
   // own PhotosPeopleTopbar.vue:37 index-mode subtitle is `Face clusters · {named} named ·
-  // {unnamed} unnamed` — the task brief that specified this key gave the counts half verbatim
-  // but deliberately dropped the "Face clusters ·" lead-in (brief's exact wording), so this key
-  // carries only the counts clause; not a transcription oversight.
+  // {unnamed} unnamed` — only the counts clause is kept here, deliberately dropping the
+  // "Face clusters ·" lead-in; not a transcription oversight.
   photosPeopleTopbarSub: '{named} named · {unnamed} unnamed',
   photosPeopleNamed: '{n} named',
   photosPeopleUnnamedClusters: '{n} unnamed clusters',
   photosPeopleIndexedUpTo: 'Faces indexed up to {date}',
-  // Task 4 (2026-08-19 timeline/people-visibility fix): photosPeopleConfidence /
+  // 2026-08-19 timeline/people-visibility fix: photosPeopleConfidence /
   // photosPeopleConfidenceOption / photosPeopleClusters deleted here — the confidence dropdown
   // they belonged to is gone (see peopleView.ts's file header; a fixed 80% confidence default
   // silently hid a real 221-photo cluster). Verified zero remaining references before removal.
@@ -370,7 +374,7 @@ export default {
   photosPeopleFacesOffLink: 'Settings · AI behavior',
   photosPeopleMlOfflineTitle: 'Photos AI backend is offline',
   photosPeopleMlOfflineBody: 'Face recognition and smart search are paused while the Photos AI service starts up or is unavailable. Existing people stay visible.',
-  // 2026-08-20 (people-confirm-polish item 1): the old whole-cluster merge-suggestion banner
+  // 2026-08-20 (people-confirm-polish): the old whole-cluster merge-suggestion banner
   // (photosPeopleMergeFound/photosPeopleMergeReview/photosPeopleMergeDismissAll) was removed
   // along with MergeReviewDialog. The two reason keys below stay — mergeReasonKey (peopleView.ts)
   // itself wasn't deleted (a pure, already-tested helper a future merge-cards feature would
@@ -383,7 +387,7 @@ export default {
   photosPeopleNamedHint: '{n} more — sorted by frequency',
   photosPeopleUnnamedSection: 'Unnamed clusters',
   photosPeopleUnnamedHint: '{n} clusters · click to name, merge or delete',
-  // Fix round 2 (2026-08-19 timeline/people-visibility fix, product decision): the singleton
+  // 2026-08-19 timeline/people-visibility fix, product decision: the singleton
   // toggle (photosPeopleHideSingle/photosPeopleShowSingle) and the fold expander
   // (photosPeopleShowMoreClusters/photosPeopleCollapseClusters) are both deleted — the unnamed
   // grid now shows ONLY the distribution split's `visible` head, with no way to reach singleton
@@ -391,7 +395,7 @@ export default {
   photosPeopleHide: 'Hide',
   photosPeopleShow: 'Show',
   photosPeoplePhotosCount: '{n} photos',
-  // 用户验收新增键(Vue2 无对应原文),键序与 zh_cn.ts 严格一致(parity.test.ts 会断言)。
+  // New-UI addition (no Vue2 source); key order matches zh_cn.ts exactly (asserted by parity.test.ts).
   photosPersonViewPhotos: 'View these photos',
   photosPersonUnnamedTitle: 'Unnamed person',
   photosPersonNameThis: 'Name this person…',
@@ -406,13 +410,13 @@ export default {
   photosPersonMergeSearch: 'Search existing people…',
   photosPersonNoMatch: 'No matching people',
   photosPersonMergedToast: 'Cluster merged into "{name}"',
-  photosPersonMergeFailed: 'Merge failed', // ★ New-UI addition, value given directly in brief
+  photosPersonMergeFailed: 'Merge failed', // ★ New-UI addition, value given directly
   photosPersonDeleteTitle: 'Delete this person group?',
   photosPersonDeleteBody: 'Photos are kept. Face group and recognition records will be permanently removed. You can undo within 5 seconds.',
   photosPersonConfirmDelete: 'Confirm delete',
   photosPersonDeletedToast: '{label} deleted',
   photosPersonUndo: 'Undo',
-  // 2026-08-20 (people-confirm-polish item 1): MergeReviewDialog.vue is deleted; the keys that
+  // 2026-08-20 (people-confirm-polish): MergeReviewDialog.vue is deleted; the keys that
   // existed solely for it (photosPersonMergeSuggestTitle/photosPersonNotAMatch/
   // photosPersonMergeAs/photosPersonMergeGroupA/B/photosPersonMergeNimoLead/
   // photosPersonMergeDismissedToast) are removed with it (checked: no remaining references).
@@ -421,10 +425,10 @@ export default {
   // merge-success toasts.
   photosPersonMergeSuggestConfidence: 'Confidence {n}%',
   photosPersonMergeAsSame: 'same person',
-  // Plan D Task 3: photosPersonSubtitle ('Person details · faces & relationships') is back.
-  // Final-review Minor 8 (earlier P5) deleted this because the detail page's topbar was still
+  // photosPersonSubtitle ('Person details · faces & relationships') is back.
+  // It was previously deleted because the detail page's topbar was still
   // AreaShell (title-only, hidden on desktop) — Vue2 PhotosPeopleTopbar.vue:36's detail-state
-  // subtitle had nowhere to render. Task 3 re-shells PhotosPersonDetail.vue onto PhotosTopbar
+  // subtitle had nowhere to render. The detail page was later re-shelled onto PhotosTopbar
   // (title/sub/back props), which is exactly that detail-state slot, so the key is genuinely
   // needed again now. Do not confuse it with photosPeopleNamed / photosPeopleUnnamedClusters —
   // those come from Vue2's *banner* (PhotosPeopleView.vue:7-9) and are rendered in .people-sub
@@ -439,10 +443,10 @@ export default {
   photosPersonStatFirstSeen: 'First seen',
   photosPersonMakeAlbum: 'Make album',
   photosPersonBackground: 'Background',
-  // Task 8 (Plan D): hero action buttons completion (Vue2 PhotosPersonDetail.vue:89-91).
-  // Click is a no-op here — wiring deferred to Plan G — this only adds copy + visuals.
+  // Hero action buttons completion (Vue2 PhotosPersonDetail.vue:89-91).
+  // Click is a no-op here for now — wiring comes later — this only adds copy + visuals.
   photosPersonAskAbout: 'Ask about {name}',
-  // ★ New-UI addition (Task 10): see zh_cn.ts for the reasoning — Vue2 :33 is the generic
+  // ★ New-UI addition: see zh_cn.ts for the reasoning — Vue2 :33 is the generic
   // $t('Edit') label on the pill trigger button itself (not the three menu items below it);
   // reusing photosAlbumEdit/topbarEdit would tie this to unrelated features.
   photosPersonEdit: 'Edit',
@@ -462,7 +466,7 @@ export default {
   photosPersonKeyPhotoToast: 'Key photo updated',
   photosPersonKeyPhotoNoFace: 'No face of this person in that photo',
   photosPersonKeyPhotoFailed: 'Failed to set key photo',
-  // Vue2 :884-897 has separate singular/plural copy; fix-2 adds all 4 strings (the earlier
+  // Vue2 :884-897 has separate singular/plural copy; all 4 strings are added (the earlier
   // plural-only generic pair is removed)
   photosPersonDetachTitleOne: 'Not {name}?',
   photosPersonDetachTitleMany: 'Remove {n} photos from {name}?',
@@ -475,34 +479,33 @@ export default {
   photosPersonSaveHero: 'Save',
   photosPersonHeroSavedToast: 'Background updated',
   photosPersonHeroFailed: 'Failed to update background',
-  // Final-review Minor 10: the ★ was wrong here — `Rename failed` DOES exist in the old
+  // The ★ was wrong here — `Rename failed` DOES exist in the old
   // repo's locale table (zh_CN.json maps it to "重命名失败"), so the zh side was reverted
   // to the source translation. The en value itself is unchanged (verbatim Vue2).
   photosPersonRenamedFailed: 'Rename failed',
   photosPersonAlbumCreatedToast: 'Album created · {name}', // ★
-  // Final-review Minor 10: same as above — `Could not create album` exists in the old
+  // Same as above — `Could not create album` exists in the old
   // locale table ("相册创建失败"); ★ removed, zh reverted to the source translation.
   photosPersonAlbumFailed: 'Could not create album',
-  // ── Final-review Minor 9/10 re-check ────────────────────────────────────────
+  // ── ★-marker re-check ─────────────────────────────────────────────────────
   // ★ means "no such copy in Vue2, authored here" (convention at :788 / :815). Re-checked
   // every ★ below against the old repo's zh_CN.json: none of these English sentences exist
   // there, so ★ is accurate for them. Only the two above were mismarked and are now fixed.
-  // Final-review follow-up (fix round, Plan D): the ★ that used to sit on `photosPersonNotFound`/
+  // The ★ that used to sit on `photosPersonNotFound`/
   // `photosPersonBack` below has gone stale — Vue2 commit 03245590 later added matching copy for
-  // both (`Person not found` / `Back to People`, PhotosPersonDetail.vue:471/473, part of the same
-  // fallback-branch source this task's I1 re-anchor draws from), so they are no longer "no Vue2
-  // copy, authored here." ★ removed from both.
+  // both (`Person not found` / `Back to People`, PhotosPersonDetail.vue:471/473), so they are
+  // no longer "no Vue2 copy, authored here." ★ removed from both.
   photosPersonRelationFailed: 'Could not update group', // ★
   photosPersonFavFailed: 'Could not update favorite', // ★
   photosPersonNoPhotos: 'No photos for this person yet', // ★
   photosPersonNotFound: 'Person not found',
-  // Task 6 (Plan D, PR#137 gap-close): source-of-truth casing check against the Vue2 patch
+  // A source-of-truth casing check against the Vue2 patch
   // that introduced this string (`"Back to People": "Back to People"`) turned up a casing
   // mismatch here — fixed to match Vue2 verbatim (was 'Back to people').
   photosPersonBack: 'Back to People',
   photosPeopleEmptyTitle: 'No people yet', // ★
-  // Task 6 (Plan D, PR#137 gap-close): replaces the old single `photosPeopleEmptyHint` —
-  // Vue2's #137 patch (commit 03245590, PhotosPeopleView.vue) branches this hint on
+  // Replaces the old single `photosPeopleEmptyHint` — Vue2's later patch (commit 03245590,
+  // PR #137, PhotosPeopleView.vue) branches this hint on
   // whether face recognition is on, quoted verbatim from that commit's en_US.json.
   photosPeopleEmptyHintFaces: 'Faces are detected automatically while your photos are indexed. People will appear here soon.',
   photosPeopleEmptyHintNoFaces: 'Turn on face recognition to start finding people in your photos.',
@@ -511,8 +514,8 @@ export default {
   photosPersonPlacesLegend: 'Top places',
   photosPersonNoPlaces: 'No location data for {name} yet',
   photosPersonNimoRead: "Nimo's read",
-  // Task 8 (Plan D): rel-insight-card's "dig deeper" button (Vue2 PhotosPersonDetail.vue:
-  // 228-230 `.nimo-btn`). Click is a no-op here — wiring deferred to Plan G.
+  // The rel-insight-card's "dig deeper" button (Vue2 PhotosPersonDetail.vue:
+  // 228-230 `.nimo-btn`). Click is a no-op here for now — wiring comes later.
   photosPersonDigDeeper: 'Dig deeper',
   photosPersonInsightWith: '{name} appears most often with <b>{other}</b>.',
   photosPersonInsightWithUnnamed: '{name} appears together with an unnamed person.',
@@ -520,29 +523,29 @@ export default {
   photosPersonInsightPlace1: 'Their photos cluster in <b>{place}</b>.',
   photosPersonInsightNone: 'Not enough photos of {name} yet for an insight.',
   photosPersonUnknownPlace: 'Unknown', // no bare "Unknown" entry in zh_CN.json, see report caveats
-  // SP7-P5 task-6 addition: one UI string missed by T3; wording taken from Vue2
-  // zh_CN.json (:2079) by the coordinator. Appended at the end of the photos
+  // One UI string missed earlier; wording taken from Vue2
+  // zh_CN.json (:2079). Appended at the end of the photos
   // block — existing keys are not reordered. photosPeopleMinScore (the confidence dropdown
-  // header) was removed alongside Task 4's confidence dropdown, see peopleView.ts's file header.
+  // header) was removed alongside the confidence dropdown, see peopleView.ts's file header.
   photosPeopleClusterHint: '+ Name / Merge / Delete', // unnamed cluster hover hint, Vue2 :204
-  // T7 coordinator addition: <label> for ClusterActionDialog's name mode, wording
+  // <label> for ClusterActionDialog's name mode, wording
   // "Name" per zh_CN.json:49. Appended at the end of the block, existing keys not reordered.
   photosPersonNameLabel: 'Name',
-  // T7 review fix 1: delete mode's header-title slot, matches Vue2
+  // Delete mode's header-title slot, matches Vue2
   // PhotosPeopleView.vue:262 $t('Delete face cluster') verbatim (distinct from the
   // warning box's own title line, photosPersonDeleteTitle — two different sentences,
   // must not share one key).
   photosPersonDeleteClusterTitle: 'Delete face cluster',
-  // Coordinator ruling addition (Task 12 fix): the places tab's section title
+  // The places tab's section title
   // belongs to the tab component itself (Vue2 PhotosPersonDetail.vue :156-162
-  // sits inside v-if="tab==='map'", it's part of that tab; T13's relationships
+  // sits inside v-if="tab==='map'", it's part of that tab; the relationships
   // tab is the same, each tab owns its own section title). Verbatim strings
   // from Vue2 PhotosPersonDetail.vue :160-161. Apostrophe in "you've" — kept
   // double-quoted so it doesn't break the TS string literal. Appended at the
   // end of the photos block, existing keys not reordered.
   photosPersonPlacesTitle: 'Places with {name}',
   photosPersonPlacesSub: "Where you've photographed them, all-time",
-  // Task 13: relationships tab's own section title / legend / co-appearance
+  // The relationships tab's own section title / legend / co-appearance
   // count phrase. Verbatim from Vue2 zh_CN.json's English source keys
   // ("Relationship graph" / "Edge thickness = co-appearance count" /
   // "Frequent (200+)" / "Occasional" / "Co-appearance" / "{n} photos
@@ -556,11 +559,11 @@ export default {
   photosPersonGraphLegendOccasional: 'Occasional',
   photosPersonCoappearTitle: 'Co-appearance',
   photosPersonPhotosTogether: '{n} photos together',
-  // Task 6 (Plan D, PR#137 gap-close): relation-graph empty state, quoted verbatim from
-  // Vue2's #137 patch (commit 03245590's en_US.json).
+  // Vue2's later patch (commit 03245590, PR #137) added the relation-graph empty state, quoted
+  // verbatim from that commit's en_US.json.
   photosPersonRelGraphEmptyTitle: 'No co-appearances yet',
   photosPersonRelGraphEmptySub: 'When this person shows up in photos with others, the graph appears here.',
-  // Task 14 (container + six dialogs): copy that the brief's key list did not
+  // Container + six dialogs: copy that the original key list did not
   // cover and that a line-by-line pass over Vue2 PhotosPersonDetail.vue showed
   // was genuinely missing here. English strings are verbatim from the Vue2
   // source (line numbers noted per key). Appended at the end, no reordering.
@@ -572,42 +575,42 @@ export default {
   photosPersonNoPhotosAlbumHint: 'This person has no photos to add to an album yet.', // Vue2 :848
   photosPersonHeroSub: 'Select a photo to use as the hero background', // Vue2 :339
   photosPersonMergeIntoSub: 'All photos will move to the target person', // Vue2 :388
-  photosPersonMergeConfirm: 'Merge into {name}', // Vue2 :428 (target picked); zh reverted to source translation (Minor 9)
-  photosPersonMergeSelectPrompt: 'Select a person', // Vue2 :428 (nothing picked); zh reverted to source translation (Minor 9)
+  photosPersonMergeConfirm: 'Merge into {name}', // Vue2 :428 (target picked); zh reverted to source translation
+  photosPersonMergeSelectPrompt: 'Select a person', // Vue2 :428 (nothing picked); zh reverted to source translation
   photosPersonUnnamedLabel: 'Unnamed person', // Vue2 :962
-  // Deviation 1: Vue2 :943 only console.error's a failed detach; we surface a toast.
+  // Deviation from Vue2: :943 only console.error's a failed detach; we surface a toast here.
   photosPersonDetachFailed: 'Failed to remove photos',
-  // Task 14 fix (coordinator ruling 3): the brief claimed Vue2's four hero toasts
+  // The initial assumption was that Vue2's four hero toasts
   // collapse into two. Re-checking the source shows the two entry points each own a
   // distinct pair — onUseKeyPhoto (:681,683) "reset back to the key photo" vs
   // onSaveHero (:694,696) "switch to the picked photo". Kept as two separate pairs.
   photosPersonHeroResetToast: 'Background reset to key photo', // Vue2 :681
   photosPersonHeroResetFailed: 'Failed to reset background', // Vue2 :683
-  // Task 14 fix (coordinator ruling 4): a load failure must be distinguishable from
-  // "no such person" — that is exactly what T9's `failed` flag is for (Vue2 only
+  // A load failure must be distinguishable from
+  // "no such person" — that is exactly what the `failed` flag is for (Vue2 only
   // console.error's, so its view cannot tell them apart). Retry affordance included;
-  // P4 left a same-shaped debt (detail page load failure → permanent skeleton, no
+  // an earlier phase left a same-shaped gap (detail page load failure → permanent skeleton, no
   // error state, no retry) that we are not repeating here.
   photosPersonLoadFailed: 'Could not load this person',
-  // Task 6 (Plan D, PR#137 gap-close): the load-failed / not-found fallback states were
-  // missing their description line — Vue2's #137 patch added both (quoted verbatim from
+  // The load-failed / not-found fallback states were
+  // missing their description line — Vue2's later patch added both (quoted verbatim from
   // commit 03245590's en_US.json).
   photosPersonLoadFailedHint: 'Please check your connection and try again.',
   photosPersonNotFoundHint: 'This person may have been deleted or merged.',
   photosPersonRetry: 'Retry',
-  // T14 review Minor 4: the detail page's delete-confirm dialog heading. Vue2 :304 is
-  // `Delete person?` — a different sentence from T7's in-warning-box
+  // The detail page's delete-confirm dialog heading. Vue2 :304 is
+  // `Delete person?` — a different sentence from the in-warning-box
   // photosPersonDeleteTitle (`Delete this person group?`), which
   // ClusterActionDialog.vue:66 already documented as non-shareable. The original
   // implementation wrongly reused the latter.
   photosPersonDeletePersonTitle: 'Delete person?',
-  // T14 review Minor 6: Vue2 :310-312 renders the body as two sentences in two greys.
+  // Vue2 :310-312 renders the body as two sentences in two greys.
   // The existing photosPersonDeleteBody merges them into one string and is already
-  // consumed by T7 (ClusterActionDialog.vue:230), so it must not change — these two
+  // consumed by ClusterActionDialog.vue:230, so it must not change — these two
   // keys are the same text split in two for the detail page's two-tone rendering.
   photosPersonDeleteKeptBody: 'Photos are kept. Face group and recognition records will be permanently removed.',
   photosPersonDeleteUndoHint: 'You can undo within 5 seconds.',
-  // ── Photos: Favorites hero-stats three cards (Task 15A, SP7-P5) — Vue2
+  // ── Photos: Favorites hero-stats three cards — Vue2
   // PhotosFavoritesView.vue:57-84. en values verbatim from Vue2 source ($t()
   // literal argument). The "{n} photos" meta text reuses the existing
   // photosPeoplePhotosCount key rather than a new one (same literal in Vue2).
@@ -617,10 +620,10 @@ export default {
   photosFavStatInYear: 'in {year}',
   photosFavStatYearsTotal: '{n} years total',
   photosFavNoFaces: 'No faces yet',
-  // ── Task 6 (Plan H): place-filter dropdown — Vue2 PhotosFavoritesView.vue:412-416/353-360.
+  // ── Place-filter dropdown — Vue2 PhotosFavoritesView.vue:412-416/353-360.
   photosFavFilterPlaces: 'Places',
   photosFavFilterClear: 'Clear filter',
-  // ── Acceptance Fix-1 (owner finding, Plans G+H): the "All" chip + People/Years dropdowns
+  // ── The "All" chip + People/Years dropdowns
   // — Vue2 PhotosFavoritesView.vue :114-116 ($t('All')) / :125 ($t('People')) / :177
   // ($t('Years')). en values verbatim from old zh_CN.json's own English source, matching
   // the already-landed photosFavFilterPlaces above ($t('Places')).
@@ -631,25 +634,25 @@ export default {
   photosFavSort: 'Sort',
   photosFavSortRecent: 'Recent',
   photosFavSortOldest: 'Oldest',
-  // ── Final-review Minor 6 / 7: short copy on the hero ────────────────────────
-  // M6: Vue2 :38/:41 uses short verbs in the Edit dropdown (`Rename` / `Merge into…`).
+  // ── Short copy on the hero ──────────────────────────────────────────────────
+  // Vue2 :38/:41 uses short verbs in the Edit dropdown (`Rename` / `Merge into…`).
   // The original implementation reused photosPersonRename / photosPersonMergeInto, which
   // are also the dialogs' <h*> titles ("Rename person" / "Merge into another person") —
   // they read as full sentences and 24 chars at 12.5px overflow the 170px-min menu.
   // Values verbatim from Vue2.
   photosPersonMenuRename: 'Rename',
   photosPersonMenuMergeInto: 'Merge into…',
-  // M7: Vue2 :26's un-favorited title is `Mark as favorite`, not the generic `Favorite`.
+  // Vue2 :26's un-favorited title is `Mark as favorite`, not the generic `Favorite`.
   // The favorited branch keeps the existing photosUnfavorite key.
   photosPersonMarkFavorite: 'Mark as favorite',
-  // ── SP7-P6a T4: Places domain (map view) i18n keys ─────────────────────────
+  // ── Places domain (map view) i18n keys ─────────────────────────────────────
   // Values verified against the Vue 2 panel's src/assets/lang/en_US.json.
   // English literals matched for every row — only the zh side needed
   // corrections; see zh_cn.ts comments for the full list.
   photosPlaces: 'Places',
   photosPlacesCities: 'cities',
   photosPlacesCountries: 'countries',
-  // Task 1 (Plan E re-shell): PhotosTopbar's `sub` line on the Places index page — value
+  // PhotosTopbar's `sub` line on the Places index page — value
   // copied verbatim from Vue2 PhotosPlacesTopbar.vue's own subtitle computed (the Vue 2 panel's
   // src/views/Photos/PhotosPlacesTopbar.vue:34, which uses the English literal itself as the
   // i18n key, English-source-as-key convention) and the Vue 2 panel's src/assets/lang/en_US.json:2442.
@@ -709,9 +712,9 @@ export default {
   // only the active filters narrowed it to zero — misleading users into thinking
   // the index is broken. Added a distinct copy for "empty after filtering".
   photosPlacesFilterEmpty: 'No cities match the current filters',
-  // ── SP7-P6b T1: Places detail panel i18n keys ──────────────────────────────
+  // ── Places detail panel i18n keys ──────────────────────────────────────────
   // 42 sourced verbatim from the Vue 2 panel's src/assets/lang/en_US.json (verified against
-  // source, zero discrepancies); 3 authored (D8 + deviation-log 6, see inline notes).
+  // source, zero discrepancies); 3 authored (see the inline notes below).
   photosPlacesHomeBase: 'Home base',
   // Note: en_US.json has distinct singular/plural copy for trip/trips (zh has one
   // shared string) — kept as two keys per json, matching the source as-is.
@@ -741,8 +744,8 @@ export default {
   photosPlacesSpotSave: 'Save',
   photosPlacesSpotViewInLibrary: 'View all photos of this spot in Library',
   photosPlacesSpotResetName: 'Reset to default name', // authored (D8), no Vue2 counterpart
-  photosPlacesSpotRenameFailed: 'Could not rename spot', // authored (deviation-log 6), no Vue2 counterpart
-  photosPlacesCoverFailed: 'Could not update cover', // authored (deviation-log 6), no Vue2 counterpart
+  photosPlacesSpotRenameFailed: 'Could not rename spot', // authored, no Vue2 counterpart
+  photosPlacesCoverFailed: 'Could not update cover', // authored, no Vue2 counterpart
   photosPlacesCoverSet: 'Set cover',
   photosPlacesCoverTitle: 'Set {city} cover',
   photosPlacesCoverSubtitle: 'Pick one of {count} photos as the cover',
@@ -761,7 +764,7 @@ export default {
   // slot instead (<i18n-t> can only open a slot at an interpolation position).
   photosPlacesInsightTopSpot: '{spot} is the dominant spot — {count} photos.',
   photosPlacesInsightCompanions: 'Spotted with {names} here.',
-  // Deviation-log 10: original json is "Your <b>home base</b> — …"; the bolded static
+  // Original json is "Your <b>home base</b> — …"; the bolded static
   // word "home base" is split into a {base} slot, see photosPlacesInsightHomeBase below.
   photosPlacesInsightHome: 'Your {base} — {count} photos across {trips} trips.',
   // Note: this and photosPlacesHomeBase ("Home base") are Vue2's two different phrasings
@@ -769,20 +772,20 @@ export default {
   // word inside the insight sentence ("home base", lowercase per json). Kept as-is per
   // the 1:1 rule, not unified.
   photosPlacesInsightHomeBase: 'home base',
-  // ---- P7a-T1: Smart Views, 107 new keys appended after photosPlacesInsightHomeBase ----
-  // (table listed 115 rows; 8 duplicate pre-existing keys per brief item 7 and are reused, not re-added — see task report)
-  // Whole-branch review, Minor 6: photosSvAddedThisWeek was deleted along with its only consumer,
-  // SmartViewCard.vue (removed in Task 10). See zh_cn.photos.ts for the grep note.
-  // P7a-T8 fix round 1 · I3: strip literal <b>, switch to <i18n-t> named slots (zero
+  // ---- Smart Views, 107 new keys appended after photosPlacesInsightHomeBase ----
+  // (the original table listed 115 rows; 8 duplicated pre-existing key values and are reused rather than re-added)
+  // photosSvAddedThisWeek was deleted along with its only consumer,
+  // SmartViewCard.vue (later removed). See zh_cn.photos.ts for the grep note.
+  // Strip literal <b>, switch to <i18n-t> named slots (zero
   // v-html). Re-checked zh_CN.json source: both rows bold the whole "interpolation +
   // language-specific word" phrase (`<b>1 张新照片</b>` / `<b>{n} 张新照片</b>` are
   // symmetric) ⇒ both split into a base-sentence key + a bold-phrase key, not treated
-  // differently (see SmartViewActivityFeed.vue header comment + task-8-report.md).
+  // differently (see SmartViewActivityFeed.vue's own header comment).
   photosSvActOneMatched: '{photo} auto-added',
   photosSvActOneMatchedBold: '1 new photo',
   photosSvActNMatched: '{photo} auto-added',
   photosSvActNMatchedBold: '{n} new photos',
-  // Task 8: converted_from_album activity row (reverse of Task 7's convertFromAlbum). No
+  // The converted_from_album activity row (reverse of the convertFromAlbum flow). No
   // <b> in Vue2 for either branch, so these are plain text keys -- no split main-clause +
   // bold-phrase pair like the matched rows above.
   photosSvActConvertedFromAlbum: 'Converted from album',
@@ -790,7 +793,7 @@ export default {
   photosSvActivity: 'Activity',
   photosSvAddAnother: 'Add another…',
   photosSvAllMatches: 'All matches',
-  // P7a-T8: <b> only wraps the interpolation {n} ⇒ slot directly, strip literal <b></b>.
+  // <b> only wraps the interpolation {n} ⇒ slot directly, strip literal <b></b>.
   photosSvThreshHelp: 'At {pct}%, expect ~{n} new photos per week.',
   photosSvAutoAddMatches: 'Auto-add new matches',
   photosSvAutoAddMatchesPhotos: 'Auto-add new matches as photos arrive',
@@ -803,14 +806,14 @@ export default {
   photosSvChangeSmartViewName: 'Change the Smart View name',
   photosSvConditions: 'Conditions',
   photosSvConditionsSettingsUpdated: 'Conditions or settings updated',
-  // ── Task 8: smart album -> regular album conversion (reverse of Task 7) ──
+  // ── Smart album -> regular album conversion (reverse flow) ──
   photosSvConvertToAlbum: 'Convert to regular album',
   photosSvConvertToAlbumHint: 'Stop auto-updates and lock in the current matches',
   photosSvConvertToAlbumTitle: 'Convert "{name}" to a regular album?',
   photosSvConvertToAlbumBody: 'Auto-updates stop. The current {n} photos become fixed into a regular album — the theme and conditions will be removed.',
   photosSvConvertedToAlbum: 'Converted to regular album',
   photosSvCopyQuerySv: 'Copy the query as a new SV',
-  // SP15-P2b Task 4: embedded-mode label for the same submit button that reads
+  // Embedded-mode label for the same submit button that reads
   // photosSvCreateSmartView in standalone mode (Vue2 PhotosSmartAlbumCreate.vue's own
   // hard-coded 'Create Smart Album' string, ported here as a key since this file merges
   // both modes into one component).
@@ -829,8 +832,8 @@ export default {
   photosSvKeepLive: 'Keep it live',
   photosSvLastUpdate: 'Last update',
   photosSvLastUpdatedTime: 'Last updated {time}',
-  // SP15-P2b Task 4 (Vue2 939a7d3a:PhotosAlbumsView.vue's `sourceOptions`, 4th entry --
-  // verbatim from zh_CN.json:1987-1988's English source strings, not the plan's guesses).
+  // (Vue2 939a7d3a:PhotosAlbumsView.vue's `sourceOptions`, 4th entry -- verbatim from
+  // zh_CN.json:1987-1988's English source strings, not an earlier guess.)
   photosSvLetNimoDraft: 'Let Nimo draft it',
   photosSvLetNimoDraftHint: 'Describe the theme, let AI fill it in',
   photosSvLive: 'Live',
@@ -876,8 +879,8 @@ export default {
   photosSvSmartViewRenamed: 'Smart View renamed',
   photosSvSmartViews: 'Smart Views',
   photosSvSmartViewsAutoUpdate: 'Smart Views auto-update is off',
-  // SP15-P2b Task 4: disabled-option title on the Albums "New album" panel's 4th fill
-  // choice when the smartview AI feature is off.
+  // Disabled-option title on the Albums "New album" panel's 4th fill choice when the
+  // smartview AI feature is off.
   photosSvSmartViewsOffCreateHint: 'Smart Views are turned off — re-enable them in Settings · AI behavior to create new ones.',
   photosSvStats: 'Stats',
   photosSvStrict: 'Strict',
@@ -896,16 +899,16 @@ export default {
   photosSvNPhotosMbMb: '{n} photos · ~{mb} MB',
   photosSvRelHours: '{n}h ago',
   photosSvRelMinutes: '{n}m ago',
-  // P8a-T6: photosSvSettingsPending ('Settings page coming in P8') removed here — zero
+  // photosSvSettingsPending ('Settings page coming in P8') removed here — zero
   // references repo-wide. See the matching zh_cn.ts comment for why (the placeholder title
-  // for the AI-banner's non-clickable settings span, now a real RouterLink, §7e-9).
-  // ---- P7a-T6: detail-page shell additions (beyond T1's 107 keys) ----
+  // for the AI-banner's non-clickable settings span, now a real RouterLink).
+  // ---- Detail-page shell additions (beyond the 107 keys above) ----
   photosSvNotFound: 'Smart View not found',
   photosSvRenameFailed: 'Rename failed',
   photosSvUpdateFailed: 'Update failed',
   photosSvDeleteFailed: 'Delete failed',
   photosSvDuplicateFailed: 'Duplicate failed',
-  // ── SP15-P2a: manual asset actions ──
+  // ── Manual asset actions ──
   // English values are Vue2's literal source strings. See the zh_cn.ts comment for the five
   // strings this screen reuses from elsewhere in the file instead of adding again.
   photosSvAddPhotos: 'Add photos',
@@ -920,12 +923,12 @@ export default {
   photosSvShow: 'Show',
   photosSvHide: 'Hide',
   photosSvRestore: 'Restore',
-  // ── SP15-P2c Task 6: sort capsule + the edit-mode bar's empty-selection hint. English
+  // ── The smart-view detail header's sort capsule + the edit-mode bar's empty-selection hint. English
   // values are Vue2's literal source strings. See the zh_cn.photos.ts comment for the nine
   // strings the rebuilt row reuses from elsewhere in this file instead of adding again.
   photosSortScore: 'Match score',
   photosSvClickToSelect: 'Click to select',
-  // ---- P7a-T9: search panel (filter bar + popovers) 54 keys, see the matching
+  // ---- Search panel (filter bar + popovers) 54 keys, see the matching
   // zh_cn.ts comment. English values are the Vue2 PhotosSearchView.vue literal
   // English strings (= the Vue2 en dict keys), 1:1. ----
   photosSearchAlbums: 'Albums',
@@ -961,7 +964,7 @@ export default {
   photosSearchPreviousMonth: 'Previous month',
   photosSearchQuickRange: 'Quick range',
   photosSearchRecentSearches: 'Recent searches',
-  // Fix-4 (owner-directed addition, 2026-08-17): clear-history button, no Vue2 source.
+  // Added 2026-08-17: clear-history button, no Vue2 source.
   photosSearchClearHistory: 'Clear',
   photosSearchRecent: 'Recent:',
   photosSearchRelevance: 'Relevance',
@@ -984,30 +987,31 @@ export default {
   photosSearchCountMatches: '{count} matches',
   photosSearchCountResultsSecondsS: '{count} results · {seconds}s',
   photosSearchNameSavedSmartView: '“{name}” saved as a Smart View',
-  // fix round 1 · I3:PhotosSearchBar 的 placeholder 新键(追加,不重排)。原文见
-  // Vue2 面板的 src/assets/lang/en_US.json:2324。
+  // PhotosSearchBar's placeholder, a new key appended at the end (not reordered). Source
+  // string from the Vue 2 panel's src/assets/lang/en_US.json:2324.
   photosSearchSearchBarPlaceholder: 'Search photos, people, places, or describe in a sentence…',
-  // ── SP7-P8a 相册设置页 + 深链 + 错误态 ──
-  // zh 文案权威 = Vue2 src/assets/lang/zh_CN.json;json 里没有对应键的(Vue2
-  // PhotosSettings.vue 内联硬编码英文)在该键上方单独注明「自拟」与 Vue2 行号。
-  // 本期不迁:主题开关(台账第二笔)· AI 入口(D1)· Sign out(D22)· 上传整块(D21)。
-  // 自拟(Vue2 PhotosSettings.vue:18 内联 "Settings")
+  // ── Albums settings page + deep links + error states ──
+  // Chinese copy authority = Vue2's src/assets/lang/zh_CN.json; where json has no matching key
+  // (Vue2 PhotosSettings.vue inlines hardcoded English), the key above is annotated "authored"
+  // with the Vue2 line number.
+  // Not migrated this round: theme toggle, AI entry point, sign out, the whole upload section.
+  // Authored (Vue2 PhotosSettings.vue:18 inline "Settings")
   photosSettingsTitle: 'Settings',
-  // Plan H Task 11 review fix: photosSettingsSubtitle (Vue2 PhotosSettings.vue:19 topbar
-  // subtitle "Storage · AI behavior") is RESTORED here. The final-review Minor 4 deletion rationale
+  // photosSettingsSubtitle (Vue2 PhotosSettings.vue:19 topbar
+  // subtitle "Storage · AI behavior") is RESTORED here. The rationale
   // that used to sit on this line is now false: it argued AreaShell.vue's `title`-only prop
-  // had no slot for a subtitle, but Task 11's re-shell dropped AreaShell entirely in favor of
+  // had no slot for a subtitle, but the page was later re-shelled off AreaShell entirely in favor of
   // PhotosTopbar (which DOES take a `sub` prop, same as every other re-shelled Photos view) —
   // that premise no longer holds, so the key is back and wired via `:sub="t('photosSettingsSubtitle')"`.
   // Ad-hoc (Vue2 PhotosSettings.vue:19 inline "Storage · AI behavior")
   photosSettingsSubtitle: 'Storage · AI behavior',
-  // 自拟(Vue2 PhotosSettings.vue:31 内联英文长句)
+  // Authored (Vue2 PhotosSettings.vue:31 inlines a long English sentence)
   photosSettingsHeroDesc: 'Everything Nimo does on your NAS — what runs, where it runs, and how much space it takes.',
-  // 自拟(Vue2 PhotosSettings.vue:33 内联 "Storage")
+  // Authored (Vue2 PhotosSettings.vue:33 inlines "Storage")
   photosSettingsNavStorage: 'Storage',
-  // 自拟(Vue2 PhotosSettings.vue:34 内联 "AI behavior")
+  // Authored (Vue2 PhotosSettings.vue:34 inlines "AI behavior")
   photosSettingsNavAi: 'AI behavior',
-  // 自拟(Vue2 PhotosSettings.vue:46 内联 "Storage")
+  // Authored (Vue2 PhotosSettings.vue:46 inlines "Storage")
   photosSettingsStorage: 'Storage',
   photosSettingsVolume: 'volume',
   photosSettingsFree: 'free',
@@ -1019,13 +1023,13 @@ export default {
   photosSettingsSegThumbs: 'Thumbnail cache',
   photosSettingsSegAi: 'AI index',
   photosSettingsSegOther: 'Other data',
-  // 自拟(Vue2 PhotosSettings.vue:72 内联 "Free"；图例里的"可用"行，与 photosSettingsFree 同义分用两处)
+  // Authored (Vue2 PhotosSettings.vue:72 inlines "Free"; the legend's "可用" row, sharing the same meaning as photosSettingsFree across two separate usages)
   photosSettingsSegFree: 'Free',
-  // 自拟(Vue2 PhotosSettings.vue:81 内联 "Recently Deleted retention")
+  // Authored (Vue2 PhotosSettings.vue:81 inlines "Recently Deleted retention")
   photosSettingsRetentionLabel: 'Recently Deleted retention',
-  // 自拟(Vue2 PhotosSettings.vue:82 内联长句)
+  // Authored (Vue2 PhotosSettings.vue:82 inlines a long sentence)
   photosSettingsRetentionDesc: "How long to keep deleted photos before they're permanently removed from the NAS.",
-  // 自拟(Vue2 PhotosSettings.vue:87 内联 "{{d}}d"，未走 $t)
+  // Authored (Vue2 PhotosSettings.vue:87 inlines "{{d}}d", not routed through $t)
   photosSettingsRetentionDay: '{n}d',
   photosSettingsRetentionFailed: 'Failed to save retention',
   photosSettingsRescanLabel: 'Rescan library',
@@ -1036,28 +1040,30 @@ export default {
   photosSettingsScanIntervalLabel: 'Auto rescan interval',
   photosSettingsScanIntervalDesc: 'How often to automatically scan all drives for new media.',
   photosSettingsScanIntervalOff: 'Off',
-  // 自拟(Vue2 PhotosSettings.vue:116 内联 "Thumbnail cache"；同名 json 键"Thumbnail cache"
-  // 被 photosSettingsCacheLabel 复用，此处是同一段文案的两个引用点，取值一致)
+  // Authored (Vue2 PhotosSettings.vue:116 inlines "Thumbnail cache"; the same-named json key
+  // "Thumbnail cache" is reused by photosSettingsCacheLabel -- two reference points for the
+  // same copy, same value)
   photosSettingsCacheLabel: 'Thumbnail cache',
   photosSettingsCacheDesc: 'Stale previews left behind by deleted photos. Active thumbnails are kept.',
   photosSettingsClearCache: 'Clear cache',
   photosSettingsClearing: 'Clearing…',
   photosSettingsCleared: 'Cleared',
-  // json "Cache cleared" + "freed" 拼接键（Vue2 :422 运行时用 `·` 连接两个 $t 片段 +
-  // 原始字节数），此处收成一个带 {size} 占位符的完整句子。
+  // A concatenation of json's "Cache cleared" + "freed" keys (Vue2 :422 joins two $t fragments
+  // and a raw byte count with `·` at runtime); collapsed here into one complete sentence with
+  // a {size} placeholder.
   photosSettingsCacheClearedToast: 'Cache cleared · {size} freed',
   photosSettingsCacheClearFailed: 'Failed to clear cache',
-  // 自拟(Vue2 PhotosSettings.vue:135 内联 "AI behavior")
+  // Authored (Vue2 PhotosSettings.vue:135 inlines "AI behavior")
   photosSettingsAiTitle: 'AI behavior',
-  // 自拟(Vue2 PhotosSettings.vue:136 内联 "What Nimo does, and where it runs.")
+  // Authored (Vue2 PhotosSettings.vue:136 inlines "What Nimo does, and where it runs.")
   photosSettingsAiSubtitle: 'What Nimo does, and where it runs.',
-  // 自拟(Vue2 PhotosSettings.vue:145 内联 "Nothing leaves your NAS")
+  // Authored (Vue2 PhotosSettings.vue:145 inlines "Nothing leaves your NAS")
   photosSettingsPrivacyTitle: 'Nothing leaves your NAS',
-  // 自拟(Vue2 PhotosSettings.vue:147-149 内联长句)
+  // Authored (Vue2 PhotosSettings.vue:147-149 inlines a long sentence)
   photosSettingsPrivacyBody: 'All inference — faces, scenes, OCR, scoring — runs on this NAS. No image, embedding, or metadata is sent to any external service.',
-  // 自拟(Vue2 PhotosSettings.vue:155 内联 "Features")
+  // Authored (Vue2 PhotosSettings.vue:155 inlines "Features")
   photosSettingsFeaturesTitle: 'Features',
-  // 自拟(Vue2 PhotosSettings.vue:156 内联长句)
+  // Authored (Vue2 PhotosSettings.vue:156 inlines a long sentence)
   photosSettingsFeaturesDesc: "Turn off anything you don't want Nimo to compute. Off features stop running and free up cycles.",
   photosSettingsFeatFaces: 'Face recognition',
   photosSettingsFeatFacesDesc: 'Group photos by person, find faces in new uploads.',
@@ -1072,40 +1078,43 @@ export default {
   photosSettingsIndexRebuilding: 'Rebuilding…',
   photosSettingsIndexLastBuilt: 'Last built',
   photosSettingsIndexNever: 'never',
-  // 自拟——但并非纯自拟:Vue2 PhotosSettings.vue:176 渲染 `{{indexedPct}}% {{ $t('complete.') }}`,
-  // 数字未译、"complete." 是 json 键(译"已完成。")。英文语序恰好与 json 片段拼接一致。
+  // Authored, but not purely authored: Vue2 PhotosSettings.vue:176 renders
+  // `{{indexedPct}}% {{ $t('complete.') }}`, where the number is untranslated and "complete."
+  // is a json key (translated "已完成。"). English word order happens to match json's
+  // concatenated fragments exactly.
   photosSettingsIndexPct: '{pct}% complete.',
-  // json "Covers" + "items. Rebuild after restoring from backup or changing the model." 拼接键
-  // （Vue2 :177 运行时用 `$t('Covers') + coverageCount + $t('items. Rebuild after…')` 拼接）。
+  // A concatenation of json's "Covers" + "items. Rebuild after restoring from backup or
+  // changing the model." keys (Vue2 :177 concatenates
+  // `$t('Covers') + coverageCount + $t('items. Rebuild after…')` at runtime).
   photosSettingsIndexCoverage: 'Covers {count} items. Rebuild after restoring from backup or changing the model.',
   photosSettingsRebuildIndex: 'Rebuild index',
   photosSettingsRebuiltToast: 'AI index rebuilt',
   photosSettingsRebuildFailed: 'Rebuild failed',
   photosSettingsRebuildStartFailed: 'Failed to start rebuild',
-  // 自拟(Vue2 PhotosSettings.vue:189 内联 "Re-cluster faces"，未走 $t)
+  // Authored (Vue2 PhotosSettings.vue:189 inlines "Re-cluster faces", not routed through $t)
   photosSettingsRecluster: 'Re-cluster faces',
   photosSettingsReclusterStarted: 'Face re-clustering started in background',
   photosSettingsReclusterFailed: 'Failed to start re-clustering',
   photosSettingsAppearance: 'Appearance',
   photosSettingsThemeDark: 'Dark',
   photosSettingsThemeLight: 'Light',
-  // 自拟(Vue2 PhotosSettings.vue:196 内联 "Nimo Photos")
+  // Authored (Vue2 PhotosSettings.vue:196 inlines "Nimo Photos")
   photosSettingsFooterApp: 'Nimo Photos',
   photosSettingsRunningOn: 'Running on',
   photosSettingsLibrarySince: 'Library since',
   photosDeepLinkPhotoNotFound: 'Photo not found',
-  // 自拟(New-UI 新增失败态，Vue2 无对应)
+  // Authored (New-UI addition, failure state, no Vue2 counterpart)
   photosFavoritesLoadFailed: "Couldn't load favorites",
-  // 自拟(New-UI 新增失败态，Vue2 无对应)
+  // Authored (New-UI addition, failure state, no Vue2 counterpart)
   photosAlbumLoadFailed: "Couldn't load this album",
-  // 自拟(New-UI 新增，两处失败态共用的重试按钮，Vue2 无对应)
+  // Authored (New-UI addition, retry button shared by the two failure states above, no Vue2 counterpart)
   photosRetry: 'Retry',
-  // SP15-P3 Task 11: NimoOS-Photos#54 turned an absent limit on GET /photos/favorites into
-  // 500 rather than "everything" — these two keys are new-UI-only pagination copy, no Vue2
-  // equivalent (Vue2 never paged this endpoint).
+  // NimoOS-Photos#54 turned an absent limit on GET /photos/favorites into 500 rather than
+  // "everything" — these two keys are new-UI-only pagination copy, no Vue2 equivalent (Vue2
+  // never paged this endpoint).
   photosLoadedSubsetHint: 'Stats reflect the first {n} loaded items',
   photosLoadMore: 'Load more',
-  // ── SP15-P1 Moments ──
+  // ── Moments ──
   photosMoBadge: 'Moment',
   photosMoTypeTrip: 'Trip',
   photosMoTypePets: 'Pets',
@@ -1114,13 +1123,13 @@ export default {
   photosMoAddedThisWeek: '+{n} this week',
   photosMoHeroTitle: 'Moments · For You',
   photosMoHeroDesc: 'Nimo automatically groups your best shots into moments — trips, people, and themes worth reliving.',
-  // SP15-P2b Task 5: the sidebar entry's new label (was "Smart Views"), and the slim
-  // settings hint shown when the band is hidden.
+  // The sidebar entry's new label (was "Smart Views"), and the slim settings hint shown when
+  // the band is hidden.
   photosMoForYou: 'For You',
   photosMoFollowsSmartViewSetting: 'Moments follows the Smart Views setting — turn it back on in',
-  // SP15-P1-T6: shown when moments.reorder() fails a drag-drop and reverts to server order.
+  // Shown when moments.reorder() fails a drag-drop and reverts to server order.
   photosMoOrderSaveFailed: 'Failed to save order',
-  // ── SP15-P1-T7: moment detail page (Vue2 899af59b:PhotosMomentDetail.vue) ──
+  // ── Moment detail page (Vue2 899af59b:PhotosMomentDetail.vue) ──
   photosMoBackToAll: 'All Moments',
   photosMoLastUpdated: 'Last updated {time}',
   // New-UI only: Vue 2 received the moment as a prop and could never hit a missing id.
@@ -1139,13 +1148,13 @@ export default {
   // fix round 1 · finding 4: shown when the moment list itself could not be fetched.
   // Deliberately says nothing about whether the moment exists — we do not know.
   photosMoLoadFailed: "Couldn't load moments",
-  // ── SP15-P1-T8: the two photo grids ──
+  // ── The two photo grids ──
   photosMoAllPhotos: 'All photos',
   // Same English wording as filesViewerLoading/appsSourcesLoading/etc. — not a fresh
   // translation, this repo's existing generic "loading" ellipsis.
   photosMoLoading: 'Loading…',
   photosMoNoPhotosYet: "This moment doesn't have photos yet.",
-  // ── SP15-P1-T9: adding photos to the moment / removing them from it ──
+  // ── Adding photos to the moment / removing them from it ──
   // Vue 2's own en_US strings (899af59b:src/assets/lang/en_US.json). The picker's title
   // deliberately gets no new key — see the note in zh_cn.photos.ts.
   photosMoAddPhotos: 'Add photos',
@@ -1156,7 +1165,7 @@ export default {
   photosMoRemoveFromMoment: 'Remove from this moment',
   photosMoRemovedN: 'Removed {n} from this moment',
   photosMoRemoveFailed: 'Remove failed',
-  // ── SP15-P1-T10: save as album / delete moment — see the note in zh_cn.photos.ts for the
+  // ── Save as album / delete moment — see the note in zh_cn.photos.ts for the
   // six keys reused instead of duplicated (photosPlacesToastOpen/photosSvPhotosStayLibrary/
   // photosSvDeleteName/photosSvDeleteFailed/photosCancel/photosDelete).
   photosMoSaveAsAlbum: 'Save as Album',
@@ -1166,11 +1175,11 @@ export default {
   photosMoDeleteMoment: 'Delete moment',
   photosMoDeleteBody: 'The moment is removed. The {n} photos in your library are untouched.',
   photosMoDeleted: 'Moment "{name}" deleted',
-  // ── Task 3 (shell + sidebar re-skin): sidebar-head theme toggle button title,
+  // ── Sidebar-head theme toggle button title,
   // Vue2 PhotosSidebar.vue:29's $t('Switch to dark theme')/$t('Switch to light theme').
   photosSwitchToDarkTheme: 'Switch to dark theme',
   photosSwitchToLightTheme: 'Switch to light theme',
-  // ── Task 4 (topbar re-skin): the topbar's collapse-toggle button title,
+  // ── The topbar's collapse-toggle button title,
   // Vue2 PhotosTopbar.vue:3's $t('Toggle sidebar'). KVM already has the same copy under
   // kvmToggleSidebar, but that key is namespaced to the KVM area per this repo's
   // per-area-prefix key convention — a new photos-prefixed key here, not a cross-area reuse.
@@ -1181,7 +1190,7 @@ export default {
   // owned by the unified overlay-dismiss handling), so the copy describes the real
   // destination instead of keeping the "(Esc)" wording.
   photosSearchBackToLibrary: 'Back to library',
-  // ── Task 7 (Plan D, SP7-P5 people): Hidden people section + hide action + duplicate-name
+  // ── Hidden people section + hide action + duplicate-name
   // confirm flow — all values below are Vue2's own literal English source strings.
   // Vue2 PhotosPeopleView.vue:228 (section header $t('Hidden people')).
   photosPeopleHiddenSection: 'Hidden people',
@@ -1248,7 +1257,7 @@ export default {
   photosSuggestFindPeople: 'Find people',
   photosGridAskNimoRecap: 'Build a recap album from these {count} photos.',
   photosSearchFindPhotosPrefix: 'Find photos: ',
-  // ── Plan C Task 2 (2026-08-20 people-suggestions-ui): the "To confirm" suggestion-
+  // ── 2026-08-20 people-suggestions-ui: the "To confirm" suggestion-
   // confirmation section on the People page — per-face join/review suggestions grouped by
   // person, sitting above the named-people area. New-UI-only feature, no Vue2 counterpart. ──
   photosPeopleSuggestions: 'To confirm',
@@ -1284,14 +1293,14 @@ export default {
   photosPeopleReviewProgress: '{k} / {n}',
   // Done-state title once every suggestion has been decided or skipped.
   photosPeopleReviewDoneTitle: 'All caught up',
-  // 2026-08-20 (people-confirm-polish item 2, carried into the wizard): alt text for the face/
+  // 2026-08-20 (people-confirm-polish, carried into the wizard): alt text for the face/
   // context photo images and the hover title for "click to view full photo" -- shared by the
   // wizard's default view, compare view, and zoom lightbox.
   photosPeopleSuggestPeekAlt: 'View full photo',
-  // ── Merge cards (2026-08-21): HAC gray-band cluster-merge review questions -- depends on the
-  // backend's DEV-NimoOS-Photos feat/cluster-merge-questions branch (PR #6), 404-self-hides
-  // until that ships; shares the same review wizard as the other photosPeopleReview* keys
-  // above, just queued after the per-face suggestions. ──
+  // ── Merge cards (2026-08-21): HAC gray-band cluster-merge review questions -- depends on a
+  // backend change that has not shipped yet; the endpoint 404s until then. Shares the same
+  // review wizard as the other photosPeopleReview* keys above, just queued after the per-face
+  // suggestions. ──
   photosPeopleMergeQuestionTitle: 'Are these the same person?',
   // Merge / Different / Skip -- Skip reuses photosPeopleReviewSkip above (purely client-side
   // advance, same semantics in both flows).

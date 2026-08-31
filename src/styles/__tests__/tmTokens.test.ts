@@ -1,5 +1,5 @@
 // Guards the Time Machine (Files snapshot browser) design tokens defined in theme.css.
-// Owner ruling: Time Machine looks the same in dark and light themes, so every --tm-* token
+// By design, Time Machine looks the same in dark and light themes, so every --tm-* token
 // introduced here (unlike most theme.css tokens) must carry the SAME literal value in both
 // the dark :root block and the :root[data-theme="light"] block.
 //
@@ -178,7 +178,7 @@ describe('Time Machine --tm-* tokens (Task 1)', () => {
     }
   })
 
-  it('defines every --tm-* token identically in both themes (owner ruling: same look in both themes)', () => {
+  it('defines every --tm-* token identically in both themes (deliberately the same look in both themes)', () => {
     for (const t of TOKENS) {
       expect(valueIn(dark, t), `${t} differs between dark and light`).toBe(valueIn(light, t))
     }

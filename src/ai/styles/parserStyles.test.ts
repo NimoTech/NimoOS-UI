@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-// SP8-P5c Task 2b — `parser-styles.scss` dedicated guard (governance §6.4-5, plugging guard gaps ②⑤).
+// `parser-styles.scss` dedicated guard (governance §6.4-5, plugging guard gaps ②⑤).
 //
 // [Why we must create this file] `parser-styles.scss` was **completely unprotected** before this batch:
 //   Gap ② `src/styles/color-guard.test.ts` only globs `../**/*.vue` and `../**/*.css`, **does not scan `.scss`**
@@ -12,10 +12,10 @@ import { describe, it, expect } from 'vitest'
 // recording three existing solutions (not stepping on new traps):
 // ① This repo's package.json is "type": "module" → __dirname is unavailable in ESM, use
 //    import.meta.url + fileURLToPath instead (precedent: P5b T11).
-// ② Type declarations for node:fs / node:path / node:url come from `@types/node`. Already installed in this repo
-//    (brought in with SP8-P6 merge from master), `pnpm exec vue-tsc --noEmit` (one of the three command gates)
+// ② Type declarations for node:fs / node:path / node:url come from `@types/node`. Already installed in this repo,
+//    `pnpm exec vue-tsc --noEmit` (one of the three command gates)
 //    passes directly, **does not need** @ts-expect-error suppression — the few suppression lines
-//    that existed on sp8-ai branch were deleted during merge.
+//    that existed earlier were deleted during merge.
 // ③ 🔴 **Do not use Vite's `?raw` import to replace node:fs** — vitest's built-in CSSEnablerPlugin
 //    replaces all css/scss with an empty string (ignoring the query string), and `?raw` import
 //    would cause every assertion below to "falsely pass" on **empty string** (`expect('').not.toMatch(...)` is always true,

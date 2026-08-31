@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest'
-// SP8-P2a Task 2 — encountered two environment differences during implementation, both only changed
+// Encountered two environment differences during implementation, both only changed
 // "how to read the file", did not change any assertion content:
 // ① Original brief used resolve(__dirname, ...); this repo's package.json is "type": "module",
 //    __dirname is unavailable under ESM, changed to equivalent usage of import.meta.url + fileURLToPath.
 // ② ⚠️ 【This is historical context from 2026-07-30 P2a, now superseded — jump directly to the
-//    "SP8-P6 T10 correction" note at the end of this section for current status, don't use this
+//    "Correction" note at the end of this section for current status, don't use this
 //    section to judge today's environment】
 //    This repo's tsconfig.json "types" only has ["vite/client","vitest/globals"], @types/node
 //    not installed — node:fs / node:path / node:url have no type declarations, `pnpm exec
@@ -26,7 +26,7 @@ import { describe, it, expect } from 'vitest'
 //    already verified, see vitest actual test results below); after module resolution failure the
 //    inferred type degrades to any, so the two subsequent filter callback parameters are
 //    explicitly annotated `l: string` to satisfy noImplicitAny.
-//    🔴 【SP8-P6 T10 correction — the ② section above is P2a historical context, now superseded】
+//    🔴 【Correction — the ② section above is historical context, now superseded】
 //    After merging, this repo now has `@types/node` (devDependencies ^26.1.2). The tsconfig
 //    `types` array still only lists `["vite/client","vitest/globals"]`, but that only controls
 //    **global** type auto-imports; **explicit module imports** like `node:fs` still resolve the
@@ -52,7 +52,7 @@ import { readFileSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-// SP8-P2a Task 2 — style file is a mechanical port with no runtime behavior to test. This guard
+// Style file is a mechanical port with no runtime behavior to test. This guard
 // only does two things: ① pin down the architectural rule "no duplicate token definitions in this
 // file" ② pin down that selector bases haven't been renamed. Visual 1:1 verification is the
 // responsibility of reviewers doing line-by-line diff against Vue2 source + user acceptance at :5288,
@@ -61,7 +61,7 @@ import { fileURLToPath } from 'node:url'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const read = (p: string) => readFileSync(resolve(__dirname, p), 'utf8')
 
-// SP8-P2b Task 10 secondary review gap — previously the `toContain` assertion on `.mcp-label`/
+// Secondary review gap — previously the `toContain` assertion on `.mcp-label`/
 // `.mcp-reveal-warn` only checked substrings, but the fix's own **comment** contains the backtick-
 // quoted class names (`` `.mcp-label` ``), so deleting the actual CSS rule and leaving only the
 // comment would still pass the assertion (confirmed via RED probe testing). Here at fixture level
@@ -100,7 +100,7 @@ describe('settings-styles.scss', () => {
     expect(css).toContain('grid-template-columns: 60px 1fr')
   })
 
-  // SP8-P2b Task 10 review gap — McpTokensSection.vue uses .mcp-label/.mcp-reveal-warn but the
+  // Review gap — McpTokensSection.vue uses .mcp-label/.mcp-reveal-warn but the
   // component has no <style> block; first landing missed collecting the corresponding rules from
   // Vue2 McpTokensSection.vue:245/246, after adding them to this file use these two assertions
   // to pin down selectors won't be silently deleted again. Assert selectors **immediately followed
@@ -118,14 +118,14 @@ describe('settings-styles.scss', () => {
     expect(css).toContain('color: var(--danger)')
   })
 
-  // SP8-P2b Task 12 — ChannelsSection.vue likewise follows the "zero <style> block" convention
+  // ChannelsSection.vue likewise follows the "zero <style> block" convention
   // (same division of labor as Task 10's .mcp-label/.mcp-reveal-warn), .chan-* rules from Vue2
   // sections/ChannelsSection.vue:387-410 scoped (`.chan-x`/`.chan-x:hover` already incorporated
   // by SkModal's `.sk-x`, not being ported) migrated to this file. Same two safeguards as above:
   // selector immediately followed by `{` (not bare substring, won't be hit by backtick-quoted
   // class names in comments), and catch one real declaration (`.chan-type-opt[data-active="true"]`
   // with `border-color: var(--accent)`) proving the rule body is still there, not just an empty
-  // selector shell. SP8-P2b acceptance feedback (2026-07-30 user decision) — Vue2's .px-open
+  // selector shell. Feedback from an earlier review — Vue2's .px-open
   // background is `--accent-softer`, under light theme this extremely light accent color is nearly
   // invisible, user's exact words: "can't see there's a button". Changed to solid accent color +
   // white text (`--text-on-accent` only available on solid accent backgrounds, which is exactly
@@ -157,7 +157,7 @@ describe('settings-styles.scss', () => {
   })
 })
 
-// SP8-P2b acceptance bug (2026-07-30 user reported "light mode up/down arrows for iteration count
+// A reported bug ("light mode up/down arrows for iteration count
 // have black background plate") — root cause not a wrong value, but **scope missing `color-scheme`**:
 // `src/styles/theme.css` only declares `color-scheme: dark` at `:root` (New-UI default blue/dark
 // theme) and `light` at `:root[data-theme="light"]`; meanwhile the AI area created its own nested
@@ -195,7 +195,7 @@ describe('tokens.scss — AI area nested theme scope must bring its own color-sc
       .toContain('color-scheme: dark')
   })
 
-  // 【SP8-P2b acceptance round 3】AI area toast scope (`.ai-toast-scope`) must ① get the full
+  // 【Per an earlier review round】AI area toast scope (`.ai-toast-scope`) must ① get the full
   // set of AI tokens (by being in selector lists of both theme blocks) ② override toast's own
   // ones, otherwise AppToast continues using global blue-dark theme's semi-transparent white
   // background + white text, invisible on AI light pages. See root cause explanation in
@@ -234,7 +234,7 @@ describe('sk-shared.scss', () => {
     expect(declarations).toEqual([])
   })
 
-  it('SP8-P2b Task 1 — export two groups of classes for modal shell and form fields', () => {
+  it('export two groups of classes for modal shell and form fields', () => {
     for (const sel of [
       '.sk-modal-bg', '.sk-modal', '.sk-modal-head', '.sk-modal-title',
       '.sk-modal-body', '.sk-modal-foot', '.sk-field', '.sk-field-label', '.sk-field-hint',
@@ -243,14 +243,14 @@ describe('sk-shared.scss', () => {
     }
   })
 
-  it('SP8-P2b Task 1 — preserve two entry animation keyframes', () => {
+  it('preserve two entry animation keyframes', () => {
     expect(css).toContain('@keyframes sk-fade-in')
     expect(css).toContain('@keyframes sk-pop')
   })
 
-  // SP8-P3b Task 5 — inline error bar used when AddSkillModal's pre-submit local validation is hit,
+  // Inline error bar used when AddSkillModal's pre-submit local validation is hit,
   // precedent .chan-field-err (settings-styles.scss:234).
-  it('SP8-P3b Task 5 — export inline error class .sk-field-err, uses --danger token no bare colors', () => {
+  it('export inline error class .sk-field-err, uses --danger token no bare colors', () => {
     const at = css.indexOf('.sk-field-err {')
     expect(at, 'cannot find .sk-field-err rule').toBeGreaterThanOrEqual(0)
     const rule = css.slice(at, css.indexOf('}', at))
@@ -260,7 +260,7 @@ describe('sk-shared.scss', () => {
   })
 })
 
-// SP8-P3a cycle-end review guard I1 — `.empty-title`/`.empty-sub` and `.agent-app .empty-title`/
+// Cycle-end review guard I1 — `.empty-title`/`.empty-sub` and `.agent-app .empty-title`/
 // `.agent-app .empty-sub` from `agent-styles.scss` have specificity collision (see three-item
 // comment block at skills-styles.scss:424-450). New-UI-specific regression, not Vue2 divergence:
 // Vue2 baseline `Settings/Settings.vue:2` root node only has `class="set-app"`, no `agent-app`,

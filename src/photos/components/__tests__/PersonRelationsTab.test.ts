@@ -1,7 +1,7 @@
-// Task 13 (SP7-P5 People): PersonRelationsTab.vue — People detail page "Relations" tab.
+// PersonRelationsTab.vue — People detail page "Relations" tab.
 // Follows the Vue 2 panel's src/views/Photos/PhotosPersonDetail.vue:187–227 section by section:
 // relation graph section (section title + legend + PersonRelGraph) / co-occurrence list (sorted by count descending + bar chart) /
-// Nimo's insights card (v-html sentence assembly, no "Deep Dive" button at bottom, belongs to SP8).
+// Nimo's insights card (v-html sentence assembly, no "Deep Dive" button at bottom, out of scope here).
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'

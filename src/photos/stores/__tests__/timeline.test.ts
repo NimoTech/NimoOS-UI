@@ -260,7 +260,7 @@ describe('photos-timeline store', () => {
     expect(svc.photos.getStatus.mock.calls.length).toBe(callsAfterReset)
   })
 
-  // P8a-T10 (P1 pending item): following Vue2's scheduleTaskRemove (store/modules/photos.js:50-58,
+  // Pending item: following Vue2's scheduleTaskRemove (store/modules/photos.js:50-58,
   // _onTaskBus :1388-1402) — a done task of a non-index type is automatically removed
   // from the list after 5s.
   it('ingestTaskBus: a non-index done task is removed from the list after 5s (boundary: still present at 4999ms, removed by +2ms)', () => {
@@ -910,8 +910,8 @@ describe('photos-timeline deleteAssets (bucket patching)', () => {
     expect(svc.photos.getTimelineBucket).not.toHaveBeenCalled()
   })
 
-  // Final-review finding 1 (Important): removeAssetsFromBuckets tracked
-  // {total, videos} per key but never counted OCR/document deletions, so a
+  // removeAssetsFromBuckets tracked {total, videos} per key but never counted
+  // OCR/document deletions, so a
   // surviving bucket's ocrCount was never decremented. Consequence: delete
   // every document out of a mixed month and the bucket keeps claiming the same
   // ocrCount forever — on the 'ocr' tab, tabCountOf/hasContent still sees a

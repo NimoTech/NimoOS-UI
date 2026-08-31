@@ -1,4 +1,4 @@
-// SP8-P5b Task 4 —— 1:1 ported from Vue2
+// 1:1 ported from Vue2
 // the Vue 2 panel's `src/views/AI/Knowledge/QueueView.vue:393-404` (main@7a6ee6b7).
 //
 // These three functions (`distillIconState`/`basename`/`dirname`) from methods are pure

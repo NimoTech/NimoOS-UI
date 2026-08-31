@@ -1,7 +1,7 @@
-// Task 8 (SP7-P3): PhotosFavorites.vue — mount Pinia + i18n + router stub, mock the
+// PhotosFavorites.vue — mount Pinia + i18n + router stub, mock the
 // shared package's favorite methods (per the mock shape in favorites.test.ts + the
 // mounting playbook from Photos.lightbox.test.ts/Photos.integration.test.ts). Covers
-// the brief's 5 test points: empty-state gating, non-empty grid render + export
+// 5 test points: empty-state gating, non-empty grid render + export
 // button enabled, click export -> exportZip+toast, grid emit open -> lightbox paging
 // set filtered by tab, lightbox delete -> timeline store.deleteAssets +
 // fav.fetchFavorites refresh.
@@ -82,7 +82,7 @@ function photo(id: string, opts: Partial<{ takenAt: string | null; mimeType: str
   }
 }
 
-// Task 11 (SP15-P3): a page of raw favorite() rows for pagination tests, shared by the
+// A page of raw favorite() rows for pagination tests, shared by the
 // "pagination" describe block below and the save-as-album pagination tests.
 function pageAssets(n: number, from = 0) {
   return Array.from({ length: n }, (_, i) => photo(`f${from + i}`))
@@ -169,8 +169,7 @@ describe('PhotosFavorites.vue', () => {
   // v-else branch and rendering a bare grid, reenacting the P3 symptom exactly. The assertion
   // has to be pinned before flushPromises to see this window; asserting only after the promise
   // resolves/rejects would only show the "final state", not the process, and would miss this
-  // defect (already stepped on once during mutation testing — see the addendum fix report in
-  // task-9-report.md).
+  // defect (already stepped on once during mutation testing).
   it('retry after retry still fails (reject->retry->reject) -> failure state stays visible both in-flight and after settling, grid never appears', async () => {
     svc.photos.listFavorites.mockRejectedValueOnce(new Error('e1'))
     const w = await mountView()
@@ -198,7 +197,7 @@ describe('PhotosFavorites.vue', () => {
     expect(w.find('[data-test="fav-empty"]').exists()).toBe(false)
   })
 
-  // A key distinction (a gating case explicitly required by the brief): success but an empty
+  // A key distinction: success but an empty
   // list — must still go to the empty state, must not be swallowed by the loadError branch.
   it('confirmed zero favorites (success but empty list) still goes to the empty state, not the failure state', async () => {
     const w = await mountView()
@@ -233,7 +232,7 @@ describe('PhotosFavorites.vue', () => {
     expect(showSpy).toHaveBeenCalledWith(expect.any(String), 4000)
   })
 
-  // Acceptance Fix-1: renamed off "filtered by tab" -- there is no more media-type tab filter
+  // Renamed off "filtered by tab" -- there is no more media-type tab filter
   // on this view (Vue2 Favorites never had one). Default filter='all' still shows every media
   // type (photos + OCR + videos), unlike the timeline view's own default of 'photo'.
   it('PhotosGrid emit open -> lightbox opens, paging set is every favorite (default filter=all, no narrowing)', async () => {
@@ -278,7 +277,7 @@ describe('PhotosFavorites.vue', () => {
     expect(lb.open.value).toBe(false) // PhotoLightbox already closes itself inside doDelete
   })
 
-  // Owner-acceptance Fix-3 (delete-chain diagnosis): onLightboxDelete used to show the
+  // Delete-chain diagnosis: onLightboxDelete used to show the
   // "1 item(s) moved to Recently Deleted" success toast unconditionally, even when
   // store.deleteAssets reports that nothing actually got deleted (its per-id try/catch
   // already returns the ACTUAL count -- the bug was in this view ignoring it).
@@ -307,7 +306,7 @@ describe('PhotosFavorites.vue', () => {
     expect(fetchFavSpy).toHaveBeenCalled() // still refreshes so the UI reflects server truth
   })
 
-  // Review Finding 1: PhotosGrid wired up :selected/@toggle-select but had no matching
+  // PhotosGrid wired up :selected/@toggle-select but had no matching
   // selection toolbar — checking one box would switch the whole grid's click behavior into
   // a "keep selecting" branch with no exit. After adding PhotosSelectionToolbar (following
   // the Photos.vue batch-delete precedent), verify here that it actually appears, that batch
@@ -344,7 +343,7 @@ describe('PhotosFavorites.vue', () => {
     expect(w.find('.selectbar').exists()).toBe(false) // selection cleared -> toolbar disappears
   })
 
-  // Owner-acceptance Fix-3 (delete-chain diagnosis): the selection-toolbar batch delete used
+  // Delete-chain diagnosis: the selection-toolbar batch delete used
   // to quote the click-time selection size unconditionally in its success toast, regardless of
   // how many of those ids store.deleteAssets actually reported as deleted -- the same
   // swallow-and-lie shape flagged for PhotosTrash.vue's deleteSelected(). This covers the
@@ -456,8 +455,8 @@ describe('PhotosFavorites.vue', () => {
     expect(w.find('.selectbar').exists()).toBe(false)
   })
 
-  // Acceptance Fix-1 (owner finding, Plans G+H): the PhotosToolbar-driven density switcher
-  // (previously the "Review Finding 2" test right here) has been removed along with the whole
+  // The PhotosToolbar-driven density switcher
+  // (previously tested right here) has been removed along with the whole
   // media-type tab row -- Vue2 PhotosFavoritesView.vue has neither a density switcher nor tab
   // chips at all (its own bespoke `.lib-grid` markup has no density concept). density stays
   // fixed at 'comfortable' internally (PhotosGrid still needs some density value to size its
@@ -470,7 +469,7 @@ describe('PhotosFavorites.vue', () => {
     expect(w.find('.density').exists()).toBe(false)
   })
 
-  // Task 10 (SP7-P4 albums, closing out a P3 deferral): the favorites view's "save as
+  // The favorites view's "save as
   // album" — following Vue2 PhotosFavoritesView.vue :21-23 (entry point)/:455-478
   // (openSaveAlbum/confirmSaveAlbum).
   describe('Save as album', () => {
@@ -513,7 +512,7 @@ describe('PhotosFavorites.vue', () => {
       expect(w.find('[data-test="fav-savealbum-note"]').text().length).toBeGreaterThan(0)
     })
 
-    // Acceptance Fix-2 (owner finding, screenshot-verified): the dialog and its backdrop were
+    // The dialog and its backdrop were
     // NOT the Vue2 design (wrong title, no icon tile, no field label, purple CTA, wrong scrim).
     // Re-skinned onto Vue2 PhotosFavoritesView.vue's own `.fav-modal*` class family (photos.scss
     // already carried the byte-exact transcribed rules, unused until now) -- this locks the
@@ -844,7 +843,7 @@ describe('PhotosFavorites.vue', () => {
 
     // Review fix (Important 3, pre-existing): restores Vue2 :439's playlist fallback --
     // `slidePhotos() { return this.sorted.length ? this.sorted : this.favorites }`.
-    // Acceptance Fix-1 note: this used to be exercised via the media-type tab filter (switch
+    // Note: this used to be exercised via the media-type tab filter (switch
     // to "Videos" while every favorite is a photo -> tab-filtered set empties out, slideshow
     // must still fall back to the full set). That tab filter no longer exists on this view
     // (Vue2 Favorites never had one -- see the filter-row rewrite above). Under the new
@@ -913,7 +912,7 @@ describe('PhotosFavorites.vue', () => {
       await w.findAll('.fav-filter-item').find((b) => b.text().includes('Kyoto'))!.trigger('click')
       expect(w.find('[data-test="fav-filter-places-btn"]').text()).toContain('Kyoto')
 
-      // Grid narrows to just the Kyoto photo (Acceptance Fix-1: PhotosToolbar's own
+      // Grid narrows to just the Kyoto photo (PhotosToolbar's own
       // `.muted-text` count chip is gone along with the rest of the toolbar -- the grid tile
       // count and the per-month `.month-count` head both read off the same filteredMonths,
       // asserted here via the tile count; lightbox paging set + slideshow both follow too).
@@ -951,10 +950,10 @@ describe('PhotosFavorites.vue', () => {
     })
   })
 
-  // Acceptance Fix-1 (owner finding, Plans G+H): People dropdown -- follows Vue2
+  // People dropdown -- follows Vue2
   // PhotosFavoritesView.vue's byPersonAll (:407-410, group by `p.faces` entries, count desc) +
   // filtered (:353-360, exact match against `p:<name>` -- `(p.faces || []).includes(n)`).
-  describe('people filter dropdown (Acceptance Fix-1)', () => {
+  describe('people filter dropdown', () => {
     it('people filter dropdown narrows the grid and slideshow to the selected person', async () => {
       svc.photos.listFavorites.mockResolvedValueOnce([
         photo('1', { faces: ['Alice', 'Bob'] }),
@@ -985,10 +984,10 @@ describe('PhotosFavorites.vue', () => {
     })
   })
 
-  // Acceptance Fix-1: Years dropdown -- follows Vue2 byYearAll (:417-424, group by
+  // Years dropdown -- follows Vue2 byYearAll (:417-424, group by
   // `takenAt.slice(0,4)`, sorted year string desc) + filtered's `y:<year>` branch (`takenAt`
   // string-prefix match).
-  describe('years filter dropdown (Acceptance Fix-1)', () => {
+  describe('years filter dropdown', () => {
     it('years filter dropdown narrows the grid and slideshow to the selected year', async () => {
       svc.photos.listFavorites.mockResolvedValueOnce([
         photo('1', { takenAt: '2024-06-01T00:00:00Z' }),
@@ -1014,10 +1013,10 @@ describe('PhotosFavorites.vue', () => {
     })
   })
 
-  // Acceptance Fix-1: the three dropdowns + the "All" chip together are a SINGLE
+  // The three dropdowns + the "All" chip together are a SINGLE
   // mutually-exclusive filter, following Vue2's single `filter` string (:329) -- selecting a
   // person clears any active place/year selection, not an independent facet stacked on top.
-  describe('"All" chip + mutual exclusivity (Acceptance Fix-1)', () => {
+  describe('"All" chip + mutual exclusivity', () => {
     it('the "All" chip shows the exact favoritesTotal and clears whichever facet is active', async () => {
       svc.photos.listFavorites.mockResolvedValueOnce([
         photo('1', { placeName: 'Kyoto, Japan' }), photo('2'),
@@ -1069,11 +1068,11 @@ describe('PhotosFavorites.vue', () => {
     })
   })
 
-  // Acceptance Fix-1: Sort Recent/Oldest -- follows Vue2 :361-374's sorted computed (items
+  // Sort Recent/Oldest -- follows Vue2 :361-374's sorted computed (items
   // without takenAt sink to the end regardless of direction) + :375-390's grouped computed
   // (group ORDER follows sorted's own order, not a re-sort by month key -- see
   // groupFavoritesByMonthOrdered's header comment).
-  describe('sort Recent/Oldest toggle (Acceptance Fix-1)', () => {
+  describe('sort Recent/Oldest toggle', () => {
     it('defaults to Recent (newest month first); switching to Oldest re-orders the month groups themselves, not just each month\'s tiles', async () => {
       svc.photos.listFavorites.mockResolvedValueOnce([
         photo('old', { takenAt: '2024-01-15T00:00:00Z' }),
@@ -1109,7 +1108,7 @@ describe('PhotosFavorites.vue', () => {
     })
   })
 
-  // Task 15A (closing out two ledger entries from SP7-P5): hero stats three cards —
+  // Hero stats three cards —
   // following Vue2 PhotosFavoritesView.vue :56-84 (template) + :369-385
   // (byPersonAll/byPlaceAll/byYearAll). Each card has its own sort key/slice count,
   // check them one by one.
@@ -1193,7 +1192,7 @@ describe('PhotosFavorites.vue', () => {
     })
   })
 
-  // Task 11 (SP15-P3): NimoOS-Photos#54 turned an absent limit into 500, so this page has
+  // NimoOS-Photos#54 turned an absent limit into 500, so this page has
   // to page and say out loud that its derived stats only cover what's loaded so far.
   describe('pagination (Task 11)', () => {
     const page = (n: number, from = 0) =>
@@ -1286,7 +1285,7 @@ describe('PhotosFavorites.vue (Task 1 re-shell)', () => {
 
     // Fire the real click (PhotosTopbar is a real mount here, not stubbed) and prove the
     // handler actually reaches useAskNimo().openDrawer() -- following PhotosSearch.test.ts's
-    // own useAskNimo().popupOpen assertion pattern (Plan G Task 18).
+    // own useAskNimo().popupOpen assertion pattern.
     await w.find('[data-test="topbar-ask-nimo"]').trigger('click')
     expect(useAskNimo().drawerOpen.value).toBe(true)
   })

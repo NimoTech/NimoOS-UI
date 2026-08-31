@@ -1,4 +1,4 @@
-// SP8-P5d Task 7 — `NoteEditPane.vue` **top half**(top bar + draft banner + main column editor) unit tests.
+// `NoteEditPane.vue` **top half**(top bar + draft banner + main column editor) unit tests.
 // Blueprint: the Vue 2 panel's `src/views/AI/Knowledge/NoteEditPane.vue`(338 lines).
 // This file only tests T7 scope(top bar/draft banner/main column editor + props/data/isNew/status/
 // wordCount/created() equivalent/onEditorReady/tbActive/cmd/save/curateInPlace).

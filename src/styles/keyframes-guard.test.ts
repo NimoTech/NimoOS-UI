@@ -6,7 +6,7 @@
 // per-component hash, so two `scoped` blocks can safely reuse the same
 // literal name without colliding at runtime.
 //
-// This branch (2026-08-11 photos Vue2-parity reskin, final-review Critical#1)
+// This line of work (the photos Vue2-parity reskin)
 // shipped exactly the collision this guard prevents: `photos.scss` and
 // `photos-smartview.scss` both defined a *global*, non-scoped `@keyframes
 // pulse` for a small breathing dot — completely unrelated to the

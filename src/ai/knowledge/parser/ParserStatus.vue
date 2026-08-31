@@ -1,5 +1,5 @@
 <!--
-  SP8-P5c Task 6 —— "Parser Details" page (route `/ai/parser`), 1:1 ported from the Vue 2
+  "Parser Details" page (route `/ai/parser`), 1:1 ported from the Vue 2
   panel's blueprint `src/views/AI/Parser/ParserStatus.vue` (164 lines,
   read with `git show main:` rather than the on-disk working tree, which was a stale branch).
 
@@ -55,7 +55,7 @@
     **31 state accesses**(`controlState` 10 · `stats` 6 · `loading` 5 · `folders` 5 ·
     `failedJobs` 3 · `unreachable` 1 · `error` 1)**+ 8 action calls**
     (`loadAll` 3 · `pause`/`resume`/`setConcurrency`/`setDevice`/`setOcr` each 1),
-    matching blueprint field-for-field (detailed list in T6 report §4); miss one and that
+    matching blueprint field-for-field; miss one and that
     cell becomes `undefined`.
     Similarly `store.actions.loadAll()` → `store.loadAll()` (same for five actions).
 

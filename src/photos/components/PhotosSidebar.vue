@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Task 3 (shell + sidebar re-skin): re-skinned to the Vue2 pixel baseline (the Vue 2 panel's
+// Re-skinned to the Vue2 pixel baseline (the Vue 2 panel's
 // src/views/Photos/PhotosSidebar.vue:1-93). Structure/classes transcribed
 // verbatim (.sidebar/.sidebar-head/.nav-section/.nav-item/.nav-label/
 // .sidebar-foot/.storage-mini*, collapsed → centered brand-icon + icon-btn
@@ -8,22 +8,22 @@
 //
 // Script-level logic is NOT ported from Vue2's local `activeNav` prop/emit
 // model — this repo already gave every nav entry a real vue-router route
-// (SP7-P7a-T4's NAV table + activeNavId()), a sanctioned deviation predating
-// this task. That routing plumbing (NAV table, isActive-by-route, storage
+// (the NAV table + activeNavId()), a sanctioned deviation predating
+// this re-skin. That routing plumbing (NAV table, isActive-by-route, storage
 // usedPercent, router.push, the aiFeatures smartview-hide filter, the mobile
 // drawer via useSidebarDrawer) is kept as-is; only the template/classes and
 // the two things Vue2 actually owns here — the theme toggle and the
 // collapsed prop — are new.
 //
-// Deviation (registered per brief): Vue2 has no responsive drawer for this
+// Deviation: Vue2 has no responsive drawer for this
 // sidebar at all — collapsing to the 56px icon rail is its only concession to
 // narrow viewports, at any width. New-UI's mobile drawer (is-narrow → fixed
 // overlay + scrim, closes on route change/ESC/backdrop click) predates this
-// task and is kept as a New-UI-only enhancement; the parity scss has no
+// re-skin and is kept as a New-UI-only enhancement; the parity scss has no
 // opinion on it (it only defines the two-column desktop grid), so the
 // drawer's positioning rules stay in this component's own scoped style block.
 //
-// Plan C Task 2 review fix round 1 (Important 1): the floating `.sidebar-drawer-trigger`
+// The floating `.sidebar-drawer-trigger`
 // button below is the same kind of New-UI-only addition — Vue2 never needed one since it has
 // no drawer to open. It exists because unwrapping AreaShell from the five re-shelled
 // album/for-you views removed their only ≤768px entry point to this drawer (AreaShell's own
@@ -32,17 +32,17 @@
 // topbar-less button onto each view individually. `hideDrawerTrigger` lets Photos.vue opt out
 // since its own PhotosTopbar already exposes an equivalent toggle.
 //
-// IMPORTANT (updated post-a822ef1d, comment count refreshed plan-C task 1 2026-08-13):
+// IMPORTANT (updated after commit a822ef1d):
 // all 14 photos-area pages are now rooted under `.photos-root` (fix commit
 // a822ef1d0edaebf6d0dc104ae306316385ec5f1f, "root every photos view under
-// photos-root so the shared sidebar keeps its layout"; Plan B has since
-// re-skinned the timeline view, `Photos.vue`) — the parity scss above
-// reaches every one of them, not just this one. The 7 pages (after acceptance Fix-3 —
-// PhotosSearch.vue's own `.app`-grid re-skin landed as part of that owner-acceptance item,
-// pulled forward from Plan F, dropping the count from 8) that haven't had their own
+// photos-root so the shared sidebar keeps its layout"; the timeline view,
+// `Photos.vue`, has since been re-skinned too) — the parity scss above
+// reaches every one of them, not just this one. The 7 pages (PhotosSearch.vue's own
+// `.app`-grid re-skin has since landed, dropping the count from 8)
+// that haven't had their own
 // `.app`-grid re-skin yet still carry a transitional `.sidebar { flex: 0 0 var(--sidebar-w) }`
 // pin plus the accepted parity-token/theme.css collision (--bg/--accent/--accent-soft/--success
-// shadowed to Vue2's values) described in task-3-report.md's token-collision table — a known,
+// shadowed to Vue2's values) — a known,
 // registered hybrid transitional look, not a missing-styling gap anymore.
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
@@ -58,7 +58,7 @@ import { renderSize } from '../../files/util/format'
 import { activeNavId } from '../util/activeNavId'
 import PhotosIcon from './PhotosIcon.vue'
 
-// `hideDrawerTrigger`: review fix round 1 (Plan C Task 2). Photos.vue's own PhotosTopbar
+// `hideDrawerTrigger`: Photos.vue's own PhotosTopbar
 // already exposes a collapse-toggle button that on a narrow viewport delegates to this same
 // drawer (see Photos.vue's onToggleCollapse) — rendering the floating trigger below there too
 // would be a redundant second affordance doing the identical thing. Every other photos-area
@@ -77,9 +77,9 @@ const favorites = usePhotosFavorites()
 const trash = usePhotosTrash()
 const session = useSessionStore()
 
-// Task 3: sidebar-head theme toggle (Vue2 PhotosSidebar.vue:27-33's
+// Sidebar-head theme toggle (Vue2 PhotosSidebar.vue:27-33's
 // `$store.dispatch('photos/toggleTheme')` icon button) — this is Vue2's
-// actual toggle location. The Plan A stopgap segmented toggle inside
+// actual toggle location. The stopgap segmented toggle inside
 // PhotosSettings.vue is untouched (a different, pre-existing entry point to
 // the same shared usePhotosTheme() singleton; both stay in sync for free).
 const photosTheme = usePhotosTheme()
@@ -88,7 +88,7 @@ function toggleTheme() {
   photosTheme.set(isLight.value ? 'dark' : 'light')
 }
 
-// P8a-T6 (§7e-15): the sidebar is a component shared by every page in the photos area, so it
+// The sidebar is a component shared by every page in the photos area, so it
 // pulls the aiFeatures config itself once to decide whether to hide the smart-views entry.
 // The store is a singleton, so mounting alongside any view's own onMounted in the same frame
 // will call fetchAiFeatures() concurrently -- concurrency dedup is handled in settings.ts (see
@@ -97,16 +97,16 @@ function toggleTheme() {
 const settings = usePhotosSettingsStore()
 onMounted(() => { void settings.fetchAiFeatures() })
 
-// Task 10 (closing the registered gap in this file's own header comment): fetch trash once
+// Fetch trash once
 // per app session -- `trash.loaded` (a Pinia singleton flag) guards against every sidebar
 // remount firing a fresh request; only the FIRST mount after app start pays this cost, same
 // shape as favorites' favIdsLoaded gate.
 onMounted(() => { if (!trash.loaded) void trash.fetchTrash() })
 // Storage-bar data (timeline.indexStatus) is deliberately NOT fetched here — Photos.vue
-// already owns that (fetchIndexStatus/startIndexPoll, Task 8's socket wiring). Unlike Vue2
+// already owns that (fetchIndexStatus/startIndexPoll, via socket wiring). Unlike Vue2
 // (single-page tab-switcher, sidebar mounts once per session), this sidebar remounts on every
 // photos-area route change; fetching here too would mean a request on every nav click instead
-// of Vue2's one-time cost. Existing behavior, unchanged by this task.
+// of Vue2's one-time cost. Existing behavior, unchanged here.
 
 // Drawer state: note this must be destructured (a nested ref doesn't auto-unwrap in the
 // template, so drawer.isNarrow being always-truthy is a trap) -- following FilesSidebar's lead.
@@ -123,7 +123,7 @@ watch(drawerOpen, (o) => {
 })
 onUnmounted(() => document.removeEventListener('keydown', onDrawerKeydown))
 
-// Nav item registry -- content/order unchanged (already registered by SP7-P7a-T4/SP15-P2b);
+// Nav item registry -- content/order unchanged;
 // this only adds an `icon` field (Vue2 nav1/nav2's icon name) for the new template to render
 // PhotosIcon; the nav1/nav2 split point also follows Vue2 (favorites/trash go to nav2,
 // everything else to nav1).
@@ -132,10 +132,10 @@ const NAV_ALL = [
   { id: 'albums', route: '/photos/albums', labelKey: 'photosAlbums', icon: 'album' },
   { id: 'people', route: '/photos/people', labelKey: 'photosPeople', icon: 'person' },
   { id: 'places', route: '/photos/places', labelKey: 'photosPlaces', icon: 'map' },
-  // SP7-P7a-T4: inserted after places, before favorites, following Vue2
+  // Inserted after places, before favorites, following Vue2
   // PhotosSidebar.vue:114-118's order (library / albums / people / places / smart). 7 items
   // total (was 6), favorites/trash indices each +1.
-  // SP15-P2b (Vue2 939a7d3a:PhotosSidebar.vue:118): the page behind this entry is now a
+  // (Vue2 939a7d3a:PhotosSidebar.vue:118): the page behind this entry is now a
   // Moments-only "For You" page -- the smart albums moved into Albums. Only the label
   // changes; id and route stay so the ?view=smart deep link and the hide-when-off filter
   // keep working.
@@ -144,7 +144,7 @@ const NAV_ALL = [
   { id: 'trash', route: '/photos/trash', labelKey: 'photosTrash', icon: 'trash' },
 ]
 
-// P8a-T6 (§7e-15): Vue2 PhotosSidebar.vue:120-122 -- when `ai.smartview === false`,
+// Vue2 PhotosSidebar.vue:120-122 -- when `ai.smartview === false`,
 // `items.filter(i => i.id !== 'smart')`. The check must be `=== false`, not `!x`:
 // aiFeatures.smartview's default value and its fallback for "fetch failed/field missing" are
 // both `true`; this entry is only hidden when the backend explicitly says it's off -- a
@@ -171,12 +171,12 @@ function isActive(n: { id: string }): boolean {
 }
 
 // Favorites count badge (Vue2 nav2 :129 `this.favCount`) — sourced from the favorites store,
-// which every photos page already reconciles on mount elsewhere (Task 10, Photos.vue).
-// Task 10 (Plan H): trash's badge is now wired the same way as favorites' -- see the
+// which every photos page already reconciles on mount elsewhere (Photos.vue).
+// Trash's badge is wired the same way as favorites' -- see the
 // onMounted guard above. Known remaining deviation: this count is loaded-page-only once the
 // backend's 500-row cap kicks in, same limitation the Trash view's own loaded-subset hint
 // already discloses.
-// Review fix (Task 10 round 2): Vue2 PhotosSidebar.vue:129-131 builds both counts as
+// Vue2 PhotosSidebar.vue:129-131 builds both counts as
 // `this.favCount || null` / `this.trashCount || null` -- a falsy 0 collapses to null there, so
 // a loaded-but-empty list hides the badge entirely rather than rendering a literal "0". Our
 // `!= null` template guard (":47/:73" there, this file's `countFor(n.id) != null` here) only
@@ -322,7 +322,7 @@ function go(routePath: string) {
    is a New-UI-only responsive enhancement. Everything else (background, width via the .app
    grid column, nav item look, storage bar, ...) comes from the shared parity stylesheet
    (photos/styles/vue2-parity/photos.scss:104-260), scoped under `.photos-root`. */
-/* New-UI-only mobile enhancement (see file-header review-fix comment): floating drawer
+/* New-UI-only mobile enhancement (see file-header note above): floating drawer
    trigger, styled like the other floating affordances in this area (PlacesZoomBar.vue's
    `.map-zoombar` is the closest precedent — same `var(--float-bg)` + blur + `--card-border`
    token combo, token-only per repo convention, no bare color literals). z-index sits below

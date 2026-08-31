@@ -1,4 +1,4 @@
-// SP8-P2a Task 9 — ported from Vue2 src/views/AI/Settings/sections/ModelsSection.vue
+// Ported from Vue2 src/views/AI/Settings/sections/ModelsSection.vue
 // (222 lines). Implements the brief Step 3 list of 21 test cases one by one (some split
 // into multiple it() blocks to pinpoint failures precisely; the count only grows, never shrinks).
 //

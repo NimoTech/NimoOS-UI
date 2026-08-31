@@ -1,29 +1,38 @@
 <script setup lang="ts">
-// Task 9(SP7-P6a 地点·地图主视图):PlacesFilterMenu.vue —— 地图工具栏「Filters」胶囊按钮 +
-// 下拉弹层(时间范围/最少照片数/大洲/只看当前行程 四段过滤 + chip 徽标计数 + 重置/完成)。
-// 逐段照 Vue2 src/views/Photos/PhotosPlacesView.vue:830-906(模板,chip 与弹层
-// 同在一个 position:relative 容器里)、:152-186(视觉过滤态派生 anyExtraFilter/
-// extraFilterCount,已在 T2 落到 placesMap.ts 的 extraFilterCount 纯函数,这里直接消费)、
-// :329-336(document mousedown 开关判定)、:441-449(toggleRegion/clearFilters)移植;样式段
-// 照 photos-places.scss:199-231(chip 部分)与 :854-963(弹层部分)。
+// PlacesFilterMenu.vue — the map toolbar's "Filters" pill button + dropdown popover (four
+// filter sections: time range/minimum photo count/continent/current-trip-only + chip badge
+// count + reset/done). Ported section-by-section from Vue2 src/views/Photos/
+// PhotosPlacesView.vue:830-906 (template, the chip and popover live in the same
+// position:relative container), :152-186 (the visually-derived filter state
+// anyExtraFilter/extraFilterCount, already implemented as the extraFilterCount pure function
+// in placesMap.ts, consumed directly here), :329-336 (document mousedown open/close
+// detection), :441-449 (toggleRegion/clearFilters); styles follow photos-places.scss:199-231
+// (chip part) and :854-963 (popover part).
 //
-// props.filter 不许就地改——一律 emit update:filter 传整体替换后的新对象(brief 铁律,有
-// 测试钉"其余字段与传入一致")。
+// props.filter must never be mutated in place — always emit update:filter with a whole new
+// replacement object (a hard rule here, pinned by a test asserting the other fields match
+// what was passed in).
 //
-// 浮层规范(P4 血泪 + 本仓已确立的 ClusterActionDialog.vue 先例):Esc 走 document 级
-// keydown,watch(open) 挂/摘,不用 stopImmediatePropagation(那会连累同 document 上的其它
-// 弹层监听器收不到事件——ClusterActionDialog 用的是普通 stopPropagation,对同一节点上的
-// 其它监听器无影响,本组件干脆不调用,更安全)。另加 document mousedown 判定点击是否在
-// 容器 ref 外——Vue2 原文件也是这个模式(:329-336),只是 Vue2 没有 Esc 监听,这条是
-// New-UI 侧新增的浮层规范。`onDocKeydown` 内部只有一条早退(非 Escape 键跳过)——本组件
-// 自己只管一个 open 状态,没有"另一个分支"可早退;P5-T10 的早退 bug 是两个弹层共享一个
-// 判定函数时漏检第二个分支,那个场景要等 T11 把本组件与主题弹层一起装进容器才会出现,
-// 集成断言归 T11,本任务只记账(见任务报告)。
+// Overlay convention (a lesson learned the hard way earlier, plus the precedent already
+// established in this repo by ClusterActionDialog.vue): Escape goes through a document-level
+// keydown handler, attached/detached by a watch(open), without using
+// stopImmediatePropagation (that would keep other overlay listeners on the same document from
+// receiving the event at all — ClusterActionDialog uses plain stopPropagation instead, which
+// doesn't affect other listeners on the same node, so this component simply doesn't call
+// either, which is safer). A document mousedown handler is also added to detect clicks
+// outside the container ref — Vue2's own file uses this same pattern (:329-336), just without
+// an Escape listener; that part is a New-UI-side addition to the overlay convention.
+// onDocKeydown has only one early return (skip non-Escape keys) — this component only manages
+// a single open state, so there's no "other branch" to early-return from; the early-return bug
+// seen elsewhere happens when two overlays share one predicate function and miss checking the
+// second branch — that scenario only arises once this component and the theme popover are
+// wired into the same container by later work, so the integration assertion for it belongs
+// there; this pass only notes the risk here.
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { extraFilterCount, regionLabelKey, type PlacesFilter, type RegionCount } from '../util/placesMap'
 
-// Vue2 :865(回源核对无出入)。
+// Cross-checked against Vue2 :865, no discrepancy found.
 const MIN_COUNT_STEPS = [0, 10, 50, 100, 200] as const
 
 const props = defineProps<{
@@ -40,12 +49,14 @@ const { t } = useI18n()
 
 const rootRef = ref<HTMLElement | null>(null)
 
-// ── chip 徽标/激活态(Vue2 :176-186,已在 T2 落到 extraFilterCount 纯函数)────────
+// ── Chip badge/active state (Vue2 :176-186, already implemented as the extraFilterCount pure
+// function) ────────
 const extraCount = computed(() => extraFilterCount(props.filter))
 const badgeCount = computed(() => extraCount.value + (props.filter.timeFilter !== 'all' ? 1 : 0))
 const chipActive = computed(() => extraCount.value > 0 || props.filter.timeFilter !== 'all')
 
-// 偏离登记 3(T2 既定,brief 复述):大洲名走 regionLabelKey 有键则译、无键回落后端 label。
+// Deviation 3: continent names go through regionLabelKey, translated if a key exists, falling
+// back to the backend label if not.
 function regionLabel(r: RegionCount): string {
   const key = regionLabelKey(r.id)
   return key ? t(key) : r.label
@@ -55,17 +66,23 @@ function toggleOpen(): void {
   emit('update:open', !props.open)
 }
 
-// Vue2 :849/:854 —— 只填一头时整条时间过滤退回"全部时间",两头都填才是 'custom'。
+// Vue2 :849/:854 — the whole time filter falls back to "all time" when only one end is filled
+// in; it's only 'custom' when both ends are filled.
 //
-// 偏离登记(真机验收反馈,Vue2 缺陷,按铁律改正确 + 登记,不照抄):Vue2 这两个
-// `<input type="date">` 互不约束,用户可以选出"结束早于起始"的倒置区间——filterPlaces
-// 对倒置区间会筛出零结果,用户看到空地图却不知道为什么(两个输入看起来都填好了)。本仓
-// 一是给模板里的两个 input 加原生 `:max`/`:min` 相互约束(原生日期选择器直接不让选到
-// 非法值,用户实际就是用选择器点的);二是这里把 `timeFilter` 的判据从"两头都填"收紧为
-// "两头都填且 customEnd >= customStart"(用户仍可能手打出非法值,原生约束防不住键盘
-// 输入)——非法区间按"区间还没填好"处理,归到既有的 `timeFilter = 'all'` 分支,不新增
-// 第三种语义。日期串是定长 'YYYY-MM-DD' 格式,字符串字典序比较即等价于日期先后比较,
-// 不需要 `new Date()` 解析。「>=」不是「>」——两端同一天是合法的单日区间。
+// Deviation (found from real-device testing feedback; a Vue2 defect, fixed correctly per the
+// hard rule and recorded here rather than copied as-is): Vue2's two `<input type="date">`
+// elements don't constrain each other, so a user can pick an inverted range where the end is
+// before the start — filterPlaces would then filter out zero results for an inverted range,
+// and the user sees an empty map with no clue why (both inputs look filled in). This repo
+// fixes it two ways: first, the template's two inputs get native `:max`/`:min` constraints on
+// each other (the native date picker simply won't let you pick an invalid value through the
+// picker itself); second, the `timeFilter` predicate here is tightened from "both ends filled"
+// to "both ends filled and customEnd >= customStart" (a user could still type an invalid value
+// by hand, which the native constraint can't stop) — an invalid range is treated as "the range
+// isn't filled in yet" and falls into the existing `timeFilter = 'all'` branch, rather than
+// adding a third semantic state. The date strings are the fixed-length 'YYYY-MM-DD' format, so
+// lexicographic string comparison is equivalent to chronological comparison, no `new Date()`
+// parsing needed. It's ">=" not ">" — the same day on both ends is a valid single-day range.
 function setStart(e: Event): void {
   const value = (e.target as HTMLInputElement).value
   const end = props.filter.customEnd
@@ -75,7 +92,7 @@ function setStart(e: Event): void {
     timeFilter: (value && end && end >= value) ? 'custom' : 'all',
   })
 }
-// 同上 setStart 的登记,逻辑对调 customStart/customEnd。
+// Same deviation as setStart above, with customStart/customEnd swapped.
 function setEnd(e: Event): void {
   const value = (e.target as HTMLInputElement).value
   const start = props.filter.customStart
@@ -91,14 +108,15 @@ function setMinCount(v: number): void {
 function setRegion(id: string | null): void {
   emit('update:filter', { ...props.filter, regionFilter: id })
 }
-// Vue2 :441 toggleRegion —— 再点一次清空,不是单向赋值。
+// Vue2 :441's toggleRegion — clicking again clears it, not a one-way assignment.
 function toggleRegion(id: string): void {
   emit('update:filter', { ...props.filter, regionFilter: props.filter.regionFilter === id ? null : id })
 }
 function toggleRecentOnly(): void {
   emit('update:filter', { ...props.filter, recentOnly: !props.filter.recentOnly })
 }
-// Vue2 :442-449 clearFilters —— 六个字段全回默认,不是从当前 filter 局部改。
+// Vue2 :442-449's clearFilters — all six fields reset to their defaults, not a partial change
+// from the current filter.
 function resetFilters(): void {
   emit('update:filter', {
     timeFilter: 'all',
@@ -109,12 +127,13 @@ function resetFilters(): void {
     recentOnly: false,
   })
 }
-// 完成只关弹层,不带 filter(brief 消歧义 3)。
+// Done only closes the popover, it doesn't carry a filter change.
 function done(): void {
   emit('update:open', false)
 }
 
-// ── 浮层规范:open 为真时挂 document 级 mousedown/keydown,watch(open) 挂/摘 ─────────
+// ── Overlay convention: attach document-level mousedown/keydown handlers while open is true,
+// attached/detached by a watch(open) ─────────
 function onDocMousedown(e: MouseEvent): void {
   const target = e.target as Node
   if (rootRef.value && !rootRef.value.contains(target)) emit('update:open', false)
@@ -215,7 +234,7 @@ onUnmounted(() => {
           @click.prevent="toggleRecentOnly"
         >
           <span class="mfp-tick" data-test="pfm-tick">
-            <!-- Fix-1 item 6 (2026-08-16): `--on-accent` banned here (same precedent as
+            <!-- `--on-accent` banned here (same precedent as
                  PlaceDetailPanel.vue's `.btn-primary`) — it's calibrated against New-UI's
                  *global* accent, which follows the app-wide theme, while `.mfp-tick.is-on`'s
                  background is Photos' own FIXED local `--accent` (theme-invariant purple,
@@ -242,16 +261,16 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-/* Shadowing cleanup (Plan E Task 3, 2026-08-15): parity `photos-places.scss:199-231` (chip)
+/* Shadowing cleanup: parity `photos-places.scss:199-231` (chip)
    + `:854-963` (popover) now governs almost every rule this component used to duplicate —
    the deleted rules were structurally identical to parity and only diverged by pointing at
    global New-UI theme tokens (--fg-muted/--card-border/--chip-bg/--accent-text/--on-accent
    etc.) instead of the local `.photos-root`-scoped Vue2-precise tokens (--text-2/--line/
    --surface-3/--accent-hi/literal "white") that parity itself consumes — same shadowing bug
-   as PhotosFilterChip.vue's 2026-08-13 fix round and PlacesRail.vue's own Task 3 cleanup.
+   as PhotosFilterChip.vue's own earlier fix and PlacesRail.vue's own cleanup for the identical issue.
    The old per-rule "token mapping" comment this replaces was that earlier state's own
    self-documentation, not a design requirement, so it goes with the rules it justified.
-   `.map-filter-pop .mfp-date-row input`'s `color-scheme: dark` omission (review I1) has been
+   `.map-filter-pop .mfp-date-row input`'s `color-scheme: dark` omission has been
    transcribed upstream into parity itself instead of staying a local override — see that
    rule in photos-places.scss for the updated citation.
    What survives below, and why:
@@ -259,7 +278,7 @@ onUnmounted(() => {
       parity counterpart (Vue2 renders the badge text via an inline `style=` attribute on a
       bare `<span>`, not a class — same value, different mechanism, same pattern as parity's
       own `.places-cover-portal .cp-search-ic` New-UI-additions citation).
-   2. `.map-filter-pop`'s background/border/box-shadow (D3 surface-treatment ruling, reviewed
+   2. `.map-filter-pop`'s background/border/box-shadow (a surface-treatment ruling, reviewed
       and upheld — the popover's own chrome, not its content, is New-UI's to reshape; see the
       full argument preserved below, still accurate).
    3. Three `:hover`/`.is-active:hover`/`.is-on:hover` pairs Vue2 never had at all (verified:
@@ -280,18 +299,18 @@ onUnmounted(() => {
    (class vs. inline style), not a different value. */
 .pfm-badge { margin-left: 4px; font-variant-numeric: tabular-nums; opacity: 0.7; }
 
-/* D3 surface-treatment ruling — REVERSED.
+/* Surface-treatment ruling — REVERSED.
    The former "reviewed and upheld" note below (kept for history) argued for this repo's
    established floating-menu/panel chrome convention (--popup-bg / --card-shadow-hi) over
    Vue2's own flat grey + single shadow, on the basis that a popover's chrome is "component
-   system / surface treatment", New-UI's side of the D3 split. That argument assumed the
+   system / surface treatment", New-UI's side of that split. That argument assumed the
    substitute tokens were merely a *different-looking* convention; they are also *global*
    New-UI tokens that only follow the app-wide `[data-theme]` attribute, never Photos' own
    private `.photos-root.is-light` toggle (`usePhotosTheme()`) — so in the very common
    "Photos-light + app-global-dark" combination (dark is theme.css's default, no
    `data-theme="light"` attribute needed to hit it) this popover stayed dark regardless of
-   Photos' own theme switch. That is a functional is-light bug, not a stylistic one, and the
-   owner's real-device acceptance report ("Filters / Map theme chips stay dark") is the
+   Photos' own theme switch. That is a functional is-light bug, not a stylistic one, and a
+   real-device testing report ("Filters / Map theme chips stay dark") is the
    real-device rejection the original note itself said would trigger this exact reversal.
    Restored to parity's own literal values (photos-places.scss's own `.map-filter-pop` rule):
    flat `--surface-2` + `--line` border + Vue2's own literal drop shadow (see that declaration's
@@ -321,7 +340,7 @@ onUnmounted(() => {
    (equal specificity would otherwise let source order decide, which this repo's convention
    treats as unreliable — see PlacesRail.vue's own citation of the same lesson); their values
    are copied from parity's own `.is-active` rules so hovering an active control never
-   flips its color. Fix-1 item 6: `--chip-bg`/`--chip-bg-hi`/`--fg` (global) corrected to
+   flips its color. `--chip-bg`/`--chip-bg-hi`/`--fg` (global) were corrected to
    local `--surface-2`/`--surface-3`/`--text-1`, same is-light rationale as `.map-filter-pop`
    above. */
 .map-filter-pop .mfp-count-row button:hover { background: var(--surface-3); color: var(--text-1); }

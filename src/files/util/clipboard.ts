@@ -3,7 +3,7 @@
 // device is accessed via plaintext HTTP over a local network IP (e.g. http://192.168.x.x/)
 // it is undefined and direct calls will throw. Fall back to document.execCommand('copy').
 // If both paths fail, throw so the caller can decide how to notify the user.
-// SP8-P2b round 4 acceptance, 2026-07-30 — where should the temporary textarea be attached.
+// Feedback from an earlier review — where should the temporary textarea be attached.
 //
 // Originally always attached to document.body, but **all copies in dialogs fail**
 // (user test: copy on the AI settings page works, but all three copies in the "Create Token"

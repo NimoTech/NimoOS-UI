@@ -1,7 +1,7 @@
 <!--
-  SP8-P2b Task 12 — 1:1 ported from Vue2 src/views/AI/Settings/sections/ChannelsSection.vue (410 lines).
+  1:1 ported from Vue2 src/views/AI/Settings/sections/ChannelsSection.vue (410 lines).
   Pure functions (bindingLabel / pairInstructions split-join / channelsBotTokenTail
-  split-join) extracted to ../../../util/channelsFormat.ts in Task 11;
+  split-join) extracted to ../../../util/channelsFormat.ts;
   this component retains only component-scoped state and i18n concatenation.
 
   [D2 declaration] State lives in component local scope (ref), calling service.ai directly —
@@ -422,7 +422,7 @@ function handleCodeOpenChange(open: boolean) {
   if (!open) { resetCopied(); void onCodeClosed() }
 }
 
-// SP8-P2b acceptance round 5: copy feedback (toast + "copied" checkmark state) unified via useCopyFeedback.
+// Copy feedback (toast + "copied" checkmark state) unified via useCopyFeedback.
 </script>
 
 <template>

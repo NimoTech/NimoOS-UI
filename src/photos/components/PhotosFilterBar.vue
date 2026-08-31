@@ -1,7 +1,7 @@
 <script setup lang="ts">
-// SP7-P7b-T2: PhotosFilterBar.vue — EXIF filter bar (funnel + three pills: year/location/camera).
+// PhotosFilterBar.vue — EXIF filter bar (funnel + three pills: year/location/camera).
 // Line-for-line port of the Vue 2 panel's src/views/Photos/PhotosFilterBar.vue (312 lines).
-// The pill itself and the list-style popover reuse the two primitives built in P7a (D14): PhotosFilterChip / PhotosFilterPopover.
+// The pill itself and the list-style popover reuse the two shared primitives: PhotosFilterChip / PhotosFilterPopover.
 //
 // Deviation log 1 (data source injected from outside): Vue2 reads
 // `this.$store.getters['photos/displayMonths']` directly inside the component for the facet source, because in Vue2 it only
@@ -9,47 +9,47 @@
 // the timeline store, the drilldown page reads usePlaceAssets's one-shot result — so the facet source is instead injected by
 // the host via the `photos` prop. A necessary deviation.
 //
-// Deviation log 2 (D19, chipKeys): Vue2 always shows all three pills. The drilldown page (/photos/places/:key) per D19
+// Deviation log 2 (chipKeys): Vue2 always shows all three pills. The drilldown page (/photos/places/:key)
 // shows only year + camera — tracing back to Vue2 PhotosTimeline.vue:167, the spot branch explicitly passes only
 // years/cameras to applyExifFilters and drops places (the comment states outright "the city is already scoped, layering
 // a location-text filter on top would misfire"), copying it verbatim would mean putting a dead pill that does nothing when
 // clicked on a standalone page. chipKeys defaults to all three enabled; the timeline page doesn't pass it, matching Vue2.
 //
-// Deviation log 3 (F1, a Vue2 defect): Vue2's availYears (:99-102) puts
+// Deviation log 3 (a Vue2 defect): Vue2's availYears (:99-102) puts
 // `String(new Date(p.date).getFullYear())` straight into the Set — an unparseable date lands in the Set as the literal
 // string "NaN"; but the filter predicate side goes through photoYear(), which returns an empty string ⇒ users can pick
 // a NaN option from the dropdown that will never match anything. Here the facet side is switched to call that same
 // photoYear(), skipping the empty string.
 //
-// Log 4 (the external trigger for auto-expand no longer exists in this repo): Vue2's anyActive watcher exists to catch
+// Deviation log 4 (the external trigger for auto-expand no longer exists in this repo): Vue2's anyActive watcher exists to catch
 // the path where "jumping over from the places page pushes a value into activeFilters.places externally"; New-UI's city
-// navigation goes through its own route page (D6), so the timeline's filter is never written from outside. The watcher
+// navigation goes through its own route page, so the timeline's filter is never written from outside. The watcher
 // and the mounted check are still ported as-is — "collapse after clear all, then restore a filter from elsewhere" is
 // still meaningful along this component's own paths, and keeps behavior equivalent.
 //
 // No Esc-closes-popover: Vue2's own component has no keydown listener, and a strict 1:1 port doesn't add one on its own
-// initiative (the Esc handling on the search page is that page's own structural spec 19, and doesn't spill over here).
+// initiative (the Esc handling on the search page is that page's own specific requirement, and doesn't spill over here).
 //
-// Plan B Task 5 (2026-08-12, "toolbar + FilterBar reskin"):
+// Toolbar + FilterBar reskin:
 // ① Popover max-height: Vue2 PhotosFilterBar.vue:29 has an inline `max-height:260px`; the shared primitive
 //   PhotosFilterPopover originally hardcoded a default of 280 (matching the search side), and the 260 discrepancy was
-//   logged as "hand off to P7b/T16" — this task wires it up, adding a maxHeight prop passing 260 (see the matching log
+//   logged as follow-up work — this component wires it up, adding a maxHeight prop passing 260 (see the matching log
 //   at the top of PhotosFilterPopover.vue).
 // ② The five classes .exif-filter/.exif-funnel/.exif-badge/.exif-chiprow/.exif-clear serve only this component
 //   (confirmed via grep across the whole repo — zero other consumers), and the color tokens in the style block below
-//   are changed back from the generic app tokens P7b wrote at the time (--fg/--chip-bg/--accent-soft-bd etc., which
+//   are changed back from the generic app tokens that were originally used (--fg/--chip-bg/--accent-soft-bd etc., which
 //   resolve to the site's glassmorphism palette) to the Vue2 original's --surface-2/--text-1/2/3/--line-strong/
 //   --accent-glow/--accent-hi token names — the `.photos-root` block in src/photos/styles/vue2-parity/photos.scss
-//   (built by T3/T4 for Plan B, a line-for-line local dark-variant table matching Vue2 photos.scss) redefines this set
-//   of names, and when P7b wrote this style block that file didn't exist yet (the component comment at the time also
+//   (a line-for-line local dark-variant table matching Vue2 photos.scss) redefines this set
+//   of names, and when this style block was originally written that file didn't exist yet (the component comment at the time also
 //   said "--line-strong doesn't exist in this repo, confirmed via grep — zero hits" — that statement was true before
 //   the parity scss landed, it no longer is). After switching back to the same-named tokens, the values follow
 //   .photos-root's local definitions, matching Vue2 line-for-line — this isn't a newly invented palette.
 //   .fchip/.fchip-wrap/.fchip-x (PhotosFilterChip.vue) and .fpop* (PhotosFilterPopover.vue)
 //   are out of scope for this change — these two primitives are shared by six consumers at once, including
 //   PhotosSearch/SmartView/Settings/the date and people popovers, so recoloring them uniformly is a cross-panel visual
-//   decision that's out of scope for this task's "toolbar + FilterBar's two pills", and is logged as follow-up work
-//   (see the concerns section of task-5-report.md).
+//   decision that's out of scope for this component's "toolbar + FilterBar's two pills" concern, and is logged as
+//   follow-up work.
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import PhotosFilterChip from './PhotosFilterChip.vue'
@@ -120,7 +120,7 @@ const chips = computed(() => CHIP_DEFS
   .filter(c => props.chipKeys.includes(c.key))
   .map(c => ({ ...c, label: t(c.labelKey), items: itemsByKey.value[c.key] })))
 
-// The badge only counts "visible" dimensions (a direct consequence of D19): a dimension the user can't see, they also
+// The badge only counts "visible" dimensions (a direct consequence of the chipKeys deviation above): a dimension the user can't see, they also
 // can't clear — counting it toward the badge would show the user a number they can't account for. All three pills are
 // visible on the timeline page, matching Vue2.
 const activeCount = computed(() =>
@@ -283,7 +283,7 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-/* Plan B Task 5's token approach (see module comment ② above): no longer mapped to generic app tokens, use
+/* This component's token approach (see module comment ② above): no longer mapped to generic app tokens, use
    the token names from Vue2 photos.scss's original text directly — at render time this resolves inside .photos-root, to
    the line-for-line local dark-variant table in src/photos/styles/vue2-parity/photos.scss that mirrors Vue2
    (--surface-2/--text-1/2/3/--line-strong/--accent-soft/--accent-glow/--accent-hi),
@@ -315,10 +315,10 @@ onBeforeUnmount(() => {
   cursor: pointer;
   transition: all 0.25s;
 }
-/* fix round 1 (review-mandatory 1, owner's call already made): Vue2's original
+/* Correction (a drift already resolved): Vue2's original
    the Vue 2 panel's src/views/Photos/PhotosFilterBar.vue:251 only changes color/border-color,
-   the background stays at --surface-2; a line `background: var(--chip-bg-hi)` had crept in here previously — a drift
-   in the brief text itself, not a copying error — already removed per the "strictly 1:1 on visuals" hard rule, no
+   the background stays at --surface-2; a line `background: var(--chip-bg-hi)` had crept in here previously — a drift,
+   not a copying error — already removed per the "strictly 1:1 on visuals" hard rule, no
    deviation log added (this isn't an intentional deviation, it's a correction). */
 .exif-funnel:hover {
   color: var(--text-1);
@@ -349,7 +349,7 @@ onBeforeUnmount(() => {
   border-radius: 9999px;
   background: var(--accent);
   color: white; /* theme-exception: Vue2 PhotosFilterBar.vue:262 hardcodes the same value, parity scss's own
-  .btn-primary (photos.scss:272) already got the owner's sign-off on this same precedent — the badge sits on
+  .btn-primary (photos.scss:272) already establishes this same precedent — the badge sits on
   .photos-root's local purple accent, and doesn't participate in the site-wide theme switch */
   font-size: 9px;
   font-weight: 700;

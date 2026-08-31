@@ -1,5 +1,5 @@
-// SP7-P7a-T15: useInfiniteScroll — IntersectionObserver wrapper for infinite scroll sentinel.
-// Corresponds line-by-line to the "required test checklist" section A + struct spec A.1-A.3.
+// useInfiniteScroll — IntersectionObserver wrapper for infinite scroll sentinel.
+// Corresponds line-by-line to the required test checklist.
 //
 // Replicates Vue2 PhotosSearchView.vue :706-721 (observeLoadMoreSentinel/teardownLoadMoreObserver)
 // semantics as a generic composable: teardown first; if enabled is false or target/root is empty,
@@ -13,7 +13,7 @@
 // jsdom has no IntersectionObserver, so we stub one: record constructor params for each instance,
 // observe/disconnect call counts, and expose a manual callback trigger hook (entries[0].isIntersecting).
 // Stub on globalThis.IntersectionObserver, delete in afterEach to prevent leak to other test files
-// (P7a full-period lesson: global stubs of IO/ResizeObserver without restoration affect other tests in same batch).
+// (lesson learned before: global stubs of IO/ResizeObserver without restoration affect other tests in the same batch).
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { defineComponent, h, nextTick, ref, type Ref } from 'vue'
 import { mount } from '@vue/test-utils'

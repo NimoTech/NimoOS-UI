@@ -43,7 +43,7 @@ import { dropTargetIn, slotShifts, type DockSlot, type DockGeometry, type DropDe
 import { cellAtPointer } from '../grid/pointerMath'
 import { useAddPanel } from '../composables/useAddPanel'
 import { useHomeUiStore } from '../stores/homeUi'
-// The dock's fisheye magnification, switched off at the owner's request and kept
+// The dock's fisheye magnification, switched off by design and kept
 // rather than deleted so it can be restored. theme.css still carries the rule that
 // consumes --mag; with nothing writing it the fallback of 1 is identity, so the
 // effect is off without that file being touched.

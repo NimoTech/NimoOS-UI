@@ -1,6 +1,6 @@
 // 1:1 port from Vue2 src/views/AI/Agent/services/agentStream.js:260-562 (dispatchEvent
 // 18-case switch) + 47-52 (endThinkingStreaming) + 57-62 (endMessageStreaming).
-// This reducer translates Python agent SSE events into store mutations — SP8-P1b highest-risk
+// This reducer translates Python agent SSE events into store mutations — highest-risk
 // logic, case-by-case alignment with Vue2 behavior, no ?./?? guards that Vue2 doesn't have.
 import { buildSemanticSearchBlock } from './searchMapper'
 import { stripLeakedToolArgs, parseMcpToolName, parseShellResult, MCP_ERR_RE, buildPhotoGridBlock } from './streamMappers'

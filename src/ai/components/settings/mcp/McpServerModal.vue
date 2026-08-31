@@ -1,5 +1,5 @@
 <!--
-  SP8-P4 Task 8 — Ported from the Vue 2 panel's `src/views/AI/MCP/McpServerModal.vue`
+  Ported from the Vue 2 panel's `src/views/AI/MCP/McpServerModal.vue`
   (216 lines). Add/edit form modal with quick-paste parsing and headers/env KV editor.
 
   ===== Interface divergence (coordinator ruling 3, authorized) =====

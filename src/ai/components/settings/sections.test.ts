@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { GROUPS, ALL_ITEMS, VALID_SECTIONS, SPLIT_SECTIONS, DEFERRED_SECTIONS, groupOf } from './sections'
 
-// SP8-P2a Task 3 — ported from Vue2 `src/views/AI/Settings/__tests__/SettingsRail.spec.js`
-// three assertions on GROUPS (remaining methods assertions in this file go to Task 7's SettingsRail.test.ts).
+// Ported from Vue2 `src/views/AI/Settings/__tests__/SettingsRail.spec.js`
+// three assertions on GROUPS (remaining methods assertions in this file go to SettingsRail.test.ts).
 
 describe('sections navigation config', () => {
   it('four groups, order matches Vue2 sections.js:13-55', () => {
@@ -59,9 +59,9 @@ describe('sections navigation config', () => {
     expect([...SPLIT_SECTIONS].sort()).toEqual(['mcp', 'skills'])
   })
 
-  // SP8-P4 — mcp has been integrated into real McpSection component, DEFERRED_SECTIONS is now empty.
+  // mcp has been integrated into real McpSection component, DEFERRED_SECTIONS is now empty.
   // Contract mechanism itself is preserved (user explicitly "keep don't delete"), this pins "no sections still in placeholder".
-  it('DEFERRED_SECTIONS is empty (from SP8-P4 all 13 sections integrated into real components)', () => {
+  it('DEFERRED_SECTIONS is empty (all 13 sections integrated into real components)', () => {
     expect(DEFERRED_SECTIONS).toEqual([])
   })
 
@@ -79,7 +79,7 @@ describe('sections navigation config', () => {
     }
   })
 
-  // Task 9 (agent web tools) —— web_search/web_fetch 设置分区挂进 agent 组。
+  // Task 9 (agent web tools) —— the web_search/web_fetch settings section is wired into the agent group.
   it('exposes the web section in the agent group', () => {
     const agent = GROUPS.find((g) => g.id === 'agent')!
     expect(agent.items.map((i) => i.id)).toContain('web')

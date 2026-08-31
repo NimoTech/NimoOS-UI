@@ -1,4 +1,4 @@
-// SP8-P5b Task 5 — QueueView.vue "Task Queue" page tests.
+// QueueView.vue "Task Queue" page tests.
 // Test scaffolding follows the existing pattern in KnowledgeLayout.test.ts (governance
 // document §9 explicitly requires: P5a T10 custom makeRouter once caused recursive DOM/
 // lifecycle doubling, don't create your own) — true router(createWebHashHistory)
@@ -38,7 +38,7 @@ import { useKnowledgeStore } from '../stores/knowledgeStore'
 // knowledgeStyles.test.ts top comment ③). This repo's package.json is "type": "module"
 // → __dirname unavailable under ESM, use fileURLToPath + node:path equivalent instead.
 // Type declarations for node: prefixed modules provided by `@types/node`, already installed
-// in this repo (SP8-P6 merged from master), vue-tsc passes directly, **does not need**
+// in this repo (merged from master), vue-tsc passes directly, **does not need**
 // any `@ts-expect-error` suppression (the original suppression lines on the sp8-ai branch
 // were deleted at merge;
 // see knowledgeStyles.test.ts top comments ①②).

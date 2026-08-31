@@ -5,7 +5,7 @@
  * and write plans are just plain action-descriptor objects, executed by that side's
  * execute().
  *
- * ⚠️ This phase (SP9-P4) only builds the UI skeleton per spec §3.1 policy three — the
+ * ⚠️ This phase only builds the UI skeleton per spec §3.1 policy three — the
  * snapshot is a stub and writes are disabled.
  * But **this file is pure functions, so it tests fine as-is** (the boundary of policy
  * two). Zero changes to this file since merging sp7/sp8.

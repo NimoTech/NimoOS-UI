@@ -1,10 +1,10 @@
-// SP7-P8a-T4: PhotosAiCard.vue — AI card for settings page.
+// PhotosAiCard.vue — AI card for settings page.
 // Source coordinates: Vue2 PhotosSettings.vue:129-192(template)/:283-291(watcher)/
 // :332-370(computed)/:458-486(rebuildIndex/doRecluster).
 //
-// Test infrastructure follows T3 (PhotosStorageCard.test.ts) established approach already verified
-// (brief draft references @pinia/testing / winningDeclaration do not exist in this repo, see that
-// file's head comment):
+// Test infrastructure follows the approach already established and verified in
+// PhotosStorageCard.test.ts (an early draft referenced @pinia/testing / winningDeclaration, which
+// do not exist in this repo — see that file's head comment):
 // - setActivePinia(createPinia()) starts real store, vi.spyOn(store, 'action') stubs as needed.
 // - mock targets the shared package @nimotech/nimoos-service, not the store itself.
 // - hover cascade guard uses cssCascade.ts's extractStyleBlock/winningHoverBackground.

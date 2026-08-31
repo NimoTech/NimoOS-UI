@@ -252,7 +252,7 @@ export default {
   settingsStoreFiles: 'Files',
   settingsStoreNoStorage: 'No storage found',
 
-  // ── SP9-P4 folder-permissions ─────────────────────────────────────────
+  // ── Folder-permissions ─────────────────────────────────────────
   settingsFpIntro: 'Manage each smart feature\'s folders in its own section below.',
   settingsFpDataPending: 'Data source pending: to be wired after the Photos (SP7) and AI (SP8) areas are merged.',
   settingsFpFilenameIndex: 'Filename index',
@@ -279,7 +279,7 @@ export default {
   settingsFpGlobRules: '{n} pattern rules (e.g. *.key) are managed in AI settings.',
   settingsFpAddFolder: 'Add folder',
 
-  // ── SP9-P4 account ────────────────────────────────────────────────────
+  // ── Account ────────────────────────────────────────────────────
   settingsAccOwnerLabel: 'Local owner account',
   settingsAccChangePassword: 'Change password',
   settingsAccChangeAvatar: 'Change avatar',
@@ -438,7 +438,7 @@ export default {
   kvmDeletingShort: 'deleting',
   kvmToggleSidebar: 'Toggle sidebar',
 
-  // ── P6 KVM create dialog / snapshots / global settings / OSSelector ──(SP9-P6 Task 0)
+  // ── KVM create dialog / snapshots / global settings / OSSelector ──
   // en values = the literal Vue2 $t() key text (Vue2 has no en_US.json, same convention as P5).
   // Reused P5 keys (not re-declared here): kvmSettings / kvmAutoStart / kvmDeletingShort /
   // kvmFailedToSaveSettings / kvmClose / kvmAreYouSure / kvmDelete.
@@ -526,7 +526,7 @@ export default {
   kvmParentDir: 'Parent directory',
   kvmToggleCustom: 'Toggle custom section',
 
-  // ── SP9-P7 Search ── (SearchDialog wired to the real backend; spec §7.5/§7.6/§7.8)
+  // ── Search ── (SearchDialog wired to the real backend; spec §7.5/§7.6/§7.8)
   // Ranking-reason chips (reasons.ts produces the key, the copy lives here). The demo-era
   // labels carried counts (Body match ×9 / Transcript match ×3) that the backend never
   // returns — they were invented, so the new labels carry no numbers.

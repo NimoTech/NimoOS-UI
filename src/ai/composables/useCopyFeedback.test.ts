@@ -7,7 +7,7 @@ import zh from '../../i18n/zh_cn'
 import { useToast } from '../../stores/toast'
 import { useCopyFeedback } from './useCopyFeedback'
 
-// SP8-P2b acceptance round 5 — see original requirement in useCopyFeedback.ts header comment.
+// See original requirement in useCopyFeedback.ts header comment.
 const h = vi.hoisted(() => ({ copyText: vi.fn() }))
 vi.mock('../../files/util/clipboard', () => ({ copyText: h.copyText }))
 

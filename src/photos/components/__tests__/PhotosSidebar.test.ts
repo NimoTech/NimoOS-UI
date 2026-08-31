@@ -14,14 +14,14 @@ import { useSessionStore } from '../../../stores/session'
 import { usePhotosTheme, __resetPhotosThemeForTests } from '../../composables/usePhotosTheme'
 import { useSidebarDrawer, __resetSidebarDrawerForTest } from '../../../composables/useSidebarDrawer'
 
-// Task 3 (shell + sidebar re-skin): re-skinned to the Vue2 pixel baseline — selectors below moved from
+// Re-skinned to the Vue2 pixel baseline — selectors below moved from
 // New-UI's old `.photos-sidebar`/`.side-item`/`.side-name`/`.storage-bar-fill` to Vue2's own
 // `.sidebar`/`.nav-item[data-active]`/`.storage-mini`/`.icon-btn` (PhotosSidebar.vue.vue2.
 // script-level behavior — NAV table, isActive-by-route, storage percent, router.push, the
 // aiFeatures smartview filter, the mobile drawer — is unchanged; only classes/DOM structure
 // and the two new things (theme toggle, collapsed prop) moved.
 //
-// P8a-T6 (§7e-15): the sidebar now also reads the aiFeatures config itself once (see the
+// The sidebar now also reads the aiFeatures config itself once (see the
 // comment at the top of PhotosSidebar.vue). It defaults to parsing as `{}` (readAiFeatures
 // treats any missing field as enabled, so smartview is still true) — this default keeps the
 // rest of this file's existing tests (which synchronously assert 7 items right after mount)
@@ -47,7 +47,7 @@ const testRouter = createRouter({
     { path: '/photos/people/:id', name: 'photos-person-detail', component: { template: '<div/>' } },
     { path: '/photos/places', name: 'photos-places', component: { template: '<div/>' } },
     { path: '/photos/smart-views', name: 'photos-smart-views', component: { template: '<div/>' } },
-    // SP7-P8a-T5: the destination for the settings entry (see the "settings entry" describe block below).
+    // The destination for the settings entry (see the "settings entry" describe block below).
     { path: '/photos/settings', name: 'photos-settings', component: { template: '<div/>' } },
   ],
 })
@@ -67,7 +67,7 @@ describe('PhotosSidebar', () => {
     await testRouter.isReady()
   })
 
-  // SP7-P7a-T4: NAV gained a smart-views entry inserted after places and before favorites — the
+  // NAV gained a smart-views entry inserted after places and before favorites — the
   // original 6 items became 7, and favorites/trash indices each shift by +1 (was 4/5, now 5/6).
   // Order follows Vue2 PhotosSidebar.vue:114-118 (library / albums / people / places / smart).
   it('renders seven nav items (Library/Albums/People/Places/For You/Favorites/Recently Deleted), highlighting the current route', async () => {
@@ -175,8 +175,8 @@ describe('PhotosSidebar', () => {
     expect(items[6].attributes('data-active')).toBe('false')
   })
 
-  // SP7-P7a-T4: index 4 is smart-views (the brief explicitly requires asserting both "7 items"
-  // and "smart-views at index 4").
+  // Index 4 is smart-views (asserting both "7 items"
+  // and "smart-views at index 4" explicitly).
   it('smart-views is at index 4, and at /photos/smart-views only that item is active', async () => {
     await testRouter.push('/photos/smart-views')
     await testRouter.isReady()
@@ -269,9 +269,9 @@ describe('PhotosSidebar', () => {
     expect(d.open.value).toBe(false)
   })
 
-  // SP7-P8a-T5: the settings entry in the sidebar head (moved from the sidebar footer to
-  // sidebar-head starting with Task 3, following Vue2 PhotosSidebar.vue:34-35), pointing to
-  // /photos/settings.
+  // The settings entry in the sidebar head (moved from the sidebar footer to
+  // sidebar-head during the shell/sidebar re-skin, following Vue2 PhotosSidebar.vue:34-35),
+  // pointing to /photos/settings.
   describe('settings entry', () => {
     it('the settings entry exists in the sidebar head', () => {
       const w = mountSidebar()
@@ -288,9 +288,9 @@ describe('PhotosSidebar', () => {
     })
   })
 
-  // Task 3: the sidebar-head theme toggle button — the actual theme switch destination from
+  // The sidebar-head theme toggle button — the actual theme switch destination from
   // Vue2 PhotosSidebar.vue:27-33.
-  describe('theme toggle button (Task 3)', () => {
+  describe('theme toggle button', () => {
     it('shows "切换到浅色主题" by default (dark); clicking calls usePhotosTheme().set to switch to light, then clicking again switches back to dark', async () => {
       const w = mountSidebar()
       const themeBtn = w.get('.sidebar-head').findAll('.icon-btn')[0]
@@ -313,9 +313,9 @@ describe('PhotosSidebar', () => {
     })
   })
 
-  // Task 3: collapsed prop — the collapsed state renders a centered icon column, not the
+  // The collapsed prop — the collapsed state renders a centered icon column, not the
   // expanded state's sidebar-head/nav-item.
-  describe('collapsed state (collapsed prop, Task 3)', () => {
+  describe('collapsed state (collapsed prop)', () => {
     it('collapsed=true renders 7 .icon-btn elements (nav1+nav2 merged), not .nav-item/.brand-name', () => {
       const w = mountSidebar({ collapsed: true })
       expect(w.find('.nav-item').exists()).toBe(false)
@@ -338,9 +338,9 @@ describe('PhotosSidebar', () => {
     })
   })
 
-  // Task 3: the "Photo library" drawer expand/collapse — the nav2 (favorites/trash) collapsible
+  // The "Photo library" drawer expand/collapse — the nav2 (favorites/trash) collapsible
   // section from Vue2 PhotosSidebar.vue:51-76, expanded by default (data() { libraryOpen: true }).
-  describe('"Photo library" drawer expand/collapse (Task 3)', () => {
+  describe('"Photo library" drawer expand/collapse', () => {
     it('expanded by default: all 7 .nav-item are visible; clicking .nav-label collapses it to leave only 5 (favorites/trash hidden); clicking again restores all 7', async () => {
       const w = mountSidebar()
       expect(w.findAll('.nav-item')).toHaveLength(7)
@@ -352,9 +352,9 @@ describe('PhotosSidebar', () => {
     })
   })
 
-  // Task 3: brand-user — the displayName from Vue2 PhotosSidebar.vue:25; New-UI uses the
+  // brand-user — the displayName from Vue2 PhotosSidebar.vue:25; New-UI uses the
   // session store.
-  describe('brand-user (Task 3)', () => {
+  describe('brand-user', () => {
     it('sidebar-head shows the username when logged in', () => {
       useSessionStore().setUser({ username: 'yu' })
       const w = mountSidebar()
@@ -367,8 +367,8 @@ describe('PhotosSidebar', () => {
     })
   })
 
-  // Task 3: favorites badge — sourced from usePhotosFavorites(), only shown when favIdsLoaded.
-  describe('favorites badge (Task 3)', () => {
+  // favorites badge — sourced from usePhotosFavorites(), only shown when favIdsLoaded.
+  describe('favorites badge', () => {
     it('shows the .nav-count number on the favorites item when favIdsLoaded', () => {
       const fav = usePhotosFavorites()
       fav.favIds = new Set(['1', '2', '3'])
@@ -384,7 +384,7 @@ describe('PhotosSidebar', () => {
       expect(favItem?.find('.nav-count').exists()).toBe(false)
     })
 
-    // Review fix (Task 10 round 2): Vue2 PhotosSidebar.vue:129/:143 builds this count as
+    // Vue2 PhotosSidebar.vue:129/:143 builds this count as
     // `this.favCount || null` -- a loaded-but-empty list must hide the badge, not render "0".
     it('does not show .nav-count on the favorites item when loaded but empty', () => {
       const fav = usePhotosFavorites()
@@ -396,13 +396,13 @@ describe('PhotosSidebar', () => {
     })
   })
 
-  // Task 10 (Plan H): trash badge -- wired the same way as favorites' (loaded gate), plus the
+  // Trash badge -- wired the same way as favorites' (loaded gate), plus the
   // fetch-once-on-mount behavior favorites doesn't need (favIds is reconciled elsewhere; trash
   // has no other always-loaded source, so the sidebar itself fetches it, once per session).
-  // F-15: split into three independent cases -- the original single "fetch once if not loaded"
+  // Split into three independent cases -- the original single "fetch once if not loaded"
   // case set `trash.loaded = true` in its own body, which meant the new fetch-once logic was
   // never actually exercised by an assertion that could fail.
-  describe('trash badge (Task 10)', () => {
+  describe('trash badge', () => {
     it('fetches trash once on mount when not already loaded', async () => {
       const trash = usePhotosTrash()
       trash.loaded = false
@@ -431,7 +431,7 @@ describe('PhotosSidebar', () => {
       expect(trashItem?.find('.nav-count').text()).toBe('2')
     })
 
-    // Review fix (Task 10 round 2): Vue2 PhotosSidebar.vue:130/:144 builds this count as
+    // Vue2 PhotosSidebar.vue:130/:144 builds this count as
     // `this.trashCount || null` -- a loaded-but-empty trash must hide the badge, not render "0".
     it('does not show .nav-count on the trash item when loaded but empty', async () => {
       const trash = usePhotosTrash()
@@ -444,9 +444,9 @@ describe('PhotosSidebar', () => {
     })
   })
 
-  // P8a-T6 (§7e-15): smartview config awareness — mirrors Vue2 PhotosSidebar.vue:120-122's
+  // Smartview config awareness — mirrors Vue2 PhotosSidebar.vue:120-122's
   // `items.filter(i => i.id !== 'smart')` when `ai.smartview === false`.
-  describe('smartview config awareness (§7e-15)', () => {
+  describe('smartview config awareness', () => {
     it('hides the smart-views entry entirely when aiFeatures.smartview is false', async () => {
       vi.mocked(service.photos.getConfig).mockResolvedValue({ aiFeatures: { smartview: false } })
       const w = mountSidebar()
@@ -461,7 +461,7 @@ describe('PhotosSidebar', () => {
       expect(items[5].text()).toContain('最近删除')
     })
 
-    // review fix (take-along): the original title's outer "undetermined" phrasing in
+    // The original title's outer "undetermined" phrasing in
     // "undetermined (fetch failed)" could be misread as testing the "not yet fetched" branch
     // (fetch still in flight, not yet resolved) — but the `await flushPromises()` below settles
     // the rejection first, so this actually only reaches the "fetch failed" catch branch (it
@@ -479,7 +479,7 @@ describe('PhotosSidebar', () => {
       expect(items.some((i) => i.text().includes('为你推荐'))).toBe(true)
     })
 
-    // review fix (take-along): adds the true "not yet fetched" branch — without flushPromises
+    // Adds the true "not yet fetched" branch — without flushPromises
     // after mount, fetchAiFeatures()'s promise is still in flight, so the store's aiFeatures
     // stays at its initial value (all true). This is numerically identical to the previous case
     // (the failure branch also falls back to all true), but it takes a different code path (it
@@ -507,7 +507,7 @@ describe('PhotosSidebar', () => {
     })
   })
 
-  // Plan C Task 2, review fix round 1 (Important 1): AreaShell's ☰ was the ONLY way to open
+  // AreaShell's ☰ was the ONLY way to open
   // the sidebar drawer on a ≤768px viewport for every photos-area page except Photos.vue
   // (which gets its own toggle from PhotosTopbar). Once the five re-shelled album/for-you
   // views drop AreaShell, that entry point vanishes with nothing to replace it — a confirmed
@@ -516,7 +516,7 @@ describe('PhotosSidebar', () => {
   // every current and future sister page gets it for free without a topbar of its own.
   // `hideDrawerTrigger` lets Photos.vue opt out — its own PhotosTopbar button already does
   // this job, and rendering both would be a redundant double affordance.
-  describe('the mobile drawer floating trigger button (review fix round 1)', () => {
+  describe('the mobile drawer floating trigger button', () => {
     it('narrow viewport with the drawer closed: the trigger button renders, and clicking it calls drawer.toggle() to open the drawer', async () => {
       const d = useSidebarDrawer()
       d.isNarrow.value = true
@@ -555,7 +555,7 @@ describe('PhotosSidebar', () => {
     })
   })
 
-  // SP15-P2b Task 5: the smart-views entry's label changes to "For You" now that its page
+  // The smart-views entry's label changes to "For You" now that its page
   // is Moments-only, but its id/route stay so the ?view=smart deep link and the
   // aiFeatures.smartview hide-when-off filter above keep working unmodified.
   it('labels the smart-views entry "For You" after the IA merge, and drops the old "Smart Views" label entirely', () => {

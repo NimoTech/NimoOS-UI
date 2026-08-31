@@ -1,5 +1,5 @@
 <!--
-  SP8-P1c1 patch task 2 — SlashPopover: `/` command panel, restyled to match
+  SlashPopover: `/` command panel, restyled to match
   MentionPopover.vue (the `@` panel) instead of the rejected full-screen
   SlashMenu.vue (see file header there for why it's being retired — a later
   task, not this one, deletes it and wires this one up in AgentComposer.vue).

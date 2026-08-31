@@ -55,8 +55,7 @@ export function fillTokenTail(template: string, tail: string): string {
 }
 
 /**
- * SP8-P2b acceptance round 3, user decided 2026-07-30: add bot failure → localized copy
- * i18n **key**.
+ * Maps add-bot failure to a localized copy i18n **key**.
  *
  * Cause: UI showed backend original `{"detail":"bot token rejected"}` directly. User
  * demanded human-readable copy, no JSON echo, and multi-language.

@@ -148,7 +148,7 @@ describe('KvmPage shell', () => {
     expect(w.text()).toContain('NIMO 虚拟机')
     // Note: brief draft had "Select one virtual machine" here, but after checking Vue2 zh_CN.json,
     // the official translation of "Select a Virtual Machine" is "选择虚拟机" (without "one"),
-    // so I corrected the assertion per i18n, see task-2-report.md for details.
+    // so I corrected the assertion per i18n.
     expect(w.text()).toContain('选择虚拟机')
   })
 
@@ -745,7 +745,7 @@ describe('KvmPage installation banner + SPICE info bar (Task 8)', () => {
   // vm.spicePort with getVNC's return (per Vue2 connectVNC keepalive merge, spicePreserve.ts).
   // beforeEach's default getVNC mock returns spicePort:0, if not changed here spicePort:5901
   // gets overridden back to 0 by this "keepalive merge", condition becomes false, won't show —
-  // probe process see task-8-report.md.
+  // probe process.
   it('spicePort>0 and bootFromDisk → show SPICE info bar, build correct connection string', async () => {
     api.getVMList.mockResolvedValue({
       data: [VM({ id: 'vm-1', state: 'running', bootFromDisk: true, spicePort: 5901 })],
@@ -1340,7 +1340,7 @@ describe('KvmPage create flow wiring (P6 Task 8)', () => {
   // the create dialog → open OsSelector (its overlay is now covering the screen, matching the real
   // scenario of a user watching download progress) → receive the download-failed event →
   // inline `.cv-error` shows, no toast.
-  it('ISO download failed → OsSelector inline .cv-error shows「下载失败」, no toast (A3)', async () => {
+  it('ISO download failed → OsSelector inline .cv-error shows「下载失败」, no toast', async () => {
     api.getVMList.mockResolvedValue({ data: [VM()], total: 1 })
     api.getISOList.mockResolvedValue([ISO_DEBIAN()])
     const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
@@ -1360,7 +1360,7 @@ describe('KvmPage create flow wiring (P6 Task 8)', () => {
   // Full-branch review fix A3: clear the previous failure error before starting a new download — otherwise
   // retrying the same/another ISO would leave the old red text stuck there, even though this download
   // itself hasn't produced a result yet.
-  it('clears the previous download-failure error residue before starting a new download (A3)', async () => {
+  it('clears the previous download-failure error residue before starting a new download', async () => {
     api.getVMList.mockResolvedValue({ data: [VM()], total: 1 })
     api.getISOList.mockResolvedValue([ISO_DEBIAN()])
     const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
@@ -1384,7 +1384,7 @@ describe('KvmPage create flow wiring (P6 Task 8)', () => {
 
   // Full-branch review fix A3: clear the error residue when closing the selector — otherwise reopening it
   // next time (even for the settings dialog) would carry over the previous, now-irrelevant old error.
-  it('reopening OsSelector after closing it doesn\'t carry over the previous download-failure error (A3)', async () => {
+  it('reopening OsSelector after closing it doesn\'t carry over the previous download-failure error', async () => {
     api.getVMList.mockResolvedValue({ data: [VM()], total: 1 })
     api.getISOList.mockResolvedValue([ISO_DEBIAN()])
     const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
@@ -1832,7 +1832,7 @@ describe('KvmPage snapshots tab wiring (P6 Task 10)', () => {
   })
 })
 
-describe('SP16 Task 6: the list must refresh when reopening the OS selector', () => {
+describe('the list must refresh when reopening the OS selector', () => {
   it('refetches the ISO list every time it opens (Vue2 fetches every time visible:true)', async () => {
     api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'running' })], total: 1 })
     const w = mountPage()
@@ -1855,7 +1855,7 @@ describe('SP16 Task 6: the list must refresh when reopening the OS selector', ()
   })
 })
 
-describe('SP16 Task 7: eject failure must not pop a success toast', () => {
+describe('eject failure must not pop a success toast', () => {
   it('leaving the page while eject is in flight, a later failure no longer toasts「已弹出」', async () => {
     api.getVMList.mockResolvedValue({
       data: [VM({ id: 'vm-1', state: 'running', bootFromDisk: false, iso: '/data/alpine.iso' })],

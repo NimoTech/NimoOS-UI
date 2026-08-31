@@ -1,5 +1,5 @@
-// Task 7 (SP15-P2b): AlbumConvertToSmartDialog.vue -- the more menu's "Convert to Smart
-// Album" entry (Task 6) opens this. Ported from Vue2 939a7d3a:PhotosAlbumDetail.vue:142-206
+// AlbumConvertToSmartDialog.vue -- the more menu's "Convert to Smart
+// Album" entry opens this. Ported from Vue2 939a7d3a:PhotosAlbumDetail.vue:142-206
 // (modal markup), :294-298 (convertChips), :310-345 (openConvertModal/closeConvert/
 // confirmConvert). Structure follows SmartViewCreateDialog.vue's .sv-modal-* idiom
 // (single column here -- this dialog has no preview rail).
@@ -125,7 +125,7 @@ describe('AlbumConvertToSmartDialog.vue', () => {
     await w.vm.$nextTick()
   })
 
-  // Final fix wave: Escape had no test that could fail. Deleting the
+  // Escape had no test that could fail. Deleting the
   // `document.addEventListener('keydown', onDocumentKeydown)` line inside watch(open) left the
   // whole suite green -- nothing here dispatched a keydown, and no host test reaches this
   // dialog's keyboard path. Same pair PhotosSmartViewDetail.test.ts already has for its own

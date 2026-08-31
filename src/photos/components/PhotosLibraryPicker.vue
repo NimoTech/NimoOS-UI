@@ -1,24 +1,24 @@
 <script setup lang="ts">
-// Task 6 (SP7-P4 albums): "pick photos from library to add to this album" picker — shared by
-// T7 (create album on album list page's "pick photos manually") and T8 (add photos button in album
-// detail Edit state). Structure per the Vue 2 panel's src/views/Photos/PhotosAlbumLibraryPicker.vue
+// "pick photos from library to add to this album" picker — shared by
+// the album list page's "pick photos manually" flow and the add-photos button in album
+// detail Edit state. Structure per the Vue 2 panel's src/views/Photos/PhotosAlbumLibraryPicker.vue
 // (142 lines).
 //
-// Difference from T5 AlbumPickerDialog.vue (pick albums): T5 adds a known set of assetIds to some
+// Difference from AlbumPickerDialog.vue (pick albums): that component adds a known set of assetIds to some
 // target album; this component picks photos from the entire library (flattened timeline) to add to a
 // known album — data source, existence check, UI structure all differ.
 //
 // Iron rule: "already in album" checks must String()-normalize before comparing — backend asset ids
 // may be numbers, timeline Photo.id is string | number, unnormalized comparison misses matches (Vue2
 // :86-89 compares Set(id) values directly, unconcerned with cross-type mismatches; here changed to
-// String normalization, matching T2 store's existing iron rule).
+// String normalization, matching the store's existing iron rule).
 //
-// Shape deviation logged (same reason as T5, accounting): Vue2 uses window.confirm for "discard
+// Shape deviation logged (same reason as AlbumPickerDialog.vue): Vue2 uses window.confirm for "discard
 // unsaved picks" second confirmation (:112); this repo has no window.confirm convention, changed to
 // inline confirmation bar in panel (discardConfirm state), behavior semantics unchanged — with
 // unsaved picks, clicking cancel shows confirmation bar first, real close only after confirming.
 //
-// ★★★ SP15-P1-T9 · Step 0: generalised away from albums ★★★
+// Generalised away from albums:
 // It used to hardcode the album store for both halves of its job — reading which assets are
 // already in (`albums.assetsOf(props.albumId)`) and writing the chosen ones back
 // (`albums.addAssetsToAlbum`) — plus the success/failure toasts around that write. Moments need
@@ -27,7 +27,7 @@
 // picking itself. Vue 2 made this exact change in #79 (ccaccd36, PhotosAlbumLibraryPicker.vue →
 // PhotosLibraryPicker.vue).
 //
-// ✅ Debt paid in SP15-P2a (2026-08-09): this file (previously AlbumLibraryPicker.vue, plus its
+// This file (previously AlbumLibraryPicker.vue, plus its
 // test) is renamed to PhotosLibraryPicker.vue, matching what Vue 2 already did in the same #79
 // commit that generalised it. Rename only — every import, test path and the oss manifest were
 // updated to follow; props, emits, template and logic are untouched, and the album pages' existing
@@ -75,7 +75,7 @@ const timeline = useTimelineStore()
 
 // Selected set directly stores the raw ids from flat (same source as flat, types naturally align,
 // no normalization needed); submitted as-is to addAssetsToAlbum, no type conversion.
-// [T9] The ids are now handed to the caller unconverted instead — whatever type it wants is its
+// The ids are now handed to the caller unconverted instead — whatever type it wants is its
 // own business. Both album paths still pass them straight to addAssetsToAlbum, so not one byte
 // of the request body changed.
 const selected = ref<Set<string | number>>(new Set())
@@ -99,7 +99,7 @@ const flat = computed<Photo[]>(() => {
 
 // Iron rule: Set value comparison with String normalization — album asset ids and timeline photo
 // ids may have different types.
-// [T9] Only the consuming half of that normalisation is still here; the producing half (String()
+// Only the consuming half of that normalisation is still here; the producing half (String()
 // while building the Set) moved to whoever owns the target collection. Each caller's test asserts
 // its own half — a numeric album asset id has to reach this component as '5'.
 function isExisting(p: Photo): boolean {
@@ -146,14 +146,14 @@ function confirmDiscard(): void {
   closeNow()
 }
 
-// Esc layering, document-level listening (not template @keydown.esc) — same pattern as T5
+// Esc layering, document-level listening (not template @keydown.esc) — same pattern as
 // AlbumPickerDialog.vue and PhotoLightbox.vue:119-139: template-bound keydown relies on real DOM
 // focus; when user opens from trigger button and presses Esc without clicking inside the panel,
 // the event doesn't reach elements inside. When confirmation bar expands, Esc only collapses it
 // (doesn't force close the panel — discarding picks requires explicit confirmation button click,
 // matching attemptClose's safety semantics).
 //
-// Final review mandatory 1 (unified defense): this component isn't currently mounted in lightbox
+// Unified defense: this component isn't currently mounted in lightbox
 // layers, but the risk of "document bubbles up closing panel, native keydown bubbles to window" is
 // identical to AlbumPickerDialog.vue — if a future host opens it stacked above a lightbox (the
 // pattern will eventually appear), it would mistakenly close the lightbox too. Adding stopPropagation
@@ -174,7 +174,7 @@ watch(
     if (isOpen) {
       selected.value = new Set()
       discardConfirm.value = false
-      // Task 8b (owner ruling): in bucket mode `months` arriving does not mean any photos are in
+      // In bucket mode `months` arriving does not mean any photos are in
       // hand yet — this grid reads timeline.allPhotos (via `flat` above), so without this the
       // picker would open on an empty grid even though the directory says the library isn't empty.
       // Load the newest few months up front; fetchNewestBuckets is a no-op outside bucket mode, so
@@ -188,7 +188,7 @@ watch(
       void (async () => {
         if (needsTimeline) await timeline.fetchTimeline()
         await timeline.fetchNewestBuckets(3)
-        // Whole-branch review fix (minor 12): paging used to happen ONLY on a `scroll` event, so a
+        // Paging used to happen ONLY on a `scroll` event, so a
         // library whose three newest months fit inside the panel never fired one and every earlier
         // month was unreachable — the picker looked like the library ended three months ago. If the
         // list does not overflow there is nothing for the user to scroll, so keep pulling months in
@@ -204,7 +204,7 @@ watch(
 )
 onUnmounted(() => document.removeEventListener('keydown', onDocumentKeydown))
 
-// Task 8b (owner ruling, second half): in bucket mode this grid only ever holds the already-loaded
+// In bucket mode this grid only ever holds the already-loaded
 // buckets. Scrolling near the bottom fetches the next unloaded dated bucket so the user can keep
 // paging back through the library instead of the whole thing being pulled down at once. `loadingMore`
 // caps it to one in-flight bucket load at a time — fetchBucket already dedupes per key, but without
@@ -234,7 +234,7 @@ async function onListScroll(e: Event): Promise<void> {
   await pageInNextBucket()
 }
 
-// A panel that cannot scroll gives the user no way to ask for more (minor 12).
+// A panel that cannot scroll gives the user no way to ask for more.
 // Capped so a run of months that add no tiles (all-video months on a photo-only
 // list, an empty bucket) cannot turn into an unbounded walk back through the
 // library — the user can still scroll for the rest.
@@ -339,7 +339,7 @@ function confirmAdd(): void {
 </template>
 
 <style scoped>
-/* Task 7 (the two-picker class-name rework): scrim/modal/head/title/sub/body/empty/grid/tile
+/* The two-picker class-name rework: scrim/modal/head/title/sub/body/empty/grid/tile
    (+[data-selected]/[data-disabled]/the nested img)/tile-check/foot are character-for-character
    the same names as the already-imported global parity stylesheet
    (src/photos/styles/vue2-parity/photos.scss:4277-4341, `.picker-*`, bare top-level selectors
@@ -394,7 +394,7 @@ function confirmAdd(): void {
    parity's icon-only badge. That is why parity's `.picker-tile-existing` name is not reused
    (different semantics and size, and sharing the name would fight parity's rule); the
    non-clashing `.picker-already` family keeps the original visuals instead. */
-/* Fix-2 item 6 (owner acceptance, 2026-08-13): `color` used to be `var(--text-1)` -- a
+/* The color used to be `var(--text-1)` -- a
    *parity*-scoped token that correctly flips dark under `.photos-root.is-light`, sitting on
    `--overlay-bg`, a *global* token that stays a dark tint in both of New-UI's own themes
    (theme.css:274/408, both a translucent dark fill, deliberately invariant since a

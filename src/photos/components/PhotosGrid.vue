@@ -12,17 +12,17 @@
 //     from `service.photos.spriteUrl(id)`. 300ms enter-debounce, rAF-throttled
 //     mousemove, 600ms-idle -> 400ms/frame auto-advance, leave/unmount bump the
 //     token — all copied verbatim.
-//  3. P1 scope cut: selectbar rendered ONLY delete + cancel at the time (favorite/
-//     add-to-album/ask-nimo deferred to P3/P4/SP8). Update: add-to-album shipped in
-//     P4 (Task 9, PhotosSelectionToolbar.vue) — Ask Nimo still deferred to SP8.
+//  3. Initial scope cut: selectbar rendered ONLY delete + cancel at the time (favorite/
+//     add-to-album/ask-nimo deferred). Update: add-to-album shipped later
+//     (PhotosSelectionToolbar.vue) — Ask Nimo still deferred.
 //     No FilterBar, no upload empty-state button, no search-mode empty state
 //     (Vuex `isSearchMode` dependency dropped).
-//  4. i18n: `$t('English source')` -> `t('photosXxx')` (Task 4 key table).
+//  4. i18n: `$t('English source')` -> `t('photosXxx')` (see the key table).
 //  5. (superseded by #6 below) Styling was originally rebuilt on New-UI's own tokens,
 //     with the per-tile checkbox restyled as a native `.tile-check`/`.tile-check-box`
 //     <input> (Files-region pattern) and the favorite star as a single always-shown
 //     top-right toggle button.
-//  6. Task 6 (grid rewrite): re-skinned wholesale to Vue2 pixel/DOM parity, superseding #5 —
+//  6. Grid rewrite: re-skinned wholesale to Vue2 pixel/DOM parity, superseding #5 —
 //     column/tile/scrubber/month-head CSS now comes ONLY from
 //     src/photos/styles/vue2-parity/photos.scss (ported verbatim from the Vue 2 panel's
 //     photos.scss; this component's own style block shrinks to the handful of rules
@@ -48,12 +48,12 @@ import { usePhotosFavorites } from '../stores/favorites'
 import VideoHoverPreview from './VideoHoverPreview.vue'
 import PhotosIcon from './PhotosIcon.vue'
 
-// P6b-T9 (deviation log 14): the Places photo view (D10 minimal cross-store surface, browse-only,
+// Deviation log 14: the Places photo view (a minimal cross-store surface, browse-only,
 // no multi-select/batch ops) is the 3rd consumer, but it doesn't need the checkbox — the previous two
 // consumers (Photos.vue/PhotosFavorites.vue) both need selection state, so the hardcoded `.tile-checkbox`
 // render never had a "don't want it" case before. Add a `selectable` (default true) gate; the default
 // guarantees zero behavior change for the existing two consumers, so their call sites don't need updating one by one.
-// Acceptance Fix-1 (owner finding, Plans G+H): the Favorites view is the 4th consumer, and
+// Correction: the Favorites view is the 4th consumer, and
 // unlike the previous three it has no right-edge timeline scrubber at all in Vue2 --
 // Vue2 PhotosFavoritesView.vue builds its own bespoke `.lib-*` grid markup, never mounting
 // this shared component in the first place, so there is no Vue2 scrubber to port for it.
@@ -113,7 +113,7 @@ const filteredMonths = computed(() => (props.months || []).map(m => ({
   filtered: m.photos.filter(p => matchesTab(p, props.tab)),
 })))
 
-// Task 6: the column COUNT is now a fixed lookup per density (gridMetrics.ts's
+// Grid rewrite: the column COUNT is now a fixed lookup per density (gridMetrics.ts's
 // columnsFor) — container width no longer decides how many columns there are. It
 // still decides how WIDE each of those fixed columns is (tileEdge), which is what
 // an unloaded month's estimated row height is built from, so this measurement
@@ -522,7 +522,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <!-- Task 6 (grid rewrite): root is now `.content` — Vue2 PhotosGrid.vue's own root
+  <!-- Grid rewrite: root is now `.content` — Vue2 PhotosGrid.vue's own root
        element (photos.scss:307's two-column grid `1fr 66px`), not a New-UI-only
        wrapper. `.photos-wrap` and `.scrubber` are its two grid-column children,
        siblings, not the old flex-column + absolutely-positioned overlay. -->
@@ -542,7 +542,7 @@ onBeforeUnmount(() => {
             <div class="month-head">
               <div class="month-title">{{ m.key === 'unknown' ? t('photosUnknownDate') : m.title }}</div>
               <!-- Vue2 PhotosGrid.vue:34 `· {{ m.loc }}` — always-empty placeholder in this
-                   port (Month.loc is never populated by any producer here; see task-6-brief.md). -->
+                   port (Month.loc is never populated by any producer here). -->
               <div class="month-loc">· {{ m.loc }}</div>
               <div v-if="showCount(m)" class="month-count">
                 {{ t('photosItemsCount', { count: isLoaded(m) ? m.filtered.length : skeletonCountOf(m) }) }}
@@ -645,7 +645,7 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-/* Task 6 (grid rewrite): the column/tile/scrubber/month-head visual contract that
+/* Grid rewrite: the column/tile/scrubber/month-head visual contract that
    used to live in this file now comes from ONE source of truth —
    src/photos/styles/vue2-parity/photos.scss (ported verbatim from the Vue 2 panel's
    photos.scss, imported globally by every view that mounts this component
@@ -660,8 +660,8 @@ onBeforeUnmount(() => {
    New-UI-only windowing artifacts anyway (Vue2 collapses head+body into a
    single skeleton div per section; this component keeps a finer-grained
    placeholder-vs-skeleton split — see the windowing block in the script above).
-   Inventing a shimmer here would be exactly the decoration the brief calls
-   out not to add. */
+   Inventing a shimmer here would be exactly the decoration this design deliberately
+   avoids. */
 
 /* Vue2's `.content` is a flex-item of `.main` (display:flex, photos.scss:203),
    which alone gives it a real computed height to size against. New-UI's view
@@ -674,7 +674,7 @@ onBeforeUnmount(() => {
    resolves against it correctly. */
 .content { height: 100%; }
 
-/* Acceptance Fix-1: when the caller opts out of the scrubber (Favorites -- see the
+/* Correction: when the caller opts out of the scrubber (Favorites -- see the
    `showScrubber` prop comment above), the parity `.content` grid's fixed
    `1fr 66px` two-column track (photos.scss) would otherwise leave a permanent blank
    66px gutter where the scrubber column used to sit. This override has no Vue2
@@ -687,7 +687,7 @@ onBeforeUnmount(() => {
    globally covered onto `.photos-wrap` in the parity scss (`.photos-root *` covers any descendant).
    These two lines are a literal duplicate only because photosLayoutHeightCap.test.ts independently
    locks in the pre-existing contract that "this file's source must contain them" (an unrelated
-   gate to this task) — keep them, don't delete; pure harmless redundancy. */
+   test gate) — keep them, don't delete; pure harmless redundancy. */
 .photos-wrap { scrollbar-width: none; }
 .photos-wrap::-webkit-scrollbar { display: none; }
 </style>

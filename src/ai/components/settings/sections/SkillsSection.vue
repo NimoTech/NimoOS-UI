@@ -1,5 +1,5 @@
 <!--
-  SP8-P3a Task 6 — 1:1 ported from Vue2 src/views/AI/Skills/SkillsSection.vue (226 lines,
+  1:1 ported from Vue2 src/views/AI/Skills/SkillsSection.vue (226 lines,
   read-only half). Left column (header only refresh button + search box + grouped list) + right SkillDetail.
 
   【Divergence list (all reported per public constraint §2 three-item kit)】
@@ -11,7 +11,7 @@
   peeled axios layer once, while backend `NimoOS-AI/route/v2/skills.go:37` is `c.JSON(200, out)`
   bare array — peeling off `.data` again on bare array is always `undefined`, `this.skills` always
   `[]` (bare array fallback masks actually getting undefined), list forever empty. Same defect mold
-  as SP8-P2a acceptance fixed `loadAvailableModels` (commit a942196): core field name ≠ core envelope
+  as the earlier fix to `loadAvailableModels` (commit a942196): core field name ≠ core envelope
   layers. Here directly `await service.ai.listSkills()` use as array, no second `.data` layer anymore.
 
   2 (public constraint §3 divergence 3) — `.sk-toast` (Vue2 :72-77, `showToast()`) not ported,
@@ -47,7 +47,7 @@
   (sk-col-actions/set-split/icon-btn) and skills-styles.scss (Task 1/8, the rest).
 
   ============================================================================
-  SP8-P3b Task 8 — the `+` button plus the four write-operation wire-ups (matching Vue2's
+  The `+` button plus the four write-operation wire-ups (matching Vue2's
   :6-11 order and the four method bodies at :147-214).
 
   [Single-layer unwrap, public constraint §4 / brief §10.2] All three spots use a
@@ -194,7 +194,7 @@ onMounted(() => reload())
 // Matches Vue2's `onToggle` (:147-161). Single-layer unwrap (see the "Single-layer
 // unwrap" item 1 in the file header comment).
 //
-// [P3b final-review fix M5] Previously, when `idx !== -1 && updated` was false (the
+// [Fix M5] Previously, when `idx !== -1 && updated` was false (the
 // backend returned an unexpected shape, e.g. an empty body), the list wouldn't update but
 // would still fall through to the bottom of the `try` branch and pop a success toast —
 // today PATCH always returns a 200 bare skill so this never triggers, but if it ever did,

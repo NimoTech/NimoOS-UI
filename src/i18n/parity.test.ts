@@ -41,8 +41,8 @@ describe('i18n locale parity', () => {
   })
 })
 
-/* P6a-T4: completeness and terminology guard for the places-domain keys. */
-describe('photosPlaces keys (SP7-P6a)', () => {
+/* Completeness and terminology guard for the places-domain keys. */
+describe('photosPlaces keys', () => {
   it('all six continent keys are present, and every regionLabelKey return value has a translation', async () => {
     const { regionLabelKey } = await import('../photos/util/placesMap')
     for (const id of ['asia', 'americas', 'europe', 'africa', 'oceania', 'antarctica']) {
@@ -59,7 +59,7 @@ describe('photosPlaces keys (SP7-P6a)', () => {
     expect(bad).toEqual([])
   })
 
-  /* P6b-T1: completeness and interpolation-slot guard for the place detail panel keys. */
+  /* Completeness and interpolation-slot guard for the place detail panel keys. */
   it('the P6b place keys exist in both locales with no empty values', () => {
     const keys = ['photosPlacesHomeBase', 'photosPlacesSpotResetName', 'photosPlacesCoverPageInfo',
       'photosPlacesInsightHome', 'photosPlacesInsightHomeBase', 'photosPlacesVisitHistory']

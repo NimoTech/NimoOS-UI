@@ -1,4 +1,4 @@
-// SP8-P5e Task 4 — `KFileViewer.vue` unit test. Blueprint: the Vue 2 panel's
+// `KFileViewer.vue` unit test. Blueprint: the Vue 2 panel's
 // `src/views/AI/Knowledge/components/KFileViewer.vue` (120 lines, template+script :1-68 ported this round).
 //
 // ═══ mock boundary (governance §9.12 / Appendix D §D.9, T0 on-device conclusion) ═══
@@ -153,7 +153,7 @@ describe('KFileViewer — N41 Esc listener (§2.6, mounted/beforeDestroy → onM
   // count stops growing" criterion is **forever green** in this environment, zero discriminatory
   // power (tested: temporarily deleting onBeforeUnmount line, this type of assertion still passes).
   // 🔴 Real discriminatory, RED-provable criterion falls on "unregistration call itself"
-  // (see T4 report RED probe): whether `window.removeEventListener('keydown', same handler reference)`
+  // (verified with a RED probe): whether `window.removeEventListener('keydown', same handler reference)`
   // was called. Criterion: delete onBeforeUnmount line → `removeCall` becomes `undefined` →
   // following assertion must fail.
   it('on mount registers keydown; Esc emits close; on unmount unregisters with same function reference (criterion: delete onBeforeUnmount → must fail)', () => {

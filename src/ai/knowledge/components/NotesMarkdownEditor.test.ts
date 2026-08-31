@@ -1,4 +1,4 @@
-// SP8-P5d Task 4 — NotesMarkdownEditor.vue unit test
+// NotesMarkdownEditor.vue unit test
 //
 // Test approach per Appendix D §D.6 (T0 on-device conclusion, review re-ran to confirm):
 // jsdom can truly mount `new Editor({extensions:[StarterKit, Markdown]})`, this file uses

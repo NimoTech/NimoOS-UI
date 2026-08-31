@@ -1,5 +1,5 @@
 <!--
-  SP8-P3b Task 4 — 1:1 port from Vue2 src/views/AI/Skills/TestPanel.vue (182 lines).
+  1:1 port from Vue2 src/views/AI/Skills/TestPanel.vue (182 lines).
   Inserted by SkillDetail.vue (T7) between "description" and "SKILL.md"
   `.sk-section` blocks (Vue2 :108-112 position, SkillDetail.vue:166-167 already left placeholder comment).
 

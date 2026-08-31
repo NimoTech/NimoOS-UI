@@ -28,14 +28,14 @@
   /* Acceptance Fix-4 follow-up (controller diagnosis, 2026-08-18): this is a real property
      (not a custom-property token), deliberately set on the BARE `.photos-root` rule itself, not
      just on `.photos-root .app` (which already had its own `color: var(--text-1)`, further down
-     this file). Root cause of the owner's light-theme "white/illegible modal text" screenshot:
+     this file). Root cause of the reported light-theme "white/illegible modal text" screenshot:
      `.app` is the only element inside `.photos-root` that ever declared a `color` -- every
      OVERLAY that renders as a sibling of `.app` (not a descendant), e.g. `.fav-modal-scrim`/
      `.trash-modal-scrim`/AlbumPickerDialog/the slideshow, has titles/bodies with no `color`
      declaration of their own (see e.g. `.trash-modal-title`/`.fav-modal-title` below, both
      colorless by design, meant to inherit `var(--text-1)`). With no color anywhere on
      `.photos-root` itself, "inherit" for those siblings fell through past `.photos-root` to
-     `<body>`'s GLOBAL app-wide theme color -- in the owner's combo (Photos set to its OWN light
+     `<body>`'s GLOBAL app-wide theme color -- in the reported combo (Photos set to its OWN light
      theme, while the global New-UI theme stays on its dark default), that resolves to
      near-white, painted on top of these siblings' near-white `--surface-1` modal background:
      the exact bug. `.app`'s own content was always immune (it has its own explicit color rule),
@@ -56,14 +56,14 @@
   --danger:  #FF453A;
   --info:    #5AC8FA;
 
-  /* Plan H Task 8 review fix: PhotosTrashView.vue's confirm-modal icon (:100-102) and its
+  /* PhotosTrashView.vue's confirm-modal icon (:100-102) and its
      hero/hero-button danger icons (:6/:20) use two literal Vue2 colors that are NEITHER of
      this file's own `--accent`/`--danger` (both a different hue) NOR theme.css's app-wide
      `--remove-fg` (which is itself re-themed per light/dark, #ff8a8a / #c0392b -- neither
      value is Vue2's literal). Theme-invariant by design (Vue2 has no light/dark toggle at
      all), same "identical literal in both blocks" convention as `--nimo-ring-*` below --
      not a token-substitution gap, a deliberate parity choice.
-     Acceptance Fix-4 (owner ruling): `--trash-confirm-fg` was Vue2's literal blue (#5e94ff) --
+     `--trash-confirm-fg` was Vue2's literal blue (#5e94ff) --
      repointed to this file's own purple `--accent` hex (#6E5BFF) so the non-danger confirm-modal
      icon glyph reads coherently against the now-purple `.trash-btn-cta` CTA instead of clashing
      blue-icon-next-to-purple-button. `--trash-danger-fg` is untouched (still Vue2's literal red)
@@ -164,18 +164,18 @@
      for the full rationale. Vue2 has no light-mode override for pins at all (accent purple is
      theme-constant there); this block correctly has none now either. */
 
-  /* Plan F Task 1 (glass-exception dark-band fix, 2026-08-15): PhotosTopbar.vue's `.search` box
-     is an owner-approved GLASS exception (see that component's own scoped-style comment) that
+  /* PhotosTopbar.vue's `.search` box
+     is a deliberate GLASS exception (see that component's own scoped-style comment) that
      deliberately consumes the app's GLOBAL --chip-bg/--chip-border tokens (src/styles/theme.css)
-     instead of this file's own `.photos-root`-scoped parity tokens. Root cause of the owner's
-     "亮色顶部暗带" (light-top dark-band) report: this `.photos-root.is-light` block never
+     instead of this file's own `.photos-root`-scoped parity tokens. Root cause of the reported
+     light-top dark-band bug: this `.photos-root.is-light` block never
      redefined those two token NAMES, so in the very common "photos-light + app-global-dark"
      combination (Photos has its own light/dark toggle, independent of theme.css's app-wide
      toggle — dark is theme.css's default `:root`, no `data-theme="light"` attribute needed to
      hit it) the glass box fell straight through to theme.css's DARK values — a translucent
      white gradient designed to glow on a dark AreaShell page — painted on top of THIS page's
-     own near-white --bg. Fix, scoped to photos only (theme.css itself is untouched — Task 1
-     brief requires this): give these two token NAMES a photos-private light-context value
+     own near-white --bg. Fix, scoped to photos only (theme.css itself is left
+     untouched): give these two token NAMES a photos-private light-context value
      here, so any photos glass exception consuming them (currently just PhotosTopbar's
      `.search`) gets a legible light-glass look instead of silently falling through to
      theme.css's dark design. Values are a translucent take on theme.css's own LIGHT
@@ -197,10 +197,10 @@
   --nimo-ring-err-from: #FFB783;
   --nimo-ring-err-to: #FF9F43;
 
-  /* Plan H Task 8 review fix: same theme-invariant pair as the dark `.photos-root` block above
+  /* Same theme-invariant pair as the dark `.photos-root` block above
      (see its own comment) -- identical literal values, Vue2 has no light-mode override.
-     Acceptance Fix-4 (owner ruling): --trash-confirm-fg repointed to purple, same value as the
-     dark block above (kept identical across both -- see that block's own Fix-4 comment). */
+     --trash-confirm-fg repointed to purple, same value as the
+     dark block above (kept identical across both -- see that block's own comment). */
   --trash-confirm-fg: #6E5BFF;
   --trash-danger-fg: #FF6B5C;
 }
@@ -218,7 +218,7 @@
 .photos-root, .photos-root * { scrollbar-width: none; -ms-overflow-style: none; }
 
 /* === App grid === */
-/* Fix-2 item 6b (owner acceptance, 2026-08-13), New-UI-only structural addition, not a Vue2
+/* New-UI-only structural addition, not a Vue2
    pixel value -- `position: relative; z-index: 1` added below.
    Root cause: New-UI's global `body::before`/`body::after` (theme.css:587-618) paint a
    fixed, viewport-covering "aurora"/bokeh wash (blue/purple/teal radial gradients) at
@@ -233,7 +233,7 @@
    read as a plausible ambient dark-on-dark glow in Photos' own dark theme and was never
    reported. `.photos-root.is-light`'s near-white `--bg` makes the exact same bleed-through
    glaringly visible (a colourful gradient wash over a light page) -- that visibility gap, not
-   a difference in the underlying bug, is why this only surfaces as an owner-reported defect
+   a difference in the underlying bug, is why this only surfaces as a reported defect
    now that photos-is-light exists. `position: relative; z-index: 1` promotes `.app` into the
    positioned/z-index layer *above* the aurora's `z-index: 0` (same recipe already used by
    ViewerShell.vue's own opaque shell over its own z-index:0 bokeh layer, `z-index: 1` on the
@@ -1179,14 +1179,14 @@
 .photos-root .filter-clear:hover { background: rgba(110,91,255,0.28); }
 .photos-root .toolbar-filter-active { color: var(--accent-hi) !important; }
 
-/* New-UI annotation (Plan F Task 4, 2026-08-15): the `.lb-nav[data-disabled="true"]`/
+/* New-UI annotation: the `.lb-nav[data-disabled="true"]`/
    `.lb-nav.shake` pair below is transcribed verbatim from Vue2 (byte-identical) but is DORMANT
    on both sides of the port -- grep-confirmed against the Vue 2 panel's PhotosLightbox.vue: no Vue2 JS
    anywhere sets a `data-disabled` attribute or a `.shake` class on `.lb-nav` (the prev/next
    buttons only ever get the native `:disabled` boolean, which this rule's own selector doesn't
    even target). New-UI's PhotoLightbox.vue wires the same native `:disabled` attribute the same
-   way and does not add `data-disabled`/`.shake` either. Per this task's controller ruling 5:
-   transcribe-only, keep dormant, do not wire either attribute/class in either script -- this
+   way and does not add `data-disabled`/`.shake` either. Decision: transcribe-only, keep dormant,
+   do not wire either attribute/class in either script -- this
    comment only documents that dormancy, it changes no rule. */
 /* === Lightbox nav boundary shake === */
 .photos-root .lb-nav[data-disabled="true"] { opacity: 0.25; cursor: default; }
@@ -1944,7 +1944,7 @@
   transform-origin: top right;
 }
 .fav-menu-enter, .fav-menu-leave-to { opacity: 0; transform: translateY(-4px) scale(0.97); }
-/* Fix wave (post-final-review): Vue2->Vue3 framework-difference shim, same precedent as
+/* Vue2->Vue3 framework-difference shim, same precedent as
    .fav-slide-enter-from (~:2148) / .nimo-fab-swap-enter-from (~:890) / .chat-drawer-enter-from
    (~:2623). Vue3 renamed the bare `-enter` transition class to `-enter-from` (`-leave-to` kept
    its name in both versions, so it needs no shim -- already covered by the rule above). Without
@@ -2270,7 +2270,7 @@
   transition: background 0.15s;
 }
 .fav-btn-ghost:hover { background: var(--surface-3); }
-/* Acceptance Fix-4 (owner ruling, screenshot-verified): the Create-album CTA is now PURPLE in
+/* Design decision (screenshot-verified): the Create-album CTA is now PURPLE in
    BOTH themes, overriding Vue2's own literal amber (#FFD60A/#FFAA00 gradient, #29240B text) that
    Fix-2 had faithfully transcribed one task ago -- the owner explicitly called this out as an
    intentional Vue2 override, not a parity regression. Uses this file's own theme-invariant
@@ -2382,7 +2382,7 @@
   border-color: rgba(255, 107, 92, 0.25);
   box-shadow: 0 32px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(255, 107, 92, 0.1);
 }
-/* Acceptance Fix-4 (owner ruling): the non-danger icon circle now uses the same purple
+/* Design decision: the non-danger icon circle now uses the same purple
    `--accent-soft` family as the CTA below (was a literal blue rgba(94,148,255,…), Vue2's own
    restore/informational blue) -- kept for coherence now that the CTA next to it is purple; the
    danger variant is untouched (still literal red), see this file's own Fix-4 comment on
@@ -2430,19 +2430,18 @@
   transition: background 0.15s;
 }
 .trash-btn-ghost:hover { background: var(--surface-3); }
-/* Acceptance Fix-4 (owner ruling, screenshot-verified): "右下角确认按钮得是紫色的，两色模式下也是"
-   -- the confirm modal's primary CTA is purple in both themes, overriding Vue2's own literal blue
+/* Screenshot-verified requirement: the confirm modal's bottom-right confirm button must be
+   purple, in both light and dark mode -- the confirm modal's primary CTA is purple in both
+   themes, overriding Vue2's own literal blue
    gradient (#7aa7ff/#5e94ff). This BASE rule governs the non-danger case (restore-all confirm --
    PhotosTrash.vue's `confirm.danger === false` path never adds the `-danger` modifier below), now
    using this file's own theme-invariant `--accent`/`--accent-hi`/`--accent-glow` family (identical
    in `.photos-root` and `.photos-root.is-light`), same reasoning as `.fav-btn-primary` above.
-   INTERPRETATION FLAGGED FOR OWNER RE-JUDGMENT: `.trash-btn-cta-danger` (empty-trash / delete-
-   forever confirms) is deliberately left red below, not purple -- the task brief's own hedge
-   ("if the destructive confirm previously used red and that distinction seems intentional, ...
-   NOTE this interpretation prominently") is read here as: red-for-destructive is a deliberate,
-   pre-existing safety signal (matches `.trash-btn-danger`'s hero-button red and the danger-tinted
-   modal border/icon a few rules up), so only the non-destructive base CTA turns purple. If the
-   owner actually wants ALL THREE confirms' CTAs purple (destructive included), only the
+   OPEN QUESTION: `.trash-btn-cta-danger` (empty-trash / delete-
+   forever confirms) is deliberately left red below, not purple -- read here as: red-for-destructive
+   is a deliberate, pre-existing safety signal (matches `.trash-btn-danger`'s hero-button red and the
+   danger-tinted modal border/icon a few rules up), so only the non-destructive base CTA turns
+   purple. If all three confirms' CTAs should be purple (destructive included), only the
    `.trash-btn-cta-danger` rule below needs to be pointed at the same purple family too. */
 .trash-btn-cta {
   flex: 1.3;
@@ -3828,8 +3827,8 @@
 .photos-root .album-photo-grid.is-compact {
   grid-template-columns: repeat(9, 1fr);
 }
-/* Fix-6 (owner acceptance, 2026-08-18, New-UI-only -- not a Vue2 port, no equivalent selector
-   exists in the source scss): drag-reorder smoothness. useAlbumDragSort toggles `.is-dragging`
+/* New-UI-only -- not a Vue2 port, no equivalent selector
+   exists in the source scss: drag-reorder smoothness. useAlbumDragSort toggles `.is-dragging`
    on this container for the duration of a drag (see that composable's own header comment for the
    full mechanism trace) -- `forceFallback: true` drags via real `mousemove`, so the actual cursor
    keeps crossing sibling tiles while the floating ghost moves, firing each one's `:hover` zoom

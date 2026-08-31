@@ -1,7 +1,7 @@
-// SP7-P8b: this file changed from "one whole copy table" into a few-line **merge outlet**; the real content is split into pieces:
+// This file changed from "one whole copy table" into a few-line **merge outlet**; the real content is split into pieces:
 //   zh_cn.base.ts   — copy shared across areas + each area's own copy
 //   zh_cn.photos.ts — the 702 photos* keys of the Photos area
-//   zh_cn.ai.ts     — the 1207 ai* keys of the AI area (added during the SP8-P6 merge)
+//   zh_cn.ai.ts     — the 1207 ai* keys of the AI area (added during a later merge)
 //
 // Why split: those keys used to be scattered across 90+ sections of one very large file,
 // which made the main table hard to maintain and made parallel lines collide in it

@@ -1,4 +1,4 @@
-// Task 11 (SP7-P5 people): PersonAssetGrid.vue — person detail page asset grid by month
+// PersonAssetGrid.vue — person detail page asset grid by month
 // (multi-select / detach / expand all per month). Pure display + emit, no store access, only mock
 // @nimotech/nimoos-service thumbnailUrl (same mock approach as PhotosGrid.test.ts / PersonHero.test.ts).
 // Each section follows the Vue 2 panel's src/views/Photos/PhotosPersonDetail.vue:
@@ -332,14 +332,14 @@ describe('PersonAssetGrid.vue — override control default transparent, only vis
   })
 })
 
-// ── Final review Minor 3: control's own **self** :hover feedback + select dimming + geometry trace alignment ────────
+// ── control's own **self** :hover feedback + select dimming + geometry trace alignment ────────
 // Original impl only has "whole cell hover → button fade in", zero feedback when mouse on button itself; add the
-// "detach" button lacks Vue2's danger color, final review quote: stacking these makes the **destructive** detach ×
+// "detach" button lacks Vue2's danger color, noting that stacking these makes the **destructive** detach ×
 // unrecognizable as delete key.
-// Task 5 record: this rule family moved into parity together with the previous describe block;
+// This rule family moved into parity together with the previous describe block;
 // `--remove-bg` (this app's theme-following token) has likewise been replaced by parity's
-// `var(--danger, #FF3860)` (Vue2's own literal fixed color, see task-5-report.md's deviations
-// table) — the assertions below have been updated to match the new expected values.
+// `var(--danger, #FF3860)` (Vue2's own literal fixed color, see the deviations tracked during
+// that port) — the assertions below have been updated to match the new expected values.
 describe('PersonAssetGrid.vue — control self :hover and selected state (per Vue2 :1148-1222, now carried by parity)', () => {
   const rules = parseCssRules(extractStyleBlock(photosPeopleParityRaw))
 

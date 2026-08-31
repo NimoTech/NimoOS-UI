@@ -1,6 +1,6 @@
-// Mock skeleton copied from ./agentTransport.test.ts:1-19 (SP8-P1b, reviewed) — mocks
-// sseRequest itself (not fetch), matching the "follow its shape" instruction in
-// p3b-task-3-brief.md. sseRequest's own fetch/401/[DONE]/framing behavior is exercised by
+// Mock skeleton copied from ./agentTransport.test.ts:1-19 (reviewed) — mocks
+// sseRequest itself (not fetch), matching the "follow its shape" instruction from
+// an earlier design note. sseRequest's own fetch/401/[DONE]/framing behavior is exercised by
 // `the shared service package's src/sse.test.ts` and is out of scope here.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 

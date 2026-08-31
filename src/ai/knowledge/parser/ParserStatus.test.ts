@@ -1,4 +1,4 @@
-// SP8-P5c Task 6 — component test for `ParserStatus.vue`.
+// Component test for `ParserStatus.vue`.
 // Blueprint: the Vue 2 panel's `src/views/AI/Parser/ParserStatus.vue` (164 lines).
 //
 // ═══ mock strategy (governance §4.1 requires explicit documentation) ═══
@@ -110,26 +110,26 @@ const STATE: ParserControlStateBody = {
 // no simplification, order unchanged. First item count 18 = max value (barWidth 100% baseline), last item 4.
 const FOLDERS: ParserFoldersBody = {
   "folders": [
-    {"root_id":"dfcd1840f5dab439cd9d7050aa5bafd0","folder":"/DATA/.system_data/home/nimo/.claude/plugins/marketplaces/claude-plugins-official/.github/workflows","count":18},
-    {"root_id":"dfcd1840f5dab439cd9d7050aa5bafd0","folder":"/DATA/.system_data/home/nimo/.claude/projects/-home-nimo-NimoTech/9c3e7a5c-f2fc-409c-9ca3-7f46a47e1d81/subagents","count":16},
-    {"root_id":"dfcd1840f5dab439cd9d7050aa5bafd0","folder":"/DATA/.system_data/.docker/containers/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1","count":15},
-    {"root_id":"dfcd1840f5dab439cd9d7050aa5bafd0","folder":"/DATA/.system_data/opt/qdrant/storage/collections/text_chunks","count":12},
-    {"root_id":"dfcd1840f5dab439cd9d7050aa5bafd0","folder":"/DATA/.system_data/tmp","count":11},
-    {"root_id":"dfcd1840f5dab439cd9d7050aa5bafd0","folder":"/DATA/.system_data/home/nimo/.claude","count":11},
-    {"root_id":"dfcd1840f5dab439cd9d7050aa5bafd0","folder":"/DATA/.system_data/home/nimo/.claude/plugins/marketplaces/claude-plugins-official/external_plugins/discord","count":10},
-    {"root_id":"dfcd1840f5dab439cd9d7050aa5bafd0","folder":"/DATA/.system_data/home/nimo/.claude/plugins/marketplaces/claude-plugins-official/external_plugins/imessage","count":10},
-    {"root_id":"dfcd1840f5dab439cd9d7050aa5bafd0","folder":"/DATA/.system_data/home/nimo/.claude/plugins/marketplaces/claude-plugins-official/external_plugins/fakechat","count":8},
-    {"root_id":"dfcd1840f5dab439cd9d7050aa5bafd0","folder":"/DATA/.system_data/opt/qdrant/storage/collections/visual_chunks","count":8},
-    {"root_id":"dfcd1840f5dab439cd9d7050aa5bafd0","folder":"/DATA/.system_data/home/nimo/.claude/plugins/marketplaces/claude-plugins-official/plugins/claude-security/agents","count":7},
-    {"root_id":"dfcd1840f5dab439cd9d7050aa5bafd0","folder":"/DATA/.system_data/home/nimo/.claude/plugins","count":6},
-    {"root_id":"dfcd1840f5dab439cd9d7050aa5bafd0","folder":"/DATA/.system_data/home/nimo/.claude/plugins/marketplaces/claude-plugins-official/.github/scripts","count":6},
-    {"root_id":"dfcd1840f5dab439cd9d7050aa5bafd0","folder":"/DATA/.system_data/home/nimo/.claude/plugins/marketplaces/claude-plugins-official/external_plugins/telegram","count":5},
-    {"root_id":"dfcd1840f5dab439cd9d7050aa5bafd0","folder":"/DATA/.system_data/home/nimo/.claude/plugins/marketplaces/claude-plugins-official/plugins/claude-code-setup/skills/claude-automation-recommender/references","count":5},
-    {"root_id":"dfcd1840f5dab439cd9d7050aa5bafd0","folder":"/DATA/.system_data/opt/qdrant/storage/collections/text_chunks/0","count":5},
-    {"root_id":"dfcd1840f5dab439cd9d7050aa5bafd0","folder":"/DATA/.system_data/opt/qdrant/storage/collections/visual_chunks/0","count":5},
-    {"root_id":"dfcd1840f5dab439cd9d7050aa5bafd0","folder":"/DATA/.system_data/.docker/containers/2e55949f61fe879896fedd0334339c31d1cd962691358c56bf3ca0b03781e983","count":4},
-    {"root_id":"dfcd1840f5dab439cd9d7050aa5bafd0","folder":"/DATA/.system_data/home/nimo/.claude/plugins/marketplaces/claude-plugins-official/external_plugins/greptile","count":4},
-    {"root_id":"dfcd1840f5dab439cd9d7050aa5bafd0","folder":"/DATA/.system_data/.docker/containers/aade3000de2889facb1f7ba7789d6f2c2fe6acdaf1a9adc7433242648d5c47e7","count":4}
+    {"root_id":"dfcd1840f5dab439cd9d7050aa5bafd0","folder":"/DATA/Documents/reports/2026/quarterly","count":18},
+    {"root_id":"dfcd1840f5dab439cd9d7050aa5bafd0","folder":"/DATA/Gallery/trips/iceland/day3","count":16},
+    {"root_id":"dfcd1840f5dab439cd9d7050aa5bafd0","folder":"/DATA/Media/movies/collection-2025","count":15},
+    {"root_id":"dfcd1840f5dab439cd9d7050aa5bafd0","folder":"/DATA/Backups/database/snapshots","count":12},
+    {"root_id":"dfcd1840f5dab439cd9d7050aa5bafd0","folder":"/DATA/tmp","count":11},
+    {"root_id":"dfcd1840f5dab439cd9d7050aa5bafd0","folder":"/DATA/Documents/reports/2026","count":11},
+    {"root_id":"dfcd1840f5dab439cd9d7050aa5bafd0","folder":"/DATA/Media/podcasts/tech-weekly","count":10},
+    {"root_id":"dfcd1840f5dab439cd9d7050aa5bafd0","folder":"/DATA/Media/podcasts/history-hour","count":10},
+    {"root_id":"dfcd1840f5dab439cd9d7050aa5bafd0","folder":"/DATA/Media/podcasts/comedy-nights","count":8},
+    {"root_id":"dfcd1840f5dab439cd9d7050aa5bafd0","folder":"/DATA/Backups/database/exports","count":8},
+    {"root_id":"dfcd1840f5dab439cd9d7050aa5bafd0","folder":"/DATA/Documents/contracts/vendor-a","count":7},
+    {"root_id":"dfcd1840f5dab439cd9d7050aa5bafd0","folder":"/DATA/Documents","count":6},
+    {"root_id":"dfcd1840f5dab439cd9d7050aa5bafd0","folder":"/DATA/Documents/reports/2026/scripts","count":6},
+    {"root_id":"dfcd1840f5dab439cd9d7050aa5bafd0","folder":"/DATA/Media/podcasts/news-daily","count":5},
+    {"root_id":"dfcd1840f5dab439cd9d7050aa5bafd0","folder":"/DATA/Documents/reports/2026/references","count":5},
+    {"root_id":"dfcd1840f5dab439cd9d7050aa5bafd0","folder":"/DATA/Backups/database/snapshots/0","count":5},
+    {"root_id":"dfcd1840f5dab439cd9d7050aa5bafd0","folder":"/DATA/Backups/database/exports/0","count":5},
+    {"root_id":"dfcd1840f5dab439cd9d7050aa5bafd0","folder":"/DATA/Media/movies/collection-2024","count":4},
+    {"root_id":"dfcd1840f5dab439cd9d7050aa5bafd0","folder":"/DATA/Media/podcasts/music-mix","count":4},
+    {"root_id":"dfcd1840f5dab439cd9d7050aa5bafd0","folder":"/DATA/Media/movies/archive","count":4}
   ],
   "total_groups": 119
 }
@@ -152,7 +152,7 @@ const FAILED_EMPTY: { jobs: ParserFailedJob[] } = {
 const FAILED_ROW: ParserFailedJob = {
   "id": 348,
   "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
-  "path": "/DATA/.system_data/tmp/nimoos_panic.log",
+  "path": "/DATA/tmp/nimoos_panic.log",
   "op": "index",
   "sub_modality": null,
   "priority": 100,
@@ -199,10 +199,10 @@ function makeRouter() {
       { path: '/ai/parser', name: 'AIParser', component: ParserStatus },
       // Blueprint `:6`'s `router-link to="/ai/parser/test"` needs the target route to
       // exist for the href to resolve at all.
-      // [Correction, SP8-P5d Task 9, governance §15.2 / plan §T9 item 6] The previous comment
+      // [Correction] The previous comment
       // was doubly stale: (1) it said "in production this route still points at a placeholder
-      // page" — production reversed this ages ago to the real ParserTest (output of P5c-T10,
-      // fully documented in knowledgeRoutes.ts's header comment); (2) the line number it cited
+      // page" — production reversed this ages ago to the real ParserTest (fully documented
+      // in knowledgeRoutes.ts's header comment); (2) the line number it cited
       // had also drifted. The stub component here is only a placeholder in this test file's own
       // route table, unrelated to whether production's route is a placeholder — the stub stays
       // because this file only cares whether the href resolves, not what the
@@ -672,7 +672,7 @@ describe('ParserStatus — folders card (blueprint :78-89)', () => {
     const rows = w.findAll('.folder-row')
     expect(rows).toHaveLength(20)
     expect(rows[0]!.find('.folder-path').text()).toBe(
-      '/DATA/.system_data/home/nimo/.claude/plugins/marketplaces/claude-plugins-official/.github/workflows',
+      '/DATA/Documents/reports/2026/quarterly',
     )
     expect(rows[0]!.find('.folder-count').text()).toBe('18')
     expect(rows[19]!.find('.folder-count').text()).toBe('4')
@@ -754,7 +754,7 @@ describe('ParserStatus — failures card + N19 three states (blueprint :91-102)'
     expect((ul.element as HTMLElement).style.display).toBe('')
     const lis = ul.findAll('li')
     expect(lis).toHaveLength(1)
-    expect(lis[0]!.find('.path').text()).toBe('/DATA/.system_data/tmp/nimoos_panic.log')
+    expect(lis[0]!.find('.path').text()).toBe('/DATA/tmp/nimoos_panic.log')
     expect(lis[0]!.find('.error').text()).toBe('boom')
     expect(w.find('.failures-card .toggle').text()).toBe('▼ 最近失败（1）')
   })

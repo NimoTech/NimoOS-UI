@@ -5,7 +5,7 @@
 // distinct from BOTH this app's own generic blue `--accent` (other surfaces depend on that
 // staying blue) AND Time Machine's own scoped `--tm-accent`/`--tm-accent-hover` (same literal
 // hex, different subsystem -- see theme.css's own comment on `--purple-accent` for why reusing
-// `--tm-accent` on a non-TM surface would blur that boundary). Theme-invariant by owner ruling:
+// `--tm-accent` on a non-TM surface would blur that boundary). Theme-invariant by design:
 // same purple in both themes, same convention `src/styles/__tests__/tmTokens.test.ts` already
 // pins for `--tm-accent`.
 //
@@ -67,7 +67,7 @@ describe('--purple-accent / --purple-accent-hover / --on-purple-accent (Files "N
     expect(valueIn(light, '--on-purple-accent')).toBe('#ffffff')
   })
 
-  it('is theme-invariant: identical value in both theme blocks (owner ruling: same purple in both themes)', () => {
+  it('is theme-invariant: identical value in both theme blocks (deliberately the same purple in both themes)', () => {
     expect(valueIn(dark, '--purple-accent')).toBe(valueIn(light, '--purple-accent'))
     expect(valueIn(dark, '--purple-accent-hover')).toBe(valueIn(light, '--purple-accent-hover'))
     expect(valueIn(dark, '--on-purple-accent')).toBe(valueIn(light, '--on-purple-accent'))

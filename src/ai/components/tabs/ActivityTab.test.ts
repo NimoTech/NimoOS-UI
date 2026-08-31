@@ -1,4 +1,4 @@
-// 1:1 port from Vue2 src/views/AI/Agent/tabs/ActivityTab.vue (55 lines). SP8-P1c2 Task 10.
+// 1:1 port from Vue2 src/views/AI/Agent/tabs/ActivityTab.vue (55 lines).
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'

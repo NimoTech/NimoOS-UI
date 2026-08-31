@@ -5,19 +5,22 @@ import { setActivePinia, createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
 import zh from '../../../../i18n/zh_cn'
 
-// agent web tools Task 9 —— 承接 Vue2 sections/__tests__/WebSection.spec.js(a1de5fe2)
-// 的三条等价行为断言:密钥输入框从不预填回显、留空保存不带 api_key、真的输入了就带上。
-// mock 骨架照抄同目录 MemorySection.test.ts(vi.hoisted + service.ai 单方法 mock +
-// i18n/pinia 挂载),不自创。
+// agent web tools Task 9 —— carries forward the three equivalent behavior assertions from Vue2's
+// sections/__tests__/WebSection.spec.js (a1de5fe2): the secret input never gets pre-filled/echoed
+// back, saving with it left blank omits api_key, and actually typing one in includes it.
+// The mock scaffold is copied as-is from MemorySection.test.ts in the same directory (vi.hoisted +
+// a single service.ai method mock + i18n/pinia mounting) — nothing invented here.
 //
-// fix round 2(协调者确认,2026-08-18)—— 组件已从"批量保存按钮"改回逐字段自动保存
-// (对齐 Vue2 a1de5fe2 与本仓 MemorySection.vue 的既定约定),`data-test="web-save"`
-// 随保存按钮一起撤走,测试改成直接对 `web-backend` / `web-api-key` 触发 `change`
-// 事件来驱动真实的自动保存路径,而不是再点一个已经不存在的按钮。
-// 同时把"从不回显密钥"那条从"HTML 里不出现 'tvly' 字样"(mock 响应本来就不含
-// 密钥值,这条断言对任何 fixture 都成立,测不出问题)改成直接断言密钥输入框
-// 自身的 value 在 load() 之后是空串——这才是真正要守住的属性:输入框永远不会
-// 被预填。
+// Fix round 2 (confirmed in review, 2026-08-18) — the component was changed back from a "batch
+// save button" to per-field auto-save (aligning with Vue2's a1de5fe2 and this repo's established
+// MemorySection.vue convention); `data-test="web-save"` was removed along with the save button, so
+// the tests now trigger `change` directly on `web-backend` / `web-api-key` to drive the real
+// auto-save path, instead of clicking a button that no longer exists.
+// At the same time, the "secret is never echoed back" assertion was changed from "the string 'tvly'
+// never appears in the HTML" (the mock response never contained the secret value to begin with, so
+// that assertion would pass against any fixture and catches nothing) to directly asserting that the
+// secret input's own `value` is an empty string after `load()` — that's the property that actually
+// matters: the input must never be pre-filled.
 
 const h = vi.hoisted(() => ({
   getWebSettings: vi.fn(),

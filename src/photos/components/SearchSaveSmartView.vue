@@ -1,26 +1,37 @@
 <script setup lang="ts">
-// SP7-P7a-T14: SearchSaveSmartView.vue —— 搜索页「保存为智能视图」弹层(D12 真建接线)。
-// 结构对应 Vue2 PhotosSearchView.vue:159-210(模板,不含 :153-158 的触发按钮 .save-smart——
-// 那颗按钮不归本任务,交接给 T16,见文件尾交接注释)、:798-804(openSave 的重置逻辑)、
-// :806-812(confirmSave,但 Vue2 那版是假的——只置本地 state + toast,零 store/service
-// 调用;D12 要求本任务把它接成真的 createSmartView 调用)。样式对应 photos.scss:2795-2815
-// (.save-pop* 全组,已逐条核对)+ C5 裁定的 .sv-switch/.sv-btn-ghost/.sv-btn-primary(取
-// photos-smartview.scss 优先级更高的那份,与 T5/T8 的既有实现保持一致数值,不抄
-// photos.scss:2817-2825 那份被压制的值)。
+// SearchSaveSmartView.vue — the search page's "save as smart view" popover (wired up to
+// actually create one).
+// Structure corresponds to Vue2 PhotosSearchView.vue:159-210 (template, not including the
+// trigger button .save-smart at :153-158 — that button isn't owned here, it's handed off to a
+// downstream component, see the hand-off note at the end of the file), :798-804 (openSave's
+// reset logic), :806-812 (confirmSave, though Vue2's version there is fake — it only sets
+// local state + a toast, with zero store/service calls; here it's wired up to make it a real
+// createSmartView call). Styles correspond to photos.scss:2795-2815 (the whole .save-pop*
+// group, individually cross-checked) + a deliberate ruling for
+// .sv-switch/.sv-btn-ghost/.sv-btn-primary (using the higher-priority version from
+// photos-smartview.scss, matching the values already used by other sibling components'
+// implementations, rather than copying the suppressed values in photos.scss:2817-2825).
 //
-// 持久挂载 + prop 显隐(不像 T13 靠宿主 v-if 重新挂载复位内部 state)——C13 裁定的刻意
-// 差异:本组件与 T5 的 SmartViewCreateDialog 同款,靠 watch(() => props.open) 复位,
-// 不是 onMounted(持久挂载坑,同 T5 文件头注释)。
+// Persistently mounted + shown/hidden via a prop (unlike some other popovers, which rely on
+// the host remounting them with v-if to reset internal state) — a deliberate difference: this
+// component is the same shape as SmartViewCreateDialog, resetting via
+// watch(() => props.open) rather than onMounted (the persistent-mount pitfall, same as that
+// component's file header comment).
 //
-// fix round 1 · I1(评审查实的漏渲染):Vue2 `mounted()` 里的 `_onDoc`(整体 :819-832,
-// 本弹层对应的判据在 :820-822)是 `mousedown` 判据 ——
-// `pop && !pop.contains(target) && btn && !btn.contains(target)` 才关,
-// `pop` 是 `savePop`(本组件的根节点)、`btn` 是 `saveBtn`(触发按钮,归 T16/C6)。之前只
-// 实现了 document 级 Esc,漏了这一半。这里补上:根节点绑 `rootRef`,新增可选 prop
-// `ignoreEl`(宿主把 `.save-smart` 触发按钮的 element 传进来,默认 `null`)—— 判据换成
-// "自身根容器与 ignoreEl 都不包含 target 才关",与 Vue2 逐字对应;不传 `ignoreEl` 时退化成
-// "只判自身容器"(仍然可用,只是点触发按钮那一下也会被判定为"外部"从而误关——这个副作用
-// 只在宿主没接 `ignoreEl` 时才会出现,已在报告交接段写明 T16 必须传入)。
+// A correction (a missed-rendering issue caught during review): Vue2's `mounted()` has an
+// `_onDoc` handler (the whole thing spans :819-832; the predicate relevant to this popover is
+// at :820-822) — a `mousedown` predicate that only closes when
+// `pop && !pop.contains(target) && btn && !btn.contains(target)`, where `pop` is `savePop`
+// (this component's root node) and `btn` is `saveBtn` (the trigger button, owned by a
+// downstream component). Only the document-level Escape half had been implemented before,
+// missing this other half. It's added here: the root node is bound to `rootRef`, and a new
+// optional prop `ignoreEl` is added (the host passes in the `.save-smart` trigger button's
+// element, defaulting to `null`) — the predicate becomes "only close if neither this
+// component's own root container nor ignoreEl contains target", matching Vue2 verbatim; when
+// `ignoreEl` isn't passed, it degrades to "only check this component's own container" (still
+// usable, just that clicking the trigger button itself also gets judged as "outside" and
+// mistakenly closes the popover — this side effect only shows up when the host doesn't wire
+// up `ignoreEl`, and downstream work needs to pass it in).
 import { nextTick, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { usePhotosSmartViews } from '../stores/smartViews'
@@ -40,9 +51,10 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   (e: 'update:open', v: boolean): void
-  // fix 波 F1:多带一个 name 参数——宿主(PhotosSearch.vue)要用它拼「"{name}" 已保存为
-  // 智能视图」的成功 toast 文案(照搬 Vue2 confirmSave() 的 saveToast = { name },
-  // :806-812),原先只带 id 时宿主拿不到这个名字。
+  // An additional name parameter — the host (PhotosSearch.vue) needs it to compose the
+  // "\"{name}\" has been saved as a smart view" success toast text (following Vue2's
+  // confirmSave()'s saveToast = { name }, :806-812); when only id was carried, the host had
+  // no way to get this name.
   (e: 'saved', id: string, name: string): void
 }>()
 
@@ -51,8 +63,8 @@ const store = usePhotosSmartViews()
 const toast = useToast()
 
 const name = ref('')
-// 默认阈值 75(照 Vue2 openSave :801),与 T5 创建弹窗的默认 80 不同——已逐字核对,不是
-// 抄错(brief 结构规格第 6 条已明写这条差异)。
+// Default threshold 75 (follows Vue2's openSave :801), different from the create dialog's
+// default of 80 — cross-checked, not a copy error (this difference is intentional).
 const thresh = ref(75)
 const live = ref(true)
 const nameInputRef = ref<HTMLInputElement | null>(null)
@@ -62,22 +74,29 @@ function close(): void {
   emit('update:open', false)
 }
 
-// 浮层 Esc 走 document 级监听 + watch(open) 挂/摘(Global Constraints「浮层 Esc 一律
-// document 级监听」)。本组件不在 onDocKeydown 里做任何早退判断,也不调用
-// stopPropagation——搜索页可能同时开着一个筛选弹层与本弹层,两者的监听器各自独立处理
-// 同一次 Escape 按键,互不干扰(P5-T10 教训:早退/阻断会让另一层收不到事件)。
+// Overlay Escape handling goes through a document-level listener + watch(open) attach/detach
+// (this repo's convention that overlay Escape handling always uses document-level listeners).
+// This component performs no early-return checks inside onDocKeydown, nor does it call
+// stopPropagation — the search page may have both a filter popover and this popover open at
+// the same time, and each one's listener independently handles the same Escape keypress
+// without interfering with the other (a lesson learned elsewhere: an early return or a
+// stopped event would keep the other layer from receiving the event).
 function onDocKeydown(e: KeyboardEvent): void {
   if (e.key !== 'Escape') return
   close()
 }
 
-// fix round 1 · I1(fix round 2 · N1 修正标签):点外部 mousedown 关闭(照搬 Vue2 `_onDoc`
-// 里保存弹层那半判据——savePop/saveBtn 的 contains 检查,:820-822;people/filterbar 那半
-// 判据在 :824-830,不归本组件管)。
-// 判据是"根容器与 ignoreEl 都不包含 target"——两次 `contains` 调用都要跑完再做判断,
-// 不写成"先查一个、命中就早退"的形态(Global Constraints「onDocMousedown 里禁止早退」,
-// P5-T10 真 bug 就是这种早退在多层共享判定函数时漏检第二个分支;本函数虽然只服务
-// 一层浮层,仍然按同一纪律写成"两个条件算完再决定",不留下未来被复制到多层场景时的隐患)。
+// Closes on an outside mousedown (following the half of Vue2's `_onDoc` predicate relevant to
+// the save popover — the savePop/saveBtn contains checks, :820-822; the other half, for the
+// people/filterbar popovers, is at :824-830 and isn't this component's concern).
+// The predicate is "neither the root container nor ignoreEl contains target" — both
+// `contains` calls run to completion before deciding, rather than "check one, short-circuit
+// if it matches" (this repo avoids early returns in onDocMousedown, since a real bug seen
+// elsewhere came from exactly this kind of early return missing a second branch when a
+// predicate function is shared across multiple layers; even though this function only serves
+// a single overlay, it's still written with the same discipline of "evaluate both conditions
+// before deciding", so it carries no hidden risk if it's ever copied into a multi-layer
+// scenario in the future).
 function onDocMousedown(e: MouseEvent): void {
   const target = e.target as Node
   const insideRoot = rootRef.value !== null && rootRef.value.contains(target)
@@ -85,9 +104,9 @@ function onDocMousedown(e: MouseEvent): void {
   if (!insideRoot && !insideIgnore) close()
 }
 
-// 控制器补充(C13):open 变真时重置 name/thresh/live + 聚焦,必须挂在
-// watch(() => props.open),不能用 onMounted——本组件常驻挂载、靠 prop 显隐,onMounted
-// 只在组件创建时跑一次。
+// Resets name/thresh/live + focuses when open becomes true; this must hook into
+// watch(() => props.open), not onMounted — this component is persistently mounted and
+// shown/hidden via a prop, and onMounted only runs once when the component is created.
 watch(
   () => props.open,
   (isOpen) => {
@@ -121,24 +140,28 @@ function toggleLive(): void {
   live.value = !live.value
 }
 
-// D12 真建(C8):Vue2 confirmSave(:806-812)只置 saved=true + 写一个全仓再没人读的
-// savedSv + 弹"已保存"toast,零 store/service 调用——这颗按钮在 Vue2 里是假的。这里真调
-// createSmartView,并且必须自己包 try/catch(store.createSmartView 失败时是 throw,brief
-// 结构规格 7 给的代码片段漏了这一层)。
+// Actually creates the smart view: Vue2's confirmSave (:806-812) only sets saved=true + writes
+// a savedSv field nothing in the repo ever reads again + pops an "already saved" toast, with
+// zero store/service calls — this button is fake in Vue2. Here it really calls
+// createSmartView, and must wrap it in its own try/catch (store.createSmartView throws on
+// failure, a detail that's easy to miss).
 //
-// description: props.query.trim() || undefined 的映射依据(brief 结构规格 7 已给出推断,
-// 这里复述):Vue2 的 savedSv 里存的是 { query, filters },而后端 createSmartView 的语义是
-// "conds 为空时用 description 作语义兜底"(Vue2 PhotosSmartViewsView.vue:426 注释)。把
-// 原始查询词放进 description 是这两套契约之间唯一站得住的映射。
+// The basis for description: props.query.trim() || undefined: Vue2's savedSv stores
+// { query, filters }, while the backend createSmartView's semantics are "fall back to
+// description for meaning when conds is empty" (per Vue2 PhotosSmartViewsView.vue:426's own
+// comment). Putting the raw query term into description is the only sound mapping between
+// these two contracts.
 //
-// fix round 1 · M5:trim + `|| undefined` 不能省——`CreateSmartViewInput.description?`
-// 的既定语义是"空描述不传字段"(T5 SmartViewCreateDialog.vue 的 confirm() 同一口径,
-// `draft.desc.trim() || undefined`),空查询串下若直传 `props.query` 会变成传一个空字符串
-// 字段而不是"不传",与同一个 store 的另一个调用方口径不一致。
+// trim + `|| undefined` can't be dropped — `CreateSmartViewInput.description?`'s established
+// meaning is "an empty description means the field isn't sent at all" (the same convention as
+// SmartViewCreateDialog.vue's confirm(), `draft.desc.trim() || undefined`); with an empty
+// query string, passing `props.query` directly would send an empty-string field instead of
+// omitting it, inconsistent with another caller of the same store.
 //
-// createBusy 命中返回 null 的边界(C8 登记):primary 按钮已经
-// `:disabled="!name.trim() || store.createBusy"`,这条路径基本不可达,不加额外 UI,仅在
-// 这里注释登记——与 T5/T6 同型边界处理口径一致。
+// The edge case where createBusy causes an early return of null: the primary button already
+// has `:disabled="!name.trim() || store.createBusy"`, so this path is basically unreachable —
+// no extra UI is added, it's only noted here in a comment, matching the same edge-case
+// handling convention used by other sibling components.
 async function confirm(): Promise<void> {
   const trimmed = name.value.trim()
   if (!trimmed || store.createBusy) return
@@ -157,7 +180,8 @@ async function confirm(): Promise<void> {
     }
   } catch (e) {
     console.error('[search-save-smart-view] confirm', e)
-    // 复用既有通用键(同 T5 SmartViewCreateDialog.vue 的既定选择),本任务不新增 i18n 键。
+    // Reuses an existing generic key (the same choice already made by SmartViewCreateDialog.vue),
+    // no new i18n key added.
     toast.show(t('photosAlbumCreateFailed'))
   }
 }
@@ -166,11 +190,12 @@ async function confirm(): Promise<void> {
 <template>
   <Transition name="save-pop">
     <div v-if="open" ref="rootRef" class="save-pop" data-test="ssv-root">
-      <!-- 偏离登记(fix round 1 · M8):这三处 svg 的 `stroke-width="2"` 相对 Vue2
-           `PhotosIcon.vue` 的默认值 1.6(`:185`)是加性改动——Vue2 模板里这三处
-           `<photos-icon>` 调用都没传 `stroke-width`,走的是默认 1.6。这里沿用 T5
-           SmartViewCreateDialog.vue 已确立的同款选择(该文件里同类内联 svg 全部是
-           stroke-width="2",不是本任务重新挑的值),按纪律在此登记。 -->
+      <!-- Deviation noted: these three svgs' `stroke-width="2"` is an additive change relative
+           to Vue2's `PhotosIcon.vue` default of 1.6 (`:185`) — none of Vue2's three
+           `<photos-icon>` calls here pass `stroke-width`, so they use the 1.6 default. This
+           follows the same choice already established by SmartViewCreateDialog.vue (all
+           inline svgs of this kind in that file are stroke-width="2", not a value newly
+           picked here), noted for the record. -->
       <div class="save-pop-head">
         <div class="save-pop-icon">
           <svg
@@ -196,17 +221,19 @@ async function confirm(): Promise<void> {
       <div class="save-pop-body">
         <label class="save-pop-field">
           <span class="save-pop-label">{{ t('photosSvName') }}</span>
-          <!-- 偏离登记(fix round 1 · M4 已修正依据 + 自查修正行号):brief 结构规格第 40
-               条字面要求名称输入框再绑一个 @keydown.esc.prevent="close"(照搬 Vue2
-               :175)。这里不重复绑——但理由不是"Vue2 没有更高层的 Esc 处理"(那个说法
-               错了:Vue2 mounted() 里确实挂了 document 级 `_onKey`,赋值+挂载在
-               :834-835,只是它的效果是 Esc 关灯箱未开时"退出整个搜索页"`exitSearch()`,
-               不是关这个保存弹层)。真正的理由是:本组件
-               按 Global Constraints 的硬约束新增了一个专门服务本弹层的 document 级 Esc
-               监听器(onDocKeydown),keydown 默认从 input 冒泡到 document,再绑一份内联的
-               会让同一次按键触发两次 close()/两次 emit('update:open', false)。同 T5
-               SmartViewCreateDialog.vue 的既定做法(它的名称输入框也只绑 keydown.enter,
-               不重复绑 esc)。 -->
+          <!-- Deviation noted: an earlier spec literally called for binding the name input
+               with an additional @keydown.esc.prevent="close" (following Vue2 :175). This
+               doesn't bind it again here — but not for the reason "Vue2 has no higher-level
+               Esc handling" (that claim is wrong: Vue2's mounted() does attach a
+               document-level `_onKey`, assigned+attached at :834-835, it's just that its
+               effect is "exit the whole search page" via `exitSearch()` when Escape is
+               pressed and no lightbox is open, not closing this save popover). The real
+               reason is: this component adds its own document-level Esc listener dedicated to
+               this popover (onDocKeydown), per this repo's hard rule for overlays; keydown
+               bubbles from the input to document by default, so binding an inline one too
+               would fire close()/emit('update:open', false) twice for the same keypress. Same
+               established approach as SmartViewCreateDialog.vue (its name input also only
+               binds keydown.enter, without rebinding esc). -->
           <input
             ref="nameInputRef" v-model="name" class="save-pop-input" data-test="ssv-name-input"
             :placeholder="t('photosSvEGSaraTokyo')" @keydown.enter.prevent="confirm"
@@ -236,11 +263,13 @@ async function confirm(): Promise<void> {
             <div class="save-pop-toggle-label">{{ t('photosSvKeepLive') }}</div>
             <div class="save-pop-toggle-desc">{{ t('photosSvAutoAddMatchesPhotos') }}</div>
           </div>
-          <!-- 偏离登记(fix round 1 · M8):`tabindex="0"` + `@keydown.enter`/`@keydown.space`
-               是加性改动,Vue2 `:198-199` 的 `.sv-switch` 只有 `@click.prevent`,没有键盘
-               可达性。沿用 T5 SmartViewCreateDialog.vue 已定的同型加项(该文件同一 fix
-               round 里已作为「补 Vue2 的缺」登记过),这里延续同一套 a11y 基线,不是本任务
-               新起的决定——但仍按「界面严格 1:1 下加项要登记」的纪律在此写明。 -->
+          <!-- Deviation noted: `tabindex="0"` + `@keydown.enter`/`@keydown.space` is an
+               additive change; Vue2's `.sv-switch` at `:198-199` only has `@click.prevent`,
+               with no keyboard accessibility. This follows the same kind of addition already
+               made in SmartViewCreateDialog.vue (already noted there as "filling a Vue2 gap"),
+               continuing the same a11y baseline rather than being a new decision made here —
+               still noted for the record, per the discipline that additions get recorded even
+               under strict visual 1:1 parity. -->
           <div
             class="sv-switch" role="switch" tabindex="0" data-test="ssv-switch-live"
             :aria-checked="live" :aria-label="t('photosSvKeepLive')" :data-on="live"
@@ -269,9 +298,9 @@ async function confirm(): Promise<void> {
 </template>
 
 <style scoped>
-/* 2026-08-13 revert (the owner overturned the EXIF glass exception; Plan F Task 2 fills this in
-   retroactively -- this component had missed that revert round, using the same established
-   approach as PhotosFilterPopover.vue/SearchDatePopover.vue/SearchPeoplePopover.vue):
+/* 2026-08-13 revert (the owner overturned the EXIF glass exception; this fills that in
+   retroactively -- this component had missed that revert round earlier, and now uses the
+   same established approach as PhotosFilterPopover.vue/SearchDatePopover.vue/SearchPeoplePopover.vue):
    the paragraph that used to sit here mapped every color in this block onto the generic
    cross-app glass tokens (--surface-1→--popup-bg, --line→--card-border, --text-1/2/3/4→
    --fg/--fg-muted/--fg-faint/--fg-subtle, --surface-2→--chip-bg, --accent-hi→--accent-text,
@@ -288,25 +317,28 @@ async function confirm(): Promise<void> {
    is a Photos-local purple literal instead, matching this file's own `--accent-rgb` (see the
    component test file for the exact numbers). Deleting the rule instead of hand-fixing the
    token also fixes the leak, for free.
-   Survivors (kept below, NOT part of this cleanup): `.save-pop-icon` (C11: deliberate solid
+   Survivors (kept below, NOT part of this cleanup): `.save-pop-icon` (a deliberate solid
    --accent + --on-accent vs. parity's literal purple gradient, unrelated to the glass-token
-   family), `.icon-btn` (M1: deliberate 28px vs. Vue2's global 32px `.icon-btn`, ditto),
+   family), `.icon-btn` (a deliberate 28px vs. Vue2's global 32px `.icon-btn`, ditto),
    `.save-pop-head-text`/`.save-pop-thresh-label`/`.save-pop-thresh-val`/
    `.save-pop-conds-empty`/`.save-pop-toggle-text`/`.save-pop-toggle-label`/
    `.save-pop-toggle-desc` (zero parity coverage — Vue2's real markup here is inline style,
    not a class, same registered reasoning as `.fpop-item`/`.fpop-empty` in
    PhotosFilterPopover.vue; their color tokens were already the correct local ones, nothing to
-   revert), and `.save-pop-enter-from,.save-pop-leave-to` (C7: Vue3 renamed Vue2's bare
+   revert), and `.save-pop-enter-from,.save-pop-leave-to` (Vue3 renamed Vue2's bare
    enter/leave transition classes to an -from-suffixed pair, so parity's own verbatim
    transcription of Vue2's SFC transition selector never matches any real Vue3 transition
    class; this rule cannot be handed over by selector name, only its
    `-active` sibling can). The `.sv-switch`/`.sv-btn-ghost`/`.sv-btn-primary` family further
-   below is untouched by this pass — C5 pinned those to a different, still-standing precedent
-   (T5 SmartViewCreateDialog.vue's `photos-smartview.scss` values), not to the fchip/fpop
-   glass-token family this task is about. */
-/* C11:28×28、border-radius:9px(不是 T5 .sv-modal-icon 的 32×32——两处尺寸独立核实,
-   不能互相套用)。Vue2 原背景是写死的紫色渐变,改成 --accent 实底后前景满足"背景确为
-   --accent 饱和实底"的条件,--on-accent 合法(同 T5 对 .sv-modal-icon 的既定处理口径)。 */
+   below is untouched by this pass — those were deliberately pinned to a different,
+   still-standing precedent (SmartViewCreateDialog.vue's own `photos-smartview.scss` values),
+   not to the fchip/fpop glass-token family this cleanup is about. */
+/* 28x28, border-radius:9px (not SmartViewCreateDialog.vue's .sv-modal-icon's 32x32 — these two
+   sizes were verified independently and shouldn't be assumed to match). Vue2's original
+   background is a hardcoded purple gradient; once changed to a solid --accent fill, the
+   foreground satisfies the "background is genuinely a solid saturated --accent fill"
+   condition, so --on-accent is valid (same handling convention already established for
+   .sv-modal-icon). */
 .save-pop-icon {
   width: 28px;
   height: 28px;
@@ -331,14 +363,17 @@ async function confirm(): Promise<void> {
   color: var(--text-3);
   margin-top: 1px;
 }
-/* 偏离登记(fix round 1 · M1 已修正措辞,此前误写成"等价"):Vue2 全局 `.icon-btn`
-   (`photos.scss:216-223`)真值是 32×32、`color: var(--text-2)`、hover 态
-   `background: var(--surface-3); color: var(--text-1)`——不是这里落地的 28×28 /
-   `--fg-subtle` / hover `--chip-bg`/`--fg`。本仓没有那个全局类(scoped 孤岛,each 组件
-   各自定义一份),这里沿用 T5 SmartViewCreateDialog.vue 已立的先例——按本弹层自己
-   28px 的尺度定一份缩小版,不是照抄 Vue2 的 32×32 原值,是一次刻意的尺寸偏离(与本组件
-   .save-pop-icon 28×28 的整体尺度保持视觉一致),色值映射（--fg-subtle 常态 /
-   --chip-bg+--fg hover）与 T5 逐字一致,不是本任务新定的一套。 */
+/* Deviation noted (a wording correction — this used to be mistakenly described as
+   "equivalent"): Vue2's global `.icon-btn` (`photos.scss:216-223`) is actually 32x32,
+   `color: var(--text-2)`, with a hover state of `background: var(--surface-3);
+   color: var(--text-1)` — not this file's 28x28 / `--fg-subtle` / hover `--chip-bg`/`--fg`.
+   This repo has no such global class (each component is its own scoped island, defining its
+   own copy), so this follows the precedent already established by SmartViewCreateDialog.vue —
+   defining a scaled-down version at this popover's own 28px scale, rather than copying Vue2's
+   original 32x32 value, a deliberate size deviation (kept visually consistent with this
+   component's own .save-pop-icon at 28x28 overall). The color-token mapping (--fg-subtle at
+   rest / --chip-bg+--fg on hover) matches SmartViewCreateDialog.vue verbatim, it isn't a new
+   scheme invented here. */
 .icon-btn {
   flex: none;
   width: 28px;
@@ -386,8 +421,8 @@ async function confirm(): Promise<void> {
   color: var(--text-3);
   margin-top: 1px;
 }
-/* C7: for Vue2's <transition name="save-pop"> rule, the Vue3 class name is -enter-from, not
-   Vue2's -enter (a lesson from T6's fix round: writing -enter silently fails to match).
+/* For Vue2's <transition name="save-pop"> rule, the Vue3 class name is -enter-from, not
+   Vue2's -enter (a lesson learned elsewhere: writing -enter silently fails to match).
    `-enter-active`/`-leave-active` (same
    selector name in Vue2 and Vue3 — only the non-`-active` half was renamed) is NOT kept here:
    vue2-parity/photos.scss's own `.save-pop-enter-active, .save-pop-leave-active` (:2911) is a
@@ -400,11 +435,13 @@ async function confirm(): Promise<void> {
   transform: translateY(-4px) scale(0.97);
 }
 
-/* C5 裁定:.sv-switch/.sv-btn-ghost/.sv-btn-primary 一律照 T5 SmartViewCreateDialog.vue
-   已落地的值(photos-smartview.scss 的高优先级 `.photos-root .sv-*` 那份,不是
-   photos.scss:2817-2825 被压制的那份)。含 T8 的 M1 修复:.sv-switch 的 transition:
-   background 0.15s 与 ::after 的投影——两者出自 photos.scss:2819-2820 的低优先级裸规则,
-   未被高优先级规则声明覆盖,照样合并进级联生效。 */
+/* A deliberate ruling: .sv-switch/.sv-btn-ghost/.sv-btn-primary all follow the values already
+   implemented in SmartViewCreateDialog.vue (the higher-priority `.photos-root .sv-*` version
+   in photos-smartview.scss, not the suppressed one in photos.scss:2817-2825). Includes a fix
+   carried over from a sibling component: .sv-switch's transition: background 0.15s and
+   ::after's drop shadow — both come from the lower-priority bare rules in
+   photos.scss:2819-2820, which aren't overridden by the higher-priority rule's declarations,
+   so they still merge in and take effect through the cascade. */
 .sv-switch {
   position: relative;
   width: 32px;
@@ -415,11 +452,12 @@ async function confirm(): Promise<void> {
   flex-shrink: 0;
   transition: background 0.15s;
 }
-/* Fix-6 (owner decision, 2026-08-14): the knob is literal white in EVERY theme and BOTH on/off
-   states -- overrides whatever Vue2's own (non-existent) light theme would have done, explicit
-   owner requirement. Fix-5's `var(--text-1)` got dark-mode legibility right but was still a
-   theme-flipping token, going near-black under `.photos-root.is-light` -- legible, but not
-   white, which is what the owner wants. `--text-1` is deliberately no longer used for the knob.
+/* An owner decision (2026-08-14): the knob is literal white in EVERY theme and BOTH on/off
+   states -- overrides whatever Vue2's own (non-existent) light theme would have done, an
+   explicit owner requirement. An earlier version's `var(--text-1)` got dark-mode legibility
+   right but was still a theme-flipping token, going near-black under `.photos-root.is-light`
+   -- legible, but not white, which is what the owner wants. `--text-1` is deliberately no
+   longer used for the knob.
    Literal white, same theme-exception convention as PhotosToastHost.vue's `.photos-toast`
    background / this repo's other theme-invariant surfaces. The light-mode border + shadow below
    is a matched pair with this rule -- see its own comment. */
@@ -439,7 +477,7 @@ async function confirm(): Promise<void> {
    no edge against photos light mode's own near-white `--surface-3` off-track, so light mode gets
    a subtle parity-token border plus a lighter drop shadow, same values as
    SmartViewCreateDialog.vue/SmartViewSidePanel.vue's own copies of this rule. Applies to both
-   on/off states (neither modifies border/box-shadow), matching the owner's state-invariant
+   on/off states (neither modifies border/box-shadow), matching the required state-invariant
    requirement. */
 .photos-root.is-light .sv-switch::after {
   border: 1px solid var(--line-strong);
@@ -452,9 +490,9 @@ async function confirm(): Promise<void> {
    same colour in both states. The `--on-accent` override this rule used to carry (pinned above
    to SmartViewCreateDialog.vue's `.sv-switch` values, which carried the
    same bug) was wrong: it made the knob track the on/off *state* instead of staying constant
-   like Vue2's. Deleted here too, same fix as that file and SmartViewSidePanel.vue's own copy in
-   the same commit -- the knob now always uses the base rule's background above (Fix-6: literal
-   white), in both states, matching Vue2's own single-value knob exactly. */
+   like Vue2's. Deleted here too, same fix as that file and SmartViewSidePanel.vue's own copy --
+   the knob now always uses the base rule's background above (the literal white value
+   established above), in both states, matching Vue2's own single-value knob exactly. */
 .sv-switch[data-on="true"]::after { left: 16px; }
 
 .sv-btn-ghost {

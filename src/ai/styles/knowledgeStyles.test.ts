@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest'
-// SP8-P5a Task 4 — Replicate three environment gotchas recorded in settingsStyles.test.ts (SP8-P2a Task 2) header,
+// Replicate three environment gotchas recorded in settingsStyles.test.ts's header,
 // copying the same solutions verbatim (not re-discovering them, just reusing the existing solution):
 // ① This repo package.json is "type": "module" → __dirname is unavailable under ESM, use
 //    import.meta.url + fileURLToPath equivalent instead.
 // ② Type declarations for node:fs / node:path / node:url are provided by `@types/node`. Already installed
-//    in this repo (brought in during SP8-P6 merge from master), `pnpm exec vue-tsc --noEmit` (one of the three task gate commands)
-//    passes directly, **no need for** @ts-expect-error suppression — the suppression lines from sp8-ai branch
+//    in this repo, `pnpm exec vue-tsc --noEmit` (one of the three task gate commands)
+//    passes directly, **no need for** @ts-expect-error suppression — earlier suppression lines
 //    were already deleted during merge.
 // ③ Don't use Vite's `?raw` import as an alternative to node:fs — vitest includes CSSEnablerPlugin
 //    that uniformly replaces all css/scss to empty string (ignores query strings), ?raw import would cause assertions
@@ -30,7 +30,7 @@ function stripComments(css: string): string {
 const rawSource = read('./knowledge.scss')
 const css = stripComments(rawSource)
 
-// [P5e-T2 new] Same as stripComments, but replace comment content with **equal number of spaces**
+// Same as stripComments, but replace comment content with **equal number of spaces**
 // and preserve line breaks → line numbers align exactly with source file. For assertions that
 // need to report true line numbers / need to compare relative line order of two rules
 // (stripComments eats line breaks in multi-line comments, making reported line numbers
@@ -54,7 +54,7 @@ const cssKeepLines = blankComments(rawSource)
 // '\.k2?-[a-z0-9-]+' | sort -u` also exactly 64, and the two sets match item-by-item
 // (`diff` zero differences). So whitelist expanded to 38 + 64 = **102** classes, not 103 as written in brief.
 //
-// [P5b-T2 addition] Shared foundation segment (blueprint :241-252 / :253-257 / :735-968 / :1296-1316 +
+// Shared foundation segment (blueprint :241-252 / :253-257 / :735-968 / :1296-1316 +
 // :1335-1341 / :1398-1428 / :1484-1499 / :2031-2039) adds 32 classes from Appendix D.1,
 // 102 → **134** (plan's 101 → 133 was wrong, see Appendix D §D.0: the constant itself is named
 // WHITELIST_102, array testing shows 102 items). Independent verification: extract the seven segments above with sed
@@ -62,14 +62,14 @@ const cssKeepLines = blankComments(rawSource)
 // minus already-in-whitelist k-btn (base class moved in P5a) and k-scroll (only appears in blueprint comment :250-252),
 // exactly 32, matching Appendix D.1 one-to-one.
 //
-// [P5b-T6 addition] "Indexed Files" page exclusive segment (blueprint :1705-2022, S8) adds 53 classes from Appendix D.2,
+// "Indexed Files" page exclusive segment (blueprint :1705-2022, S8) adds 53 classes from Appendix D.2,
 // 134 → **187** (plan's 186 was wrong, same as above, see Appendix D §D.0). Independent verification:
 // `git show main:…/knowledge.scss | sed -n '1705,2022p' | grep -oE '^\.k[a-z0-9-]+|
 // ^\.k[a-z0-9-]+(?=[[:.,{ ])' | sort -u` gives 54, minus already-in-whitelist k-btn
 // (`.k-filter-bar .k-btn` / `.k-pager .k-btn` two places just adjust height of existing base class),
 // exactly 53, matching Appendix D.2 one-to-one.
 //
-// [P5c-T2a addition] "Knowledge Base Config Page + Folder Chooser" using 10 segments
+// "Knowledge Base Config Page + Folder Chooser" using 10 segments
 // (blueprint knowledge.scss :969-984 / :1141-1149 / :1159-1179 / :1181-1201 / :1203-1225 / :1227-1247 /
 // :1249-1265 / :1267-1293 / :1317-1334 / :2250-2263, plus blueprint FolderBrowser.vue:82-143
 // <style scoped> entire segment) adds 39 classes from P5c Appendix D.1,
@@ -83,7 +83,7 @@ const cssKeepLines = blankComments(rawSource)
 // (blueprint :1152-1157, N15) — the "no over-moving" assertion below is responsible for ensuring
 // these 7 classes don't appear at all.
 //
-// [P5d-T2 addition] "Notes area" exclusive segment (blueprint :2029/:2040-2045(A)· :2047-2056(B)·
+// "Notes area" exclusive segment (blueprint :2029/:2040-2045(A)· :2047-2056(B)·
 // :2057-2085(C)· :2086-2121(D)· :2122-2194(E, includes ProseMirror segment)· :2195-2241(F)·
 // :2242-2249(G)· :2265-2281(H)· :551-571(K43 .k-seg)) adds 65 k-prefix new classes
 // from Appendix D §D.1, 226 → **293** (constant name changes with number, this file's convention;
@@ -97,7 +97,7 @@ const cssKeepLines = blankComments(rawSource)
 // compound classes, `text` only goes to NON_K_HELPER_CLASSES (see section below),
 // can't be in both (R8/R9 mutual exclusion, tested verified).
 //
-// [P5e-T2 addition] "File Aggregated Search" two screens + in-app preview 7 segments
+// "File Aggregated Search" two screens + in-app preview 7 segments
 // (blueprint knowledge.scss :351-367(S1)· :457-549(S2)· :573-681(S3)· :726-732(S4)· :1548-1562(S5)·
 // :1572-1672(S6), plus KFileViewer.vue:71-76 + :102-119(KF)) adds **55** k-prefix new classes
 // listed verbatim in P5e Appendix D §D.7.1, 293 → **348** (constant name changes with number,
@@ -110,7 +110,7 @@ const cssKeepLines = blankComments(rawSource)
 // but `knowledge-app` is `kn` + `o`, **doesn't match at all** (decision R8 corrected
 // the wrong reasoning in Appendix §D.7.1 about "greedy prefix eating" —
 // go by the numbers, don't infer from that reasoning).
-// 🔴 **P5f-T2 correction**: P5f expanded that branch to `k(?:2|n|r|w)?-` (decision R1),
+// 🔴 **Correction**: this task expanded that branch to `k(?:2|n|r|w)?-` (decision R1),
 // `knowledge-app` **still doesn't match** (`k` + optional group consumes `n`, then expects `-`
 // but finds `o`; empty match then expects `-` but finds `n`) ⇒ **this 1 difference remains 1 after this phase**
 // (constant 425 / scanned 424), root cause unchanged, same don't fix it.
@@ -221,10 +221,10 @@ const WHITELIST_425 = [
   'k-rcard-thumb',
   'k-result-count', 'k-results', 'k-search-box', 'k-search-clear', 'k-search-sticky', 'k-search-sticky-inner',
   'k-skel-rcard',
-  // ---- P5f-T2: 27 k-* classes from Appendix D §D.7.1 (blueprint :985-1141 + :1342-1396 + :1500-1503)----
+  // ---- 27 k-* classes from Appendix D §D.7.1 (blueprint :985-1141 + :1342-1396 + :1500-1503)----
   // 🔴 `k-section-body` (blueprint :985) and `k-frow` (:1077) are **intentionally not moved in earlier periods,
   // reversed this period** two (errata E-67 records 67→69 difference of 2 is them); `k-frow` has another :1500-1503
-  // narrow-screen @media override (gap K60 / decision R2). ⚠️ Different from P5b-T6 moved `k-frow-f` / `k-frow-fhead` /
+  // narrow-screen @media override (gap K60 / decision R2). ⚠️ Different from previously moved `k-frow-f` / `k-frow-fhead` /
   // `k-frow-pathcell` / `k-frow-pathtxt` / `k-frow-num` / `k-frow-status` **are different tokens**,
   // zero collision — but any scan must use complete token exact match (`k-frow\b` would falsely match `k-frow-path` = E-25).
   'k-custom-add', 'k-ext-chip', 'k-ext-chip-mark', 'k-ext-chips',
@@ -235,11 +235,11 @@ const WHITELIST_425 = [
   'k-priority-hint',
   'k-radio-2', 'k-radio-card', 'k-radio-card-desc', 'k-radio-card-icon', 'k-radio-card-text',
   'k-section-body',
-  // ---- P5f-T2: 41 kw-* classes from Appendix D §D.7.2 (blueprint :2453-2561, Wiki nav page)----
+  // ---- 41 kw-* classes from Appendix D §D.7.2 (blueprint :2453-2561, Wiki nav page)----
   // 🔴 This family like `kr-*` below, **old NEW_RE's `k(?:2|n)?-` branch doesn't recognize at all**
   // (`w`/`r` neither `2` nor `n`) ⇒ not handling drops all into nonKClassNames turning red on set-equal assertion.
   // Decision **R1** adopts option B: expand NEW_RE branch + add to whitelist + nonKClassNames add exclusion
-  // — exactly same three-piece as P5c-T2a handling `fb-*` precedent.
+  // — exactly same three-piece as previously handling `fb-*` precedent.
   'kw-actions', 'kw-article', 'kw-article-inner',
   'kw-change', 'kw-change-name', 'kw-change-time', 'kw-change-type', 'kw-changes',
   'kw-child', 'kw-child-body', 'kw-child-chev', 'kw-child-ico', 'kw-child-meta',
@@ -251,13 +251,13 @@ const WHITELIST_425 = [
   'kw-sec', 'kw-sec-count', 'kw-sec-en', 'kw-sec-head', 'kw-sec-title',
   'kw-split', 'kw-summary', 'kw-title',
   'kw-tree', 'kw-tree-note', 'kw-tree-scroll',
-  // ---- P5f-T2: 9 kr-* classes from Appendix D §D.5 (gap K53, source RootsView.vue:223-289
+  // ---- 9 kr-* classes from Appendix D §D.5 (gap K53, source RootsView.vue:223-289
   // `<style lang="scss" scoped>`; errata E-63: set difference method structurally can't see .vue built-in style blocks)----
   'kr-adv-row', 'kr-badge', 'kr-check', 'kr-empty', 'kr-error',
   'kr-hint', 'kr-input', 'kr-label', 'kr-path',
 ]
 
-describe('knowledge.scss — Appendix D whitelist deployment (425 classes, R1 + T11 + P5b-T2 + P5b-T6 + P5c-T2a + P5d-T2 + P5e-T2 + P5f-T2)', () => {
+describe('knowledge.scss — Appendix D whitelist deployment (425 classes, accumulated across the porting wavesT2 )', () => {
   // Review 2026-07-31 Important correction — used `\b` for class name right boundary: `\b` also applies before `-`
   // (transition from letter to hyphen also counts as "word boundary"), so `/\.k-topbar\b/` would match
   // **prefix** classes like `.k-topbar-title`, couldn't detect if `.k-topbar { … }` base class rule is deleted —
@@ -276,7 +276,7 @@ describe('knowledge.scss — Appendix D whitelist deployment (425 classes, R1 + 
   // hits, Plan B, no counterpart in the blueprint). This count assertion exists to stop anyone from
   // casually slipping a class into the whitelist — so changing it means reading the whitelist comment
   // above too, not just levelling the number.
-  it('Whitelist exactly 426 items (Appendix D §D.0: 102 + T2\'s 32 + T6\'s 53 + P5c-T2a\'s 39 + P5d-T2\'s 65+2 + P5e-T2\'s 55 + P5f-T2\'s 27+41+9 + 1 from 2026-08-15)', () => {
+  it('Whitelist exactly 426 items (Appendix D §D.0: 102 + T2\'s 32 + T6\'s 53 + \'s 39 + \'s 65+2 + \'s 55 + \'s 27+41+9 + 1 from 2026-08-15)', () => {
     // 🔴 2026-08-25: 426 → 432. The six additions are the `k-asset-*` classes of
     // components/AssetDetailDrawer.vue (album-asset drawer: shares the .k-drawer shell, adds one
     // media stage + caption block). Still no blueprint dead class involved.
@@ -292,7 +292,7 @@ describe('knowledge.scss — Appendix D whitelist deployment (425 classes, R1 + 
     expect(css).not.toMatch(/\.k-toast-ico\b/)
   })
 
-  // [P5b-T2 · K10] Blueprint has **two** .k-confirm-icon/-title/-summary: nested version
+  // [K10] Blueprint has **two** .k-confirm-icon/-title/-summary: nested version
   // (:1398-1428, inside .knowledge-app) and top-level duplicate version (:1676-1702). Both declarations
   // are identical, in cascade nested (0,2,0) beats top-level (0,1,0) → top-level never took effect in Vue2,
   // K10 decides to discard entire segment. This nails "only moved one": any confirm class appearing twice
@@ -305,7 +305,7 @@ describe('knowledge.scss — Appendix D whitelist deployment (425 classes, R1 + 
     }
   })
 
-  // [P5b-T2 fix: guard gap① (Appendix B §B.5 / governance §9 logged)] Original regex was
+  // [Fix: guard gap① (Appendix B §B.5 / governance §9 logged)] Original regex was
   // `/\.k2?-[a-z0-9-]+/g` — `k2?` after consuming `k` **requires next character to be `-`**,
   // so classes like `.kn-badge` / `.kn-foo` with `kn-` prefix **won't be scanned at all**.
   // Task S7 segment (blueprint :2031-2039) moves exactly `.kn-*`, and blueprint :2040-2281 has
@@ -314,7 +314,7 @@ describe('knowledge.scss — Appendix D whitelist deployment (425 classes, R1 + 
   // after switching to regex below exactly reports "class outside whitelist: kn-foo".
   // 🔴 This **expands scan scope**, not loosens assertion: scanned classes must all land in whitelist.
   //
-  // [P5c-T2a further expansion: guard gap① round two (governance §6.4-4 / §9 logged)]
+  // [Further expansion: guard gap① round two (governance §6.4-4 / §9 logged)]
   // Previous regex only recognized three prefixes `k` / `k2` / `kn` — this task moved in FolderBrowser's `.fb-*` segment
   // (blueprint FolderBrowser.vue:82-143), those 8 classes **won't be scanned at all**. Governance §6.4-4 regex is
   // `/\.(?:k(?:2|n)?|fb)-[a-z0-9-]+/g`; testing shows it still misses **bare `.fb`** (no hyphen suffix,
@@ -325,9 +325,9 @@ describe('knowledge.scss — Appendix D whitelist deployment (425 classes, R1 + 
   // below nonKClassNames exclusion conditions sync with `fb` / `fb-*` handling, two sides consistent.
   // 🔴 This still **expands scan scope**, not loosens assertion: blueprint :2023-2281 still has
   // dozens of `.kn-*` from P5d, :985-991's .k-section-body and :1152-1157's .k-progress-* (N15) shouldn't appear either
-  // — slip and move any, this will pinpoint exactly. RED probe in P5c-T2a report.
+  // — slip and move any, this will pinpoint exactly. RED probe recorded separately.
   //
-  // [P5d-T2 further expansion: guard gap① round three (governance §9.6 / decision "four-two" / Appendix D §D.2.1)]
+  // [Further expansion: guard gap① round three (governance §9.6 / decision "four-two" / Appendix D §D.2.1)]
   // This task moved in K44's `.nme-content .ProseMirror` top-level segment and K43's `.k-seg`.
   // Previous regex `/\.(?:k(?:2|n)?-[a-z0-9-]+|fb(?:-[a-z0-9-]+)?)/g` couldn't scan two things:
   // ① `nme-content` / `ProseMirror` — prefix is not k/k2/kn/fb;
@@ -336,23 +336,23 @@ describe('knowledge.scss — Appendix D whitelist deployment (425 classes, R1 + 
   //    no longer just theory, must implement).
   // New regex: `/\.(?:k(?:2|n)?-[a-zA-Z0-9-]+|fb(?:-[a-zA-Z0-9-]+)?|nme(?:-[a-zA-Z0-9-]+)?|ProseMirror)/g`
   // — ① character set adds `A-Z` (implement A-11); ② new optional branches `nme(?:-…)?` and `ProseMirror`.
-  // 🔴 This **expands scan scope**, not loosens assertion: programmatic testing (see `p5d-gen-r8r9-sim.mjs`, T2 report
+  // 🔴 This **expands scan scope**, not loosens assertion: programmatic testing (see `p5d-gen-r8r9-sim.mjs`, the audit
   // pasted strict superset self-proof output on current file: old 225 / new 225 identical,
   // proving this change **zero observable** on pre-change current file — RED probe is sole evidence it has discrimination,
   // see separate RED probe section below). Scanned new classes `nme-content`/`ProseMirror` must also land in whitelist (R9: 226→293).
   //
-  // [P5f-T2 further expansion: guard gap① round four (decision **R1**, option B)]
+  // [Further expansion: guard gap① round four (decision **R1**, option B)]
   // This task moved in 41 `kw-*` (Wiki page) and 9 `kr-*` (K53, from RootsView.vue `<style scoped>`).
   // Previous regex's `k(?:2|n)?-` branch **only accepts `k-`/`k2-`/`kn-`** — `w` in `kw-` and `r` in `kr-`
   // are neither `2` nor `n` ⇒ these 50 classes **won't be scanned at all**, along with `cur` will fall into
   // `nonKClassNames` below, turning red on set-equal assertion.
   // New branch: `k(?:2|n|r|w)?-`. Three-piece (expand regex + add to whitelist + nonKClassNames add exclusion)
-  // **exactly same approach as P5c-T2a handling `fb-*`**, this repo's established process, not new invention.
+  // **exactly same approach as previously handling `fb-*`**, this repo's established process, not new invention.
   // 🔴 Still **expand scan scope = strengthen**, not loosen: scanned classes must all land in whitelist
-  // (miss one → this exactly names it red, T2 report pasted RED probe② output).
+  // (miss one → this exactly names it red, the audit's RED probe② output).
   // Strict superset self-proof next (already synced to "P5e version vs P5f version" two regexes,
   // otherwise that would become hollow).
-  // 🔴🔴 [P5f-T2b must change (decision **R20's I-2**; R22: this is "extract inline literal to constant",
+  // 🔴🔴 [Must change (decision **R20's I-2**; R22: this is "extract inline literal to constant",
   // already declared)] Original inlined scan regex in this it, while "strict superset self-proof" below
   // compares with its **hardcoded copy** — zero binding between them. Review proved: narrow back
   // **this inline current regex** to `k(?:2|n)?-`, entire file **374/374 all green**, 50 `kw-*`/`kr-*`
@@ -376,27 +376,27 @@ describe('knowledge.scss — Appendix D whitelist deployment (425 classes, R1 + 
     expect(extra, `Classes outside whitelist: ${extra.join(', ')}`).toEqual([])
   })
 
-  // [P5d-T2 · Strict superset self-proof (per P5c §6.4.1 item 1, prevent "expand scope" from becoming "quietly loosen")]
+  // [Strict superset self-proof (per P5c §6.4.1 item 1, prevent "expand scope" from becoming "quietly loosen")]
   // Run both old and new regex on **pre-change current file** (git history version, not post-change current),
   // assert that every class old regex scans, new regex also scans (old ⊆ new) — proving expanding character set/branches
   // purely expands coverage, doesn't let any originally-scanned class escape.
-  // 🔴 T2 report pasted real output this assertion ran on T1 final version (`56f8849`) (old 225 / new 225,
+  // 🔴 Real output this assertion ran on T1 final version (`56f8849`) (old 225 / new 225,
   // identical set) — this is also the evidence source for "this change zero observable on current file",
   // RED probe (see separate section) is sole proof this change has discrimination.
   //
-  // 🔴🔴 [P5f-T2 must change (decision **R1**-③)] Originally this hardcoded "P5d version vs P5e version"
+  // 🔴🔴 [Must change (decision **R1**-③)] Originally this hardcoded "P5d version vs P5e version"
   // two regexes, **unrelated to what this task actually deploys** — not sync-change, this self-proof becomes
   // **hollow**: forever compares old constants unrelated to current regex, always green no matter how
   // current regex changes. Now OLD_RE = **current regex when P5e closed** (original before previous assertion change),
   // NEW_RE = **current regex this task deploys** (added `r|w` two branches).
   // Verification (R1-③ original): remove `r|w` from tested NEW_RE → this must report red.
-  // T2 report pasted this skewed real output (after removing `r|w` exactly lists 50 classes
+  // The audit's real output showed this skewed result (after removing `r|w` exactly lists 50 classes
   // "old scanned, new missed"). ⚠️ Also add assertion in **strict** direction (`new ⊋ old`):
   // only proving `old ⊆ new` allows equal, so "expand scope" might actually expand nothing
   // (P5d at that time on pre-change file was old 225 / new 225). This task's file has `kr-*`/`kw-*`
   // truly present ⇒ strict proper superset **can and must** be programmatically proven.
   //
-  // 🔴🔴 [P5f-T2b further fix (decision **R20's I-2**)] Previous `NEW_RE` was **hardcoded copy** of current regex
+  // 🔴🔴 [Further fix (decision **R20's I-2**)] Previous `NEW_RE` was **hardcoded copy** of current regex
   // ⇒ current regex can be silently narrowed back and this stays green (review proved 374/374 all green).
   // Now `newHits` directly uses above **`scanClassNames()` = current same source**,
   // only `OLD_RE` (P5e closing historical original) remains hardcoded — it should be historical snapshot anyway.
@@ -420,7 +420,7 @@ describe('knowledge.scss — Appendix D whitelist deployment (425 classes, R1 + 
     expect(gained.every((c) => c.startsWith('kw-') || c.startsWith('kr-')), 'Net gain mixed in non-kw-/kr- classes').toBe(true)
   })
 
-  // [P5b-T6 fix: guard gap④ (T2 review deferred, coordinator gave to T6)] Above "no over-moving" and whitelist
+  // [Fix: guard gap④] Above "no over-moving" and whitelist
   // both only take `k*` prefix — blueprint embedded **non-k-prefix helper classes** in several
   // (`.k-modal-foot .right`, `.k-fd-v.mono`, `.k-btn.ghost/.outline/.primary/.danger`…),
   // they're neither in whitelist nor in scan regex: future if any `.right { … }` / `.mono { … }` pops up in this file,
@@ -438,85 +438,85 @@ describe('knowledge.scss — Appendix D whitelist deployment (425 classes, R1 + 
   const NON_K_HELPER_CLASSES = [
     // .k-btn four variants (blueprint :822/:826/:836/:843), written as `&.ghost` etc, combined with .k-btn
     'ghost', 'outline', 'primary', 'danger',
-    // Right-aligned action group in .k-modal-foot (blueprint :1340), moved in P5b-T2
+    // Right-aligned action group in .k-modal-foot (blueprint :1340)
     'right',
     // Unit suffix and second number in .k2-layer-num (blueprint :2320/:2321), moved in P5a T11
     'suffix', 'second',
     // Spin state in .k2-live-ico (blueprint :2364), moved in P5a T11
     'spin',
-    // Monospace variant of .k-fd-v (blueprint :1957), written as `&.mono`, moved in P5b-T6
+    // Monospace variant of .k-fd-v (blueprint :1957), written as `&.mono`
     'mono',
-    // Alert row in .k-set-row-desc (blueprint :1174), written as nested `.warn { … }`, moved in P5c-T2a
+    // Alert row in .k-set-row-desc (blueprint :1174), written as nested `.warn { … }`
     // (Appendix D §D.1.1: 9 → 10. ⚠️ Don't slip parser-app in here — governance §6.4-2 decided
     //  it uses nonKClassNames **exclusion condition**, same treatment as existing knowledge-app,
     //  keep registry semantic of "true nested helper classes".)
     'warn',
-    // ---- P5d-T2 addition (decision R8: 10 → 16)----
+    // ---- Addition (decision R8: 10 → 16)----
     // 🔴 Governance §9.6 / decision A-10 said "NON_K_HELPER_CLASSES stays 10 unchanged" is wrong —
     // that only counted `nme`/`nme-content`/`ProseMirror` (and `nme` blueprint zero selector, won't scan,
     // `nme-content`/`ProseMirror` use exclusion condition, don't enter this table), missed these 6 true nested helpers.
     // Following A-10 literally "keep 10", the "registry exactly equals true non-k* classes in file"
     // set-equal assertion below would **turn red on commit** (decision R8 corrected to 16, per programmatic test —
-    // reproduction command see `p5d-gen-r8r9-sim.mjs`, output verbatim in T2 report).
-    // Save-state dot in .kn-savehint (blueprint :2127/:2128), moved in P5d-T2
+    // reproduction command see `p5d-gen-r8r9-sim.mjs`, output verbatim recorded separately).
+    // Save-state dot in .kn-savehint (blueprint :2127/:2128)
     'dot',
-    // Reference button text in .kn-refbtn (blueprint :2222), moved in P5d-T2
+    // Reference button text in .kn-refbtn (blueprint :2222)
     'lbl',
-    // Meta-info separator dot in .kn-note-meta (blueprint :2104), moved in P5d-T2
+    // Meta-info separator dot in .kn-note-meta (blueprint :2104)
     'sep',
     // Elastic spacer in .kn-edit-top / .kn-editor-status / .kn-aside-title (blueprint :2125/:2193/:2203),
-    // moved in P5d-T2
+    //
     'spacer',
     // K45 (decision R1) moved-in .k-btn.text — `&.text` is `text` in compound class `.k-btn.text`,
     // exactly same as existing ghost/outline/primary/danger four `&.x` variants (blueprint :1569-1570).
     // 🔴 `text` only goes to this table (R8), not WHITELIST_425 (R9's regex can't scan `text` in compound,
     // see comment in "no over-moving" above), R8/R9 mutual exclusion, can't register both sides.
     'text',
-    // H2/H3 width variant in .kn-tb-btn (blueprint :2167), written as `&.wide`, moved in P5d-T2,
+    // H2/H3 width variant in .kn-tb-btn (blueprint :2167), written as `&.wide`,
     // same as existing mono/ghost "combined variants"
     'wide',
-    // ---- P5e-T2 addition (decision R8 / Appendix D §D.7.2: 16 → 19)----
+    // ---- Addition (decision R8 / Appendix D §D.7.2: 16 → 19)----
     // 🔴 These three mean "registry grows = new-scanned classes must have source cited", **strengthens** not loosens:
     // below "registry exactly equals true non-k* classes in file, no more no less" **set-equal** assertion
     // still applies, adds one/removes one both report red; this task adds 3 true existing nested helpers,
-    // not writing means red. Before/after strengthening nonKClassNames() output verbatim in T2 report (16 → 19).
+    // not writing means red. Before/after strengthening nonKClassNames() output verbatim recorded separately (16 → 19).
     // Collapse arrow icon rotation container — .k-adv-toggle .chev (blueprint :509),
     // .k-adv-toggle[data-open="true"] .chev (:510), .k-more-hint .chev (:1561)
-    // three **different descendant rules**, same as existing dot/sep/spacer. Moved in P5e-T2
+    // three **different descendant rules**, same as existing dot/sep/spacer. 
     'chev',
     // Monospace path segment in result card meta — .k-rcard-meta-item .path (blueprint :670).
-    // ⚠️ p5-master-plan.md §2.4 class list missed it (errata E-55). Same as existing mono. Moved in P5e-T2
+    // ⚠️ p5-master-plan.md §2.4 class list missed it (errata E-55). Same as existing mono. 
     'path',
     // "Markdown header" highlight in snippet — .k-rcard-snippet .h-md (blueprint :660).
     // 🔴 **Blueprint 13 .vue zero class references**, but it's nested in .k-rcard-snippet → move with parent
     // block as whole, don't extract separately (Appendix D §D.6, same K7 mold as P5d "statusBadge zero consumers
-    // also copy export"). Moved in P5e-T2
+    // also copy export"). 
     'h-md',
-    // ---- P5f-T2 addition (decision R1 / Appendix D §D.7.4: 19 → 20)----
+    // ---- Addition (decision R1 / Appendix D §D.7.4: 19 → 20)----
     // 🔴 This task adds only **1** to this table. Decision R1 explicitly rejected option A
     // (dump all 41 kw-* + 9 kr-* into this table) — would **turn this "true nested helpers each logged with source"**
     // **small table into the garbage bin it's supposed to prevent**, plus those 50 classes lose coverage from
     // "no over-moving" whitelist scan above = **net reduction in guard coverage**.
     // Option B lets them use WHITELIST_425 + nonKClassNames exclusion (same as fb-*).
     // "Current item" in Wiki breadcrumb — .kw-crumb .cur (blueprint :2475), true nested helper
-    // like existing right/mono/dot/sep. Moved in P5f-T2
+    // like existing right/mono/dot/sep. 
     'cur',
   ]
 
-  // [P5c-T2a fix: guard gap④ (governance §6.4-2)] This task expanded selectors of two token declaration blocks
+  // [Fix: guard gap④ (governance §6.4-2)] This task expanded selectors of two token declaration blocks
   // each by one item `.parser-app` (K21 — Parser two pages reuse this file's token, zero copy), so `parser-app`
   // gets scanned by `/\.([a-zA-Z]…)/` below, falling into "unregistered non-k* classes"; it's a **scope root**,
   // not nested helper → like existing `knowledge-app`, uses exclusion condition not registry entry.
-  // Similarly `fb` / `fb-*` (P5c-T2a moved in 8 classes from FolderBrowser.vue:82-143) are legit
+  // Similarly `fb` / `fb-*` (moved in 8 classes from FolderBrowser.vue:82-143) are legit
   // prefix classes in this file, already in WHITELIST_425, and already covered by above "no over-moving" scan,
   // exclude them here together, avoiding same class batch judged by two assertions with contradictory criteria.
   //
-  // [P5d-T2 addition] K44-introduced `nme-content` / `ProseMirror` similarly are **legit prefix/third-party
+  // K44-introduced `nme-content` / `ProseMirror` similarly are **legit prefix/third-party
   // classes** (former blueprint wrapper class, latter third-party ProseMirror-generated class name, mixed case,
   // the only one outside this file's kebab lowercase convention), not nested helpers — like knowledge-app/parser-app/
   // fb, use exclusion condition, don't enter NON_K_HELPER_CLASSES (governance §9.6 mandates).
   //
-  // [P5f-T2 addition (decision R1, option B)] Exclusion prefix expanded to `k(?:2|n|r|w)?-` in sync
+  // [Addition (decision R1, option B)] Exclusion prefix expanded to `k(?:2|n|r|w)?-` in sync
   // **same criteria as "no over-moving" regex above** (two places must align, else same class batch judged
   // by two assertions with contradictory criteria). `kr-*` / `kw-*` are legit prefix classes in this file,
   // already in WHITELIST_425, and already covered by "no over-moving" scan, exclude like fb-* / knowledge-app / parser-app / nme-content.
@@ -544,12 +544,12 @@ describe('knowledge.scss — Appendix D whitelist deployment (425 classes, R1 + 
     expect(nonKClassNames(css)).toEqual([...NON_K_HELPER_CLASSES].sort())
   })
 
-  it('R8/R1 — NON_K_HELPER_CLASSES constant exactly 20 items (P5d\'s 16 + P5e-T2\'s 3 + P5f-T2\'s 1; not governance A-10\'s 10)', () => {
+  it('R8/R1 — NON_K_HELPER_CLASSES constant exactly 20 items (P5d\'s 16 + \'s 3 + \'s 1; not governance A-10\'s 10)', () => {
     expect(NON_K_HELPER_CLASSES).toHaveLength(20)
     expect(new Set(NON_K_HELPER_CLASSES).size, 'Registry has duplicate items').toBe(20)
   })
 
-  // [P5d-T2 · K45 deployment DoD (decision R1-②, Appendix D §D.4.1)] "No over-moving" whitelist
+  // [K45 deployment DoD (decision R1-②, Appendix D §D.4.1)] "No over-moving" whitelist
   // set assertion can't naturally catch `.k-btn.text` being moved twice (`text` not in its regex) —
   // switch to count assertion "`.k-btn` scope &.text appears exactly 2 times (rule + hover)".
   // 🔴 Brief §3-2 / T0 re-review noted: must anchor in `.k-btn { … }` range, can't bare-count entire file
@@ -585,7 +585,7 @@ describe('knowledge.scss — Appendix D whitelist deployment (425 classes, R1 + 
     return [acc, i]
   }
 
-  // [P5e-T2 · M-4 — Only change test name, don't touch assertion (governance §8.2's M-4 handoff)]
+  // [M-4 — Only change test name, don't touch assertion (governance §8.2's M-4 handoff)]
   // Original test name said "&.text **only in** .k-btn{…} scope appears, exactly 2 times",
   // **broader** than what assertion actually does: assertion counts only in `.k-btn { … }` range,
   // knows nothing about whether `&.text` exists **outside** (really guarding "only in" needs another
@@ -601,7 +601,7 @@ describe('knowledge.scss — Appendix D whitelist deployment (425 classes, R1 + 
 })
 
 // ============================================================================
-// P5e-T2 new guards (Appendix D §D.3 / §D.4 / K46 / K47)
+// New guards (Appendix D §D.3 / §D.4 / K46 / K47)
 // ============================================================================
 
 // Complete list of blueprint dead-code classes (copied verbatim from p5-master-plan.md §2.2 / Appendix D §D.3).
@@ -621,7 +621,7 @@ const BLUEPRINT_DEAD_CLASSES = [
   'k-progress-nums', 'k-progress-bar', 'k-progress-fill',
 ]
 
-describe('knowledge.scss — Appendix D §D.3: All 24 blueprint dead-code classes not moved in (P5e-T2 new)', () => {
+describe('knowledge.scss — Appendix D §D.3: All 24 blueprint dead-code classes not moved in', () => {
   // 🔴 Why this assertion must exist: P5e's .k-hero-suggest (blueprint :351) and .k-suggest-chip (:357)
   // **sandwiched between .k-hero-search-kbd (:343) and .k-stat (:380)** ⇒ "move entire :272-455"
   // would at once bring in **18** dead classes. Above "no over-moving" whitelist assertion would turn red,
@@ -636,7 +636,7 @@ describe('knowledge.scss — Appendix D §D.3: All 24 blueprint dead-code classe
   // 🔴 Runs on **comment-stripped** `css`: Appendix D §D.3's reproduction command is bare grep on
   // **raw text**, it already had 2 false positives before T2 baseline (k-quick-grid / k-progress-card, from
   // knowledge.scss :61 / :1318 / :1605 three existing comments with class-name references before dot) —
-  // that command **isn't** authoritative, this assertion is. See T2 report's errata section.
+  // that command **isn't** authoritative, this assertion is. See the errata section recorded separately.
   it('24 dead classes zero appearances in knowledge.scss (after stripping comments)', () => {
     const leaked = BLUEPRINT_DEAD_CLASSES.filter((c) => new RegExp(`\\.${c}(?![\\w-])`).test(css))
     expect(
@@ -693,7 +693,7 @@ function nestedBlockBody(text: string, selectorLine: string): string {
   return text.slice(offset, i)
 }
 
-describe('knowledge.scss — E-52: .k-suggest-chip base class must be before k2 descendant override (P5e-T2 new)', () => {
+describe('knowledge.scss — E-52: .k-suggest-chip base class must be before k2 descendant override', () => {
   // [Fact] P5a only moved descendant override from blueprint :2291 (this file's Dashboard v2 segment
   // `.k2-suggest .k-suggest-chip { white-space: nowrap; }`), **base class entirely missed** = errata E-52;
   // and blueprint DashboardView.vue:292 and SearchView both use it ⇒ P5a-delivered dashboard suggestion chips
@@ -742,7 +742,7 @@ describe('knowledge.scss — E-52: .k-suggest-chip base class must be before k2 
   })
 })
 
-describe('knowledge.scss — K46 / K47: .k-fileviewer-host three properties + three ::v-deep rules not ported (P5e-T2 new)', () => {
+describe('knowledge.scss — K46 / K47: .k-fileviewer-host three properties + three ::v-deep rules not ported', () => {
   // 🔴 K46 criterion ③ (governance §3's original K46 text): `position: fixed` / `inset: 0` / `z-index: 1100`
   // **must be preserved verbatim**, **each with its own independent assertion** (removing any one → must go red).
   // Rationale: `src/files/viewers/ViewerShell.vue:24` is
@@ -810,7 +810,7 @@ describe('knowledge.scss — K46 / K47: .k-fileviewer-host three properties + th
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 【P5e-T4 new, decision R16】Important-1 "the 7 new tokens' 'token → consuming selector'
+// 【Decision R16】Important-1 "the 7 new tokens' 'token → consuming selector'
 // binding has zero guard".
 // Fact (proven by T2 review, not speculation): swapping the tokens consumed by
 // [data-kind="md"] and [data-kind="doc"] → 334/334 still all green (probe G1); changing
@@ -830,7 +830,7 @@ describe('knowledge.scss — K46 / K47: .k-fileviewer-host three properties + th
 // must go red; swapping .k-rcard-icon's background to a different token → must go red (report
 // pastes both outputs + md5sum restore).
 // Reinforcement only, doesn't loosen any existing assertion (§9.10); doesn't change knowledge.scss itself.
-describe('knowledge.scss — R16: consumption bindings for the 7 new tokens (P5e-T4 new, covers T2 review Important-1 gap)', () => {
+describe('knowledge.scss — R16: consumption bindings for the 7 new tokens (gap)', () => {
   const TAG = '.k-rcard-tag {'
   const ICON = '.k-rcard-icon {'
   const DRAWER = '.k-drawer {'
@@ -912,7 +912,7 @@ function declBlockBody(text: string, selectorLiteral: string): string {
   return text.slice(start, end)
 }
 
-// 【P5c-T2a · K21】Both token declaration blocks' selectors each gained an extra `.parser-app`
+// 【K21】Both token declaration blocks' selectors each gained an extra `.parser-app`
 // (governance §6.1's C-3 decision: Parser's two pages reuse this file's token set, zero
 // duplication of the token declarations; can't let the page root carry .knowledge-app, because
 // the `.knowledge-app { … }` shell block further below **shares the exact same selector** as the
@@ -923,7 +923,7 @@ function declBlockBody(text: string, selectorLiteral: string): string {
 // drift-prevention assertion: the moment the selector in the scss gets changed back to a plain
 // `.knowledge-app {` (= K21 reverted, Parser's two pages can no longer resolve any tokens, and
 // on a real device those two pages would render as blank/transparent), this immediately and
-// precisely reports "declaration block not found". See the P5c-T2a report for the RED probe.
+// precisely reports "declaration block not found". See the RED probe recorded separately.
 const DARK_TOKEN_SELECTOR = '.knowledge-app, .parser-app {'
 const LIGHT_TOKEN_SELECTOR =
   ':root[data-theme="light"] .knowledge-app, :root[data-theme="light"] .parser-app {'
@@ -1021,17 +1021,17 @@ describe('knowledge.scss — hard color constraint (this file has no automated g
   // 【T11 addition】The dashboard k2-* section also uses --danger-soft-border (the hover-intensified state of
   // k2-qchip[data-tone=danger]) and --modal-scrim (the color-mix source for k2-ob-layer .k2-tag's dark overlay),
   // 4→6 tokens, expanding the same assertion, no new describe block.
-  // 【P5b-T2 addition】The shared foundation section uses 3 more: --success-soft-border (the border of
+  // 【Addition】The shared foundation section uses 3 more: --success-soft-border (the border of
   // .kn-badge[data-s="curated"], blueprint :2038), --danger-soft-faint (the background of
   // .k-confirm-summary, blueprint :1417; reused by the T6 section at :1972), --danger-hover (the hover
   // background of .k-btn.danger, blueprint :846).
   // Attribution follows the token-ownership table in the governance doc §6.2 (--purple-soft belongs to T6,
   // not declared by this task). 6→9 tokens.
-  // 【P5b-T6 addition】The "collected files" section (S8) newly uses only 1: --purple-soft (the background of
+  // 【Addition】The "collected files" section (S8) newly uses only 1: --purple-soft (the background of
   // .k-type-tag[data-kind="code"] at blueprint :1894), which the ownership table assigns to T6. This section's
   // use of --danger-soft-faint was already declared by T2 (blueprint :1972 is its second use site), so it is
   // not duplicated. 9→10 tokens.
-  it('R2 — all 10 *-soft/-scrim/-hover tokens this file uses have values in both variants (4 from T4 + 2 from T11 + 3 from P5b-T2 + 1 from P5b-T6)', () => {
+  it('R2 — all 10 *-soft/-scrim/-hover tokens this file uses have values in both variants (from the porting waves, 3 from + 1 from )', () => {
     const darkBody = declBlockBody(css, DARK_TOKEN_SELECTOR)
     const lightBody = declBlockBody(css, LIGHT_TOKEN_SELECTOR)
     for (const tok of [
@@ -1089,7 +1089,7 @@ describe('knowledge.scss — hard color constraint (this file has no automated g
     }
   })
 
-  // 【P5b-T2】--danger-hover is the only token **created with no source anywhere in the repo** this cycle
+  // 【Note】--danger-hover is the only token **created with no source anywhere in the repo** this cycle
   // (the other two, --success-soft-border / --danger-soft-faint, can both be traced back and verified against
   // AI's tokens.scss). Design §6.2 attached a derivation note ("darken this variant's --danger by the same
   // ratio as the blueprint, −9% lightness"), but T0 testing found **this rule cannot reproduce the two given
@@ -1107,7 +1107,7 @@ describe('knowledge.scss — hard color constraint (this file has no automated g
     expect(lightBody).not.toContain('--danger-hover: #E35F52;')
   })
 
-  // 【P5c-T2a】This task newly declares 4 tokens (Appendix B §B.8), none of whose names carry a `-soft`/
+  // 【Note】This task newly declares 4 tokens (Appendix B §B.8), none of whose names carry a `-soft`/
   // `-scrim`/`-hover` suffix, so per governance §B.8's ruling the R2 array above **is not expanded**; but the
   // "declared in both variants" layer is auto-covered by the "light variant color-token coverage completeness"
   // set assertion below, while **whether the value was recomputed/changed** has no guard at all — Appendix B
@@ -1116,7 +1116,7 @@ describe('knowledge.scss — hard color constraint (this file has no automated g
   // uses the same style as the --danger-hover one to pin both variants' values down verbatim, and reversely
   // pins down the theme-invariant property of "same value in both variants" (in the same family as the
   // existing --purple/--pink/--teal/--modal-scrim).
-  it('P5c-T2a 4 new tokens match AI tokens.scss source values verbatim in both variants (Appendix B §B.8: recomputing forbidden)', () => {
+  it('4 new tokens match AI tokens.scss source values verbatim in both variants (Appendix B §B.8: recomputing forbidden)', () => {
     const darkBody = declBlockBody(css, DARK_TOKEN_SELECTOR)
     const lightBody = declBlockBody(css, LIGHT_TOKEN_SELECTOR)
     const expected: Record<string, string> = {
@@ -1135,7 +1135,7 @@ describe('knowledge.scss — hard color constraint (this file has no automated g
     }
   })
 
-  // 【P5d-T2 · K39】This task newly declares 9 tokens (Appendix B §B.1 is authoritative). 7 are theme-invariant
+  // 【K39】This task newly declares 9 tokens (Appendix B §B.1 is authoritative). 7 are theme-invariant
   // (4 note gradients + 2 wash gradients + 2 code-block colors), same value in both variants;
   // --shadow-warning-glow **differs** between variants (the RGB triple switches with --warning-soft-border,
   // alpha stays at the blueprint's 0.3/0.24).
@@ -1200,14 +1200,14 @@ describe('knowledge.scss — hard color constraint (this file has no automated g
     )
   })
 
-  // 【P5e-T2 · Appendix B §B.1 / §B.2】This pass adds 8 declarations in each variant: --paper-surface (an
+  // 【Appendix B §B.1 / §B.2】This pass adds 8 declarations in each variant: --paper-surface (an
   // **existing exception token** this file has not yet declared, not a new one) + 7 new ones (5 --rtag-* /
   // --shadow-drawer / --mark-hl-bg). The "light variant color-token coverage completeness" set assertion above
   // only checks "was it declared", **it cannot tell whether the value was recomputed by someone** — these two
   // tests use the same style as the --danger-hover / K39 ones to pin the values down verbatim (Appendix B
   // §B.5-2 explicitly rules "any color literal outside this table → NEEDS_CONTEXT, do not pick your own
   // token"; conversely, values that are in the table must not be recomputed downstream either).
-  it('P5e-T2 — --paper-surface + 5 --rtag-* tokens match verbatim in both variants (theme-invariant, Appendix B §B.1/§B.2.1)', () => {
+  it('--paper-surface + 5 --rtag-* tokens match verbatim in both variants (theme-invariant, Appendix B §B.1/§B.2.1)', () => {
     const darkBody = declBlockBody(css, DARK_TOKEN_SELECTOR)
     const lightBody = declBlockBody(css, LIGHT_TOKEN_SELECTOR)
     const expected: Record<string, string> = {
@@ -1230,7 +1230,7 @@ describe('knowledge.scss — hard color constraint (this file has no automated g
     expect(lightBody, 'this file must not re-declare --kind-txt (two values under the same name across the repo)').not.toContain('--kind-txt:')
   })
 
-  it('P5e-T2 — --shadow-drawer / --mark-hl-bg differ between variants (Appendix B §B.2.2/§B.2.3, recomputing forbidden)', () => {
+  it('--shadow-drawer / --mark-hl-bg differ between variants (Appendix B §B.2.2/§B.2.3, recomputing forbidden)', () => {
     const darkBody = declBlockBody(css, DARK_TOKEN_SELECTOR)
     const lightBody = declBlockBody(css, LIGHT_TOKEN_SELECTOR)
     // The geometry part follows blueprint :1582 verbatim; the color part follows ruling R4 (a plain dark-toned
@@ -1306,7 +1306,7 @@ describe('knowledge.scss — hard color constraint (this file has no automated g
   })
 })
 
-// 【P5d-T2 · K44 top-level bare-selector exception (governance §6.2-2 explicit ruling / ruling R4 / Appendix D §D.2.2)】
+// 【K44 top-level bare-selector exception (governance §6.2-2 explicit ruling / ruling R4 / Appendix D §D.2.2)】
 // 🔴 This assertion is **newly added**, not modified — the file as it stood had no "top-level bare selector"
 // assertion at all (`grep -n "top-level\|bare selector\|top-level" knowledgeStyles.test.ts` before this pass
 // only matched the K10 comment, this one wasn't found). Baseline: before this change, the file had 15
@@ -1487,7 +1487,7 @@ describe('knowledge.scss — [data-layer] three-color completeness (review Minor
 // fail — that is merely "redundant", not a defect — of T4's 7 keyframes in this file, only k-shimmer/k-pulse
 // are actually used, and the rest are reserved for later batches, which likewise should not fail).
 describe('knowledge.scss — every animation reference has a matching @keyframes declaration (review Minor M-3)', () => {
-  // 【P5b-T6 · N11】The one registered exception: `fade-in`.
+  // 【N11】The one registered exception: `fade-in`.
   // Blueprint knowledge.scss:1941's `.k-file-detail { animation: fade-in 160ms ease }` references a keyframes
   // that **the blueprint itself never defines** — the blueprint's whole file only has `@keyframes k-fade-in`
   // (T0 already checked the blueprint's full @keyframes table: :1511/1515/1519/1523/1527/1531/1535/1541/1542/
@@ -1596,10 +1596,10 @@ describe('knowledge.scss — must be imported by at least one production .vue fi
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// SP8-P5c Task 8 — 🔴 **the unified fix for guard gap ③' (P5b handoff item #4)** (governance §9 gap table).
+// 🔴 **The unified fix for guard gap ③'** (governance §9 gap table).
 //
 // 【What gap ③ is】`color-guard.test.ts:44-56`'s `styleLines()` only takes the `<style>` block for a `.vue`
-//   file → **zero scanning of `style=` / `:style=` / `color=` attributes in the template**. P5a/P5b's fix was
+//   file → **zero scanning of `style=` / `:style=` / `color=` attributes in the template**. The earlier fix was
 //   "add one targeted assertion in each new `.vue`'s own `*.test.ts`".
 //
 // 【What gap ③' is】That targeted assertion's existing implementation is
@@ -1657,7 +1657,7 @@ const KNOWLEDGE_VUE_FILES = [
   'views/RootsView.vue',
   'views/SearchView.vue',
   'views/SettingsView.vue',
-  // SP8-P5f Task 6 — newly created `views/WikiView.vue` (the top half; T7 continues writing the bottom
+  // Newly created `views/WikiView.vue` (the top half; T7 continues writing the bottom
   // half, **not registered twice**). Failing to register it would fail the "file list set equality"
   // anti-drift assertion above — that is correct behavior (§9.10).
   'views/WikiView.vue',
@@ -1749,9 +1749,9 @@ function stripColorCalls(s: string): string {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// SP8-P5d Task 5 — Ticket 3 (governance §15.3 / §9.6): add two more units of discriminating power to guard gap ③'.
+// Add two more units of discriminating power to guard gap ③' (governance §15.3 / §9.6).
 //
-// 【Ticket 3a: named-color scanning】Both `color-guard.test.ts` and this file's existing ③' assertion only
+// 【Named-color scanning】Both `color-guard.test.ts` and this file's existing ③' assertion only
 // recognize `#hex` / `rgb()`/`hsl()` — CSS named colors (things like `color: white`) have zero coverage
 // anywhere. 🔴 A naive "search the whole text for the word white" would wrongly flag `white-space: nowrap`
 // (there is one at QueueView.vue:474) — it must be pinned to "attribute-value position": look for a whole-word
@@ -1762,7 +1762,7 @@ function stripColorCalls(s: string): string {
 // the list), so "pin to attribute-value position" naturally excludes `white-space: nowrap` without needing any
 // extra hyphen special-casing on the value itself.
 //
-// 【Ticket 3b: coverage】The existing ③' only scans `src/ai/knowledge/**`; `src/ai/components/**` (P2a/P2b's
+// 【Coverage】The existing ③' only scans `src/ai/knowledge/**`; `src/ai/components/**` (an earlier pass's
 // output, the Agent section's cards/sidebar/settings subcomponents) is a blind spot for template
 // `style=`/`:style=`. The coordinator already ran a one-off scripted dry-run over all 70 files independently
 // (see the task report §7): hex / rgb / hsl / named colors get **zero hits** in attribute-value position —
@@ -1844,7 +1844,7 @@ describe('guard gap ③′ — every .vue in the knowledge section has zero bare
     expect(scrubbed, `${rel}: the template has an rgb()/hsl() function color`).not.toMatch(/\b(rgba?|hsla?)\s*\(/)
   })
 
-  // SP8-P5d Task 5 · Ticket 3a: named-color scanning at attribute-value position (newly added).
+  // Named-color scanning at attribute-value position (newly added).
   it.each(KNOWLEDGE_VUE_FILES)('%s — zero named colors at attribute-value position (color/background/border/box-shadow/fill/stroke) inside the template', (rel) => {
     const src: string = readFileSync(resolve(kbDir, rel), 'utf8')
     const { tmpl } = extractTemplate(src)
@@ -1855,7 +1855,7 @@ describe('guard gap ③′ — every .vue in the knowledge section has zero bare
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// SP8-P5d Task 7 · Fix round 1 (ruling R17, ticket E-47) — §0.3 ("no color literals in comments either") had
+// §0.3 ("no color literals in comments either") had
 // zero guard coverage at "comments inside a .vue's <script> block" until now:
 // `color-guard.test.ts` only scans the `<style>`/attribute forms of `.vue`/`.css`, guard gap ③' only scans the
 // `<template>` text, and T5's named-color scan is pinned to attribute-value position inside `<template>` —
@@ -1866,7 +1866,7 @@ describe('guard gap ③′ — every .vue in the knowledge section has zero bare
 // repo** — expanding scope might surface pre-existing violations from other cycles, which is NEEDS_CONTEXT,
 // not something this pass should fix (T5 already learned this lesson). `transparent` is a keyword, not a
 // color literal, and is not scanned for.
-describe('§0.3 — zero color literals in <script> block comments of .vue files (R17, ticket E-47, scope pinned to KNOWLEDGE_VUE_FILES)', () => {
+describe('§0.3 — zero color literals in <script> block comments of .vue files (scope pinned to KNOWLEDGE_VUE_FILES)', () => {
   /** Extract the raw content of every `<script ...>...</script>` block in a .vue source file
    * (a SFC may have both a `<script>` block and a `<script setup>` block; scan both). */
   function extractScriptBlocks(src: string): string[] {
@@ -1901,7 +1901,7 @@ describe('§0.3 — zero color literals in <script> block comments of .vue files
   // went through cp + byte-for-byte md5 comparison; git checkout was forbidden.
 })
 
-// SP8-P5d Task 5 · Ticket 3b: the same scan expanded to `src/ai/components/**` (P2a/P2b's output, the Agent
+// The same scan expanded to `src/ai/components/**` (an earlier pass's output, the Agent
 // section's cards/sidebar/settings subcomponents). The existing ③' only covers `src/ai/knowledge/**`; that
 // directory's template `style=`/`:style=` is a blind spot. The file list similarly does a set-equality anti-drift check.
 const COMPONENTS_VUE_FILES = [
@@ -2026,7 +2026,7 @@ describe('guard gap ③′ extended (ticket 3b) — same bare-color template sca
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 【Newly added in P5e-T8, ruling R23】Fixes the gap from T4's review Important-1, "the ancestor-chain
+// 【Ruling R23】Fixes the gap from T4's review Important-1, "the ancestor-chain
 // conclusion has zero automated guarding".
 //
 // Fact (proven by a probe added during review; see ruling R23): add one line,
@@ -2123,7 +2123,7 @@ describe('ancestor-chain guard (R23) — .knowledge-app / .k-main / body / html 
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 【New guard added in SP8-P5f Task 2】This pass ports in four sections (blueprint :985-1141 / :1342-1396 /
+// 【New guard】This pass ports in four sections (blueprint :985-1141 / :1342-1396 /
 // :2453-2561 + K60's :1500-1503) and K53's 9 `kr-*`. The assertions below cover this pass's four **new**
 // categories of risk:
 //   ① the section-boundary trap (porting a whole section can drag in a duplicate definition of an
@@ -2136,21 +2136,21 @@ describe('ancestor-chain guard (R23) — .knowledge-app / .k-main / body / html 
 // 🔴 This pass only **adds** assertions, it never modifies any existing one (§9.10).
 // ═══════════════════════════════════════════════════════════════════════════
 
-describe('knowledge.scss — P5f-T2 section-boundary trap: already-ported classes must not be redefined (ruling R4 / errata E-69)', () => {
+describe('knowledge.scss — section-boundary trap: already-ported classes must not be redefined (ruling R4 / errata E-69)', () => {
   // 🔴 Why this test must exist: Allowlist section A's correct boundary is blueprint `:985-1141`, but the
   // governance doc's original text says `:985-1160`. Porting the whole section up to `:1160` would drag in a
-  // second copy of `:1142`'s `.k-set-card` and `:1159`'s `.k-set-row` (**already ported by P5c-T2a**). **A
+  // second copy of `:1142`'s `.k-set-card` and `:1159`'s `.k-set-row` (**already ported previously**). **A
   // duplicate definition is not caught by the whitelist assertion** (the class name is already on the
   // whitelist), nor by the 24-dead-class assertion (they are not dead classes) — only this kind of "exactly N
   // occurrences" count assertion responds. Same technique as this file's own K10 guarding `.k-confirm-*` to
   // exactly 1 occurrence.
   // Likewise, the modal section's boundary is `:1396`, not `:1400`: `:1398` onward is `.k-confirm-body`
-  // (already ported by P5b-T2), which is already guarded by the existing K10 assertion, so it is not repeated
+  // (already ported previously), which is already guarded by the existing K10 assertion, so it is not repeated
   // here.
   it.each([
     ['k-set-card', 1],
     ['k-set-row', 1],
-  ])('%s has exactly %i rule in this file (>1 = section A was ported as a whole block up to :1160, dragging in the copy P5c-T2a already ported)', (cls, n) => {
+  ])('%s has exactly %i rule in this file (>1 = section A was ported as a whole block up to :1160, dragging in the copy already ported)', (cls, n) => {
     const hits = css.match(new RegExp(`\\.${cls}(?![\\w-])`, 'g')) || []
     expect(hits.length, `${cls} appears ${hits.length} times (should be ${n})`).toBe(n)
   })
@@ -2164,9 +2164,9 @@ describe('knowledge.scss — P5f-T2 section-boundary trap: already-ported classe
   })
 })
 
-describe('knowledge.scss — K60 (ruling R2): .k-frow narrow-screen @media override (newly created in P5f-T2)', () => {
+describe('knowledge.scss — K60 (ruling R2): .k-frow narrow-screen @media override', () => {
   // 🔴 Fact: P5b judged blueprint `:1500-1503` a dead rule; the original criterion was **conditional**
-  // ("no element in either template uses class=\"k-frow\""). `AllowlistView` (P5f) uses exactly
+  // ("no element in either template uses class=\"k-frow\""). `AllowlistView` now uses exactly
   // `class="k-frow"` ⇒ the premise expired, ruling R2 approved porting it in, registered as deviation K60.
   // Consequence of not porting it: under a narrow screen (≤860px), the whitelist page's folder-rules table
   // column widths would not match Vue2 — **none of unit tests/the sass gate/color-guard can catch this**, only
@@ -2193,7 +2193,7 @@ describe('knowledge.scss — K60 (ruling R2): .k-frow narrow-screen @media overr
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 【Newly created in P5f-T2b, ruling **C-1 of R19 / R20**】K44's predicate for "every .vue in the knowledge
+// 【Ruling **C-1 of R19 / R20**】K44's predicate for "every .vue in the knowledge
 // section has zero `<style>` blocks, without exception" is hardened from a **bare substring** into
 // **comments stripped first, then anchored at start-of-line**, and expanded from "pinned to just the one file
 // RootsView.vue" into a parameterized assertion over all of `src/ai/knowledge/**` (armed once, so T5/T6/T7
@@ -2246,7 +2246,7 @@ function collectVueFiles(dir: string, out: string[] = []): string[] {
   return out
 }
 
-describe('K44 (ruling R19/R20 C-1) — every .vue under src/ai/knowledge/** has zero <style> blocks (rewritten in P5f-T2b)', () => {
+describe('K44 (ruling R19/R20 C-1) — every .vue under src/ai/knowledge/** has zero <style> blocks', () => {
   const KNOWLEDGE_DIR = resolve(__dirname, '../knowledge')
   const SRC_DIR = resolve(__dirname, '..', '..')
   const knowledgeVues: string[] = collectVueFiles(KNOWLEDGE_DIR).sort()
@@ -2319,7 +2319,7 @@ describe('K44 (ruling R19/R20 C-1) — every .vue under src/ai/knowledge/** has 
   )
 })
 
-describe('knowledge.scss — K53: RootsView kr-* has been ported in as a whole block + zero <style> on the .vue side (newly created in P5f-T2)', () => {
+describe('knowledge.scss — K53: RootsView kr-* has been ported in as a whole block + zero <style> on the .vue side', () => {
   const VIEWS_DIR = resolve(__dirname, '../knowledge/views')
   const ROOTS_VUE = resolve(VIEWS_DIR, 'RootsView.vue')
 
@@ -2350,7 +2350,7 @@ describe('knowledge.scss — K53: RootsView kr-* has been ported in as a whole b
   //       is in the "anti-vacuous-pass ②" test in the new describe above (taken from the whole repo's 115
   //       `.vue` files that genuinely have a style block).
   //
-  // 🔴🔴 **P5f-T2b correction (ruling R19, per "reverse, don't delete")**: this test's original text said
+  // 🔴🔴 **Correction (ruling R19, per "reverse, don't delete")**: this test's original text said
   // "at least one existing view **contains** `<style`, at least one does not", with the predicate being the
   // bare substring `src.includes('<style')`. **That "positive example" was entirely propped up by 4 lines of
   // comment text** — `KnowledgeDeferred` / `KnowledgeLayout` / `SearchView` / `SettingsView` all have a
@@ -2379,7 +2379,7 @@ describe('knowledge.scss — K53: RootsView kr-* has been ported in as a whole b
   // a whole-cycle discipline, and T5 was never allowed to write a `<style>` block inside a `.vue` in the first
   // place, so this test never asks T5 for anything it has no right to write (contrast with P5e's T5↔T6
   // conflict: that time the guard asked T6 for markup it had no right to write).
-  // 🔴 P5f-T2b: the predicate is swapped from a bare substring to `hasStyleBlock()` (comments stripped +
+  // 🔴 The predicate is swapped from a bare substring to `hasStyleBlock()` (comments stripped +
   // start-of-line anchored), ruling R19. The parameterized assertion in the new describe above will
   // automatically cover the same thing once `RootsView.vue` is built; this test is kept because it carries a
   // K53-specific error message ("those 66 lines must be ported into knowledge.scss as a whole block"), and it
@@ -2448,7 +2448,7 @@ describe('knowledge.scss — K53: RootsView kr-* has been ported in as a whole b
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 【Newly created in P5f-T2b, ruling **I-1 of R20**】The **second** occurrence of the same family of gap as
+// 【Ruling **I-1 of R20**】The **second** occurrence of the same family of gap as
 // P5e's ruling **R16**: this cycle maps 8 color literals onto tokens (2 sites in Appendix B §B.3-②③ + 6 sites
 // in §B.4); the production code is correct site by site, but **no assertion pins down which selector consumes
 // which token** ⇒ review confirmed it: **swap** the tokens allow/deny consume with each other, swap
@@ -2464,7 +2464,7 @@ describe('knowledge.scss — K53: RootsView kr-* has been ported in as a whole b
 // The technique reuses this file's own R16 section's `nestedBlockBody()` mold, nothing invented.
 // 🔴 Criterion (ruling R20): ① swapping the tokens allow/deny consume → must fail;
 //    ② swapping out `--text-on-accent` → must fail. Both output sections + the md5sum restore are in the T2b report.
-describe('knowledge.scss — I-1 (ruling R20): token-consumption binding for the 8 color-mapping sites (newly created in P5f-T2b)', () => {
+describe('knowledge.scss — I-1 (ruling R20): token-consumption binding for the 8 color-mapping sites', () => {
   // Appendix B §B.4's 6 sites — 2 blocks × {allow, deny} × {background, color}.
   // 🔴 Pins down "selector → property → token" site by site; swapping any pair fails and names it precisely.
   const B4_BINDINGS: Array<[string, string, string, string]> = [
@@ -2553,13 +2553,13 @@ describe('knowledge.scss — I-1 (ruling R20): token-consumption binding for the
   })
 })
 
-describe('knowledge.scss — K54: the two var() fallbacks of kr-* have been changed to pure tokens (newly created in P5f-T2)', () => {
+describe('knowledge.scss — K54: the two var() fallbacks of kr-* have been changed to pure tokens', () => {
   // 🔴 The blueprint's original text: `.kr-badge` is `var(--bg-tertiary, <a muted-neutral fallback>)`,
   // `.kr-input` is `var(--border, <a muted-neutral fallback>)`. Governance §6 forbids rgba() outright (not
   // even in comments) ⇒ the fallback literal cannot be copied verbatim. Appendix B §B.2.2 fixes the landed
   // value, leaving the implementer zero discretion. The whole-file color scan above can only catch "is there a
   // bare literal", **it cannot catch "swapped for a different token"** — these two tests pin the landing site
-  // down verbatim (the same technique as P5e-T4's batch of "token → consuming-selector binding" tests).
+  // down verbatim (the same technique as the earlier batch of "token → consuming-selector binding" tests).
   //
   // 🔴🔴 Honest disclosure (errata E-73): `--bg-tertiary` has **zero declarations on both sides** — neither
   // the blueprint nor this repo ⇒ the fallback has always been in effect ⇒ `.kr-badge` being changed to
@@ -2606,7 +2606,7 @@ describe('knowledge.scss — K54: the two var() fallbacks of kr-* have been chan
   })
 })
 
-describe('knowledge.scss — K55: the three extension-group gradient tokens values in both variants (newly created in P5f-T2)', () => {
+describe('knowledge.scss — K55: the three extension-group gradient tokens values in both variants', () => {
   // 🔴 The blueprint hardcodes these three gradients in `AllowlistView.vue`'s `GROUPS_TEMPLATE` constant,
   // rendered via `:style="{background: g.bg}"`; `color-guard` **does not scan `.ts`/`<script>` constants at
   // all** ⇒ not tokenizing this runs bare (ticket B, location ④; a mutation test confirmed "injecting a hex
@@ -2642,7 +2642,7 @@ describe('knowledge.scss — K55: the three extension-group gradient tokens valu
   })
 
   // ═══════════════════════════════════════════════════════════════════════
-  // 【Newly created in P5f-T2b, ruling **M-a of R20**】The three `--grad-ext-*` tokens currently have **zero
+  // 【Ruling **M-a of R20**】The three `--grad-ext-*` tokens currently have **zero
   // consumption binding**: the declaration layer has two assertions (matching verbatim in both variants +
   // not deduplicated into referencing each other), but **nothing guarantees they are genuinely consumed** —
   // the consumer, `GROUPS_TEMPLATE`, belongs to T4. The failure mode is **silent**: if T4 forgets to swap it,
@@ -2748,7 +2748,7 @@ describe('knowledge.scss — K55: the three extension-group gradient tokens valu
   })
 })
 
-describe('knowledge.scss — hardening the var() fallback exemption (newly created in P5f-T2)', () => {
+describe('knowledge.scss — hardening the var() fallback exemption', () => {
   // 【Why this was added】The existing test "--g is the only registered consumer inline-injection exception in
   // this file" only asserts that `css` contains a certain string, it **does not** programmatically prove
   // "only --g relies on this exemption". The Wiki section ported in by this pass introduces a second reference

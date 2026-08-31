@@ -2,7 +2,7 @@
 // folder-permissions' "Add folder / Add exclusion" dialog.
 // Corresponds to Vue2 FolderPermissions.vue L157-174 (b-modal + FolderBrowser + manual input box).
 //
-// ⚠️ This phase (SP9-P4) follows spec §3.1 policy three: **the dialog opens, the picker and
+// ⚠️ This phase follows spec §3.1 policy three: **the dialog opens, the picker and
 // manual input box are both present, but the "Add" button is always disabled** — it triggers
 // no write. When wiring it up (debt D11), remove that disabled and replace it with Vue2 L169's
 // `:disabled="!newPath.startsWith('/')"`, and hook the click up to the panel's confirmAdd —

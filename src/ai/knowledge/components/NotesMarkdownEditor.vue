@@ -5,7 +5,7 @@
 </template>
 
 <script setup lang="ts">
-// SP8-P5d Task 4 — 1:1 ported from the Vue 2 panel's
+// 1:1 ported from the Vue 2 panel's
 // `src/views/AI/Knowledge/NotesMarkdownEditor.vue` (47 lines).
 //
 // K37 (ruling R2, Appendix D §D.6.3): tiptap four packages lock v2 line —

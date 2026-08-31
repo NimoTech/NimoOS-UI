@@ -1,7 +1,5 @@
-// SP7-P7a-T8: SmartViewSidePanel.vue — smart view detail page right column three sections
+// SmartViewSidePanel.vue — smart view detail page right column three sections
 // (threshold / settings / stats).
-// Covers SmartViewSidePanel required test case list's "Step 1: write
-// failing tests", plus I1/I2/M1/M3/M4/M5 from fix round 1.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
@@ -57,7 +55,7 @@ describe('three sections each present', () => {
 
 describe('threshold: local draft + 300ms debounce', () => {
   beforeEach(() => { vi.useFakeTimers() })
-  afterEach(() => { vi.useRealTimers() }) // fix round 1 · M5: unified move to afterEach
+  afterEach(() => { vi.useRealTimers() }) // unified move to afterEach
 
   it('drag range to 92 → .sv-thresh-row b immediately shows 92%', async () => {
     const w = mountPanel(makeSv({ threshold: 72 }))
@@ -89,11 +87,10 @@ describe('threshold: local draft + 300ms debounce', () => {
   })
 })
 
-// fix round 1 · I1 (Important, reproduced in review testing): drag spanning a PATCH
-// round-trip ⇒ thumb snapped back to old value + user's last drag silently discarded. Here
-// we follow real timing, replaying review's timeline (t=0/300/350/400/650), not just assert
-// "function was called".
-describe('drag spanning one PATCH round-trip (fix round 1 · I1 regression)', () => {
+// Regression: drag spanning a PATCH round-trip ⇒ thumb snapped back to old value + user's
+// last drag silently discarded. Here we follow real timing, replaying the exact sequence
+// (t=0/300/350/400/650), not just asserting "function was called".
+describe('drag spanning one PATCH round-trip (regression)', () => {
   beforeEach(() => { vi.useFakeTimers() })
   afterEach(() => { vi.useRealTimers() })
 
@@ -118,11 +115,10 @@ describe('drag spanning one PATCH round-trip (fix round 1 · I1 regression)', ()
   })
 })
 
-// fix round 1 · I2 (Important, reproduced in review testing): emit expiring during busy is
-// silently swallowed and never retried ⇒ "UI shows 92% / backend 72%" permanent desync. Here
-// follow real timing: expires during busy → no emit → auto-retry after busy falls, not just
-// assert "re-armed function was called".
-describe('debounce expires during busy (fix round 1 · I2 regression)', () => {
+// Regression: emit expiring during busy is silently swallowed and never retried ⇒ "UI shows
+// 92% / backend 72%" permanent desync. Here follow real timing: expires during busy → no
+// emit → auto-retry after busy falls, not just asserting "re-armed function was called".
+describe('debounce expires during busy (regression)', () => {
   beforeEach(() => { vi.useFakeTimers() })
   afterEach(() => { vi.useRealTimers() })
 
@@ -150,9 +146,9 @@ describe('prop reflux — "no syncingSv needed" simplifying main guard', () => {
 })
 
 describe('threshHelp — zero v-html, <i18n-t> named slots', () => {
-  // fix round 1 · M4: true value is Math.round(10 * 20 / 22 * 1.4) = Math.round(12.727…) = 13,
-  // title previously mistakenly wrote "13.63" (conclusion 13 itself correct, just intermediate
-  // value in title was wrong).
+  // The true value is Math.round(10 * 20 / 22 * 1.4) = Math.round(12.727…) = 13,
+  // this test's title previously mistakenly wrote "13.63" (the conclusion of 13 itself was
+  // correct, just the intermediate value shown in the title was wrong).
   it('addedThisWeek=10, thresh=80 → n=Math.round(12.727)=13 (hand-calc), <b> wraps 13', () => {
     const w = mountPanel(makeSv({ threshold: 80, addedThisWeek: 10 }))
     const help = w.find('[data-test="sv-thresh-help"]')
@@ -208,16 +204,15 @@ describe('settings section: two switches — pure derived + direct emit, no loca
     expect(w.emitted('patch')).toEqual([[{ includeVideos: true }]])
   })
 
-  it('section title is value of photosSvSettingsSection ("settings"), not "system settings" (guard for deviation record 10)', () => {
+  it('section title is value of photosSvSettingsSection ("settings"), not "system settings"', () => {
     const w = mountPanel(makeSv())
     expect(w.text()).toContain(zh.photosSvSettingsSection)
     expect(w.text()).not.toContain('系统')
   })
 })
 
-// fix round 1 · I2 supplement: busy short-circuit behavior + data-busy attribute previously
-// had zero test cases.
-describe('busy (fix round 1 · I2 supplement coverage)', () => {
+// Busy short-circuit behavior + data-busy attribute previously had zero test cases.
+describe('busy', () => {
   it('busy=true → both switches have data-busy="true"', () => {
     const w = mountPanel(makeSv(), true)
     expect(w.find('[data-test="sv-switch-live"]').attributes('data-busy')).toBe('true')
@@ -245,7 +240,7 @@ describe('stats four cells', () => {
     expect(w.find('[data-test="sv-stat-median"]').text()).toBe('0%')
   })
 
-  it('formatMB three tiers same as T6', () => {
+  it('formatMB three tiers (0 / MB / GB)', () => {
     expect(mountPanel(makeSv({ storageBytes: 0 })).find('[data-test="sv-stat-storage"]').text()).toBe('0 MB')
     expect(mountPanel(makeSv({ storageBytes: 200 * 1024 * 1024 })).find('[data-test="sv-stat-storage"]').text()).toBe('200 MB')
     expect(mountPanel(makeSv({ storageBytes: 2.5 * 1024 * 1024 * 1024 })).find('[data-test="sv-stat-storage"]').text()).toBe('2.5 GB')
@@ -256,7 +251,7 @@ describe('stats four cells', () => {
     expect(w.find('[data-test="sv-stat-lastupdate"]').text()).toBe('—')
   })
 
-  // fix round 1 · M3: non-empty branch previously had zero assertions, only tested empty state.
+  // The non-empty branch previously had zero assertions, only tested the empty state.
   // Pin down relTime really gets called (30 minutes ago < 3600s branch, renders value of
   // photosSvRelMinutes, not the constant "—").
   it('evaluatedAt non-empty (30 minutes ago) → text contains value of photosSvRelMinutes, not "—"', () => {
@@ -305,10 +300,10 @@ describe('same holds under English locale', () => {
   })
 })
 
-// fix round 1 · M1: .sv-switch missing low-priority rules from photos.scss:2819-2820 that
-// contributed transition/box-shadow (scss range given in brief didn't cover this half,
-// corrected after source verification).
-describe('.sv-switch track transition + thumb shadow (fix round 1 · M1)', () => {
+// .sv-switch was missing low-priority rules from photos.scss:2819-2820 that contributed
+// transition/box-shadow (an scss range initially thought to cover this didn't; corrected
+// after source verification).
+describe('.sv-switch track transition + thumb shadow', () => {
   it('.sv-switch track background change has transition', () => {
     const rules = parseCssRules(extractStyleBlock(smartViewSidePanelRaw))
     const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-switch')
@@ -329,9 +324,9 @@ describe('.sv-switch track transition + thumb shadow (fix round 1 · M1)', () =>
 // moves the knob (`left: 16px`); it never overrides `background`, so Vue2's knob is the exact
 // same colour in both states. This file's own `[data-on="true"]::after` rule used to add
 // `background: var(--on-accent)`, making the knob track state (near-white off, `--on-accent`'s
-// dark-navy value on, in this repo's dark theme) instead of staying constant like Vue2's -- the
-// owner's screenshot (Auto-add/Include videos toggled on) is exactly that colour change.
-describe('Fix-5: the switch knob keeps one colour in both states (it does not change with data-on)', () => {
+// dark-navy value on, in this repo's dark theme) instead of staying constant like Vue2's -- a
+// screenshot of the running app (Auto-add/Include videos toggled on) is exactly that colour change.
+describe('the switch knob keeps one colour in both states (it does not change with data-on)', () => {
   it('.sv-switch[data-on="true"]::after does not override background; the knob colour always comes from the base rule', () => {
     const rules = parseCssRules(extractStyleBlock(smartViewSidePanelRaw))
     const onKnob = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-switch[data-on="true"]::after')
@@ -341,13 +336,13 @@ describe('Fix-5: the switch knob keeps one colour in both states (it does not ch
   })
 })
 
-// Fix-6 (owner decision, 2026-08-14): knob is invariant white across EVERY theme, not just both
-// on/off states -- Fix-5's `var(--text-1)` correctly stayed constant across on/off but is itself
-// a theme-flipping token (dark under `.photos-root.is-light`), so the owner's actual requirement
+// Follow-up: knob is invariant white across EVERY theme, not just both
+// on/off states -- the previous fix's `var(--text-1)` correctly stayed constant across on/off but is itself
+// a theme-flipping token (dark under `.photos-root.is-light`), so the actual requirement
 // ("white in both themes and both states") was still unmet. `--text-1` is no longer used for the
 // knob at all; light mode gets a paired border+shadow rule to keep a flat white knob visible
 // against its own near-white off-track.
-describe('Fix-6: the switch knob stays white across themes (no longer the theme-flipping --text-1)', () => {
+describe('the switch knob stays white across themes (no longer the theme-flipping --text-1)', () => {
   it('.sv-switch::after knob background is a literal white, not var(--text-1)', () => {
     const rules = parseCssRules(extractStyleBlock(smartViewSidePanelRaw))
     const baseKnob = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-switch::after')

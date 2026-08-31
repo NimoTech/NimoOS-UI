@@ -52,8 +52,8 @@ describe('router', () => {
     expect(m.name).toBe('photos-places')
   })
 
-  // P6a-T11: append-only, no reordering — the new route must sit between /photos/people/:id
-  // and /login, and their own relative order must not be disturbed (review M5: this assertion
+  // Append-only, no reordering — the new route must sit between /photos/people/:id
+  // and /login, and their own relative order must not be disturbed (this assertion
   // used to exist only as an inaccurate comment; this backfills the real one).
   it('/photos/places is appended after /photos/people/:id and before /login (append-only, no reordering)', () => {
     const peopleDetailIdx = routerIndexRaw.indexOf(`{ path: '/photos/people/:id'`)
@@ -64,7 +64,7 @@ describe('router', () => {
     expect(loginIdx).toBeGreaterThan(placesIdx)
   })
 
-  // SP7-P7a-T4: /photos/smart-views matches the actually registered route (resolved for real
+  // /photos/smart-views matches the actually registered route (resolved for real
   // via the production router singleton's router.resolve, not a spy push — same established
   // pattern as every existing route assertion above).
   it('/photos/smart-views matches the photos-smart-views route', () => {
@@ -74,8 +74,8 @@ describe('router', () => {
 
   // Append-only, no reordering — the new route must sit between /photos/places/:key and
   // /login, and their own relative order must not be disturbed (same established technique as
-  // P6a-T11 above: compare line order in the source, not getRoutes() index — vue-router 4 sorts
-  // dynamic-segment routes ahead of static ones, confirmed in P6b-T9, so comparing indexes
+  // the earlier assertion above: compare line order in the source, not getRoutes() index — vue-router 4 sorts
+  // dynamic-segment routes ahead of static ones, so comparing indexes
   // would reach the wrong conclusion).
   it('/photos/smart-views is appended after /photos/places/:key and before /login (append-only, no reordering)', () => {
     const placesKeyIdx = routerIndexRaw.indexOf(`{ path: '/photos/places/:key'`)
@@ -86,7 +86,7 @@ describe('router', () => {
     expect(loginIdx).toBeGreaterThan(smartViewsIdx)
   })
 
-  // SP7-P7a-T6: /photos/smart-views/:id detail route, same established technique as above (line-order comparison + a real resolve).
+  // /photos/smart-views/:id detail route, same established technique as above (line-order comparison + a real resolve).
   it('/photos/smart-views/7 matches the photos-smart-view-detail route, params.id is the string "7"', () => {
     const m = router.resolve('/photos/smart-views/7')
     expect(m.name).toBe('photos-smart-view-detail')

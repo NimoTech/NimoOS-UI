@@ -86,7 +86,7 @@ describe('quickRange', () => {
     expect(r.start).toBe('2025-12-28')
   })
 
-  // Coverage added back (SP7-P7a-T13 A3): each of the 5 key branches must pass the input
+  // Coverage added back: each of the 5 key branches must pass the input
   // key straight through into DateRange.key — run through every enumerated value instead
   // of only the three already covered (today/thisYear/lastYear), to catch cases where the
   // last7/last30 branches' key passthrough was copied wrong (e.g. a slip that hardcodes
@@ -101,7 +101,7 @@ describe('yearRange', () => {
     expect(yearRange(2025, 'X')).toEqual({ label: 'X', start: '2025-01-01', end: '2025-12-31', key: 2025 })
   })
 
-  it('key field is the year number itself (SP7-P7a-T13 A3 coverage added back)', () => {
+  it('key field is the year number itself', () => {
     expect(yearRange(1999, 'X').key).toBe(1999)
   })
 })
@@ -187,7 +187,7 @@ describe('calDowLabels', () => {
     expect(calDowLabels('zh_cn')).not.toEqual(calDowLabels('en_us'))
   })
 
-  // fix wave F5 (final-review required fix, mutation-tested): the `labels[0] === 'S'`
+  // Mutation-tested fix: the `labels[0] === 'S'`
   // assertion for en_us above has no discriminating power — the narrow English label for
   // Saturday is also 'S', so if the implementation quietly changed its anchor from
   // `new Date(1970, 0, 4 + i)` (1970-01-04 is a Sunday) to `3 + i` (shifting the whole row
@@ -198,7 +198,7 @@ describe('calDowLabels', () => {
   // see every date in the month shifted left/right by one column). The Chinese narrow labels
   // are unambiguous: Sunday is '日', Saturday is '六' — use them to pin down the invariant
   // that the first item really is Sunday, not Saturday.
-  it('zh_cn\'s first item is "日" (Sunday), not "六" (Saturday) — pins down the Sunday-first invariant (fix wave F5)', () => {
+  it('zh_cn\'s first item is "日" (Sunday), not "六" (Saturday) — pins down the Sunday-first invariant', () => {
     expect(calDowLabels('zh_cn')[0]).toBe('日')
   })
 })

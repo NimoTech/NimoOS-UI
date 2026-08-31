@@ -1,6 +1,6 @@
 <!--
   1:1 port from Vue2 src/views/AI/Agent/stream/EmptyState.vue.
-  SP8-P1b Task 11: @pick directly calls store.send(prompt) — after send() exists, no longer
+  @pick directly calls store.send(prompt) — after send() exists, no longer
   needs placeholder behavior of stashing pendingPrompt + "coming soon" toast. store uses
   useProvidedAgentStore(), allowing Photos restricted profile embed to resolve to correct ancestor store.
 -->

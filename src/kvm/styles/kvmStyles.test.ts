@@ -11,7 +11,7 @@ const src = fs.readFileSync(
   'utf8',
 )
 
-// Class names allowed in this phase (P5). When P6 adds new blocks, add them here — do not sneak
+// Class names allowed in this phase. When new blocks are added, add them here — do not sneak
 // them in.
 const ALLOWED = new Set([
   'kvm-page', 'kvm-content', 'kvm-sidebar-toggle', 'toggle-icon', 'collapsed',

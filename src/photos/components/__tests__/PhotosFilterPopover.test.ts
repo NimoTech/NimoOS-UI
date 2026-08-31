@@ -1,30 +1,27 @@
-// SP7-P7a-T12: PhotosFilterPopover.vue -- list-type filter popover primitive.
+// PhotosFilterPopover.vue -- list-type filter popover primitive.
 // Popover-markup comparison conclusion (PhotosSearchView.vue:124-147 vs
-// PhotosFilterBar.vue:25-63, full writeup in the task report; fix round 1 · M9 has already
-// corrected the wording -- the earlier "only substantive difference" phrasing was
-// inaccurate): there are actually two numeric differences -- (1) the scroll container
-// max-height is 280px on the Search side / 260px on the FilterBar side; (2) `.fpop`'s inline
-// width is 260 on the Search side / 240 on the FilterBar side, already absorbed by the width
-// prop (the brief's interface section already gave both numbers -- neither is a new
-// difference discovered by this task). The rest (where the empty-state copy comes from,
-// where the label transform comes from, the cancelPop parameter) is already flattened out
-// at the New-UI interface level by the emptyHint/labelFor props.
+// PhotosFilterBar.vue:25-63; an earlier "only substantive difference" phrasing was
+// inaccurate and has since been corrected): there are actually two numeric differences -- (1)
+// the scroll container max-height is 280px on the Search side / 260px on the FilterBar side;
+// (2) `.fpop`'s inline width is 260 on the Search side / 240 on the FilterBar side, already
+// absorbed by the width prop. The rest (where the empty-state copy comes from, where the
+// label transform comes from, the cancelPop parameter) is already flattened out at the
+// New-UI interface level by the emptyHint/labelFor props.
 //
-// Plan B Task 5 (2026-08-12): the ①-side 260/260 difference was logged back then as "left to
-// P7b/T16 to decide whether to open a prop" -- this task wires it up: max-height changes from
-// a hardcoded CSS declaration to a maxHeight prop (default 280, unchanged behavior for
-// existing consumers like PhotosSearch), copying the "inline style override" approach the
-// width prop already has (the width assertion at :56-61 is the precedent for this pattern);
-// the FilterBar side explicitly passes 260 to match the Vue2 value.
+// The ①-side 260/260 difference was originally left open as "decide later whether to expose
+// a prop" -- this wires it up: max-height changes from a hardcoded CSS declaration to a
+// maxHeight prop (default 280, unchanged behavior for existing consumers like PhotosSearch),
+// copying the "inline style override" approach the width prop already has (the width
+// assertion at :56-61 is the precedent for this pattern); the FilterBar side explicitly
+// passes 260 to match the Vue2 value.
 //
-// Acceptance rollback by the owner (2026-08-13): the glassmorphism exception for the EXIF
-// chip/popover was overturned, and the component's scoped style has shrunk down to only the
-// part that parity genuinely does not cover (see the header comment in
-// PhotosFilterPopover.vue). In the "styles" group below, the cssCascade hover-lock
-// assertions that used to target .btn/.btn-primary and .fpop-quick have been moved out of
-// the component along with their corresponding rules, replaced by a two-step assertion:
-// "the component no longer owns this rule" + "the shared parity scss has the correct order
-// itself".
+// Later rollback: the glassmorphism exception for the EXIF chip/popover was reverted, and
+// the component's scoped style has shrunk down to only the part that parity genuinely does
+// not cover (see the header comment in PhotosFilterPopover.vue). In the "styles" group
+// below, the cssCascade hover-lock assertions that used to target .btn/.btn-primary and
+// .fpop-quick have been moved out of the component along with their corresponding rules,
+// replaced by a two-step assertion: "the component no longer owns this rule" + "the shared
+// parity scss has the correct order itself".
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { mount } from '@vue/test-utils'
@@ -81,7 +78,7 @@ describe('structure', () => {
     expect(w240.get('.fpop').attributes('style')).toContain('width: 240px')
   })
 
-  it('maxHeight defaults to 280 (unchanged existing Search-side behavior); passing 260 -> .fpop-list inline style is 260px (FilterBar side, Plan B Task 5)', () => {
+  it('maxHeight defaults to 280 (unchanged existing Search-side behavior); passing 260 -> .fpop-list inline style is 260px (FilterBar side)', () => {
     const wDefault = mountPop(baseProps())
     expect(wDefault.get('.fpop-list').attributes('style')).toContain('max-height: 280px')
     const w260 = mountPop(baseProps({ maxHeight: 260 }))
@@ -97,11 +94,11 @@ describe('structure', () => {
       expect(row.attributes('data-active')).toBe(isVideo ? 'true' : 'false')
       expect(row.find('svg').exists()).toBe(isVideo)
     })
-    // fix round 1 · I1 (Important from review, mutation-verified: changing check's d from
-    // "...L20 7" to "...L20 9" left the previous 15 cases all still green -- the earlier
-    // assertion only checked whether an svg existed, without pinning down d/stroke-width).
-    // Copied character-for-character from the check branch of Vue2 PhotosIcon.vue, the same
-    // pinning approach as the x/chevD icons on the chip side.
+    // Mutation-verified: changing check's d from "...L20 7" to "...L20 9" left the previous
+    // 15 cases all still green -- the earlier assertion only checked whether an svg existed,
+    // without pinning down d/stroke-width. Copied character-for-character from the check
+    // branch of Vue2 PhotosIcon.vue, the same pinning approach as the x/chevD icons on the
+    // chip side.
     const checkRow = rows[1]!
     expect(checkRow.get('path').attributes('d')).toBe('m5 12 5 5L20 7')
     expect(checkRow.get('svg').attributes('stroke-width')).toBe('2.5')
@@ -172,19 +169,18 @@ describe('footer buttons + bubbling', () => {
     expect(w.emitted('apply')).toHaveLength(1)
   })
 
-  it('Cancel/Apply button copy comes from the shared keys photosCancel / photosSearchApply (not the hardcoded characters "应用", ruled by B3)', () => {
+  it('Cancel/Apply button copy comes from the shared keys photosCancel / photosSearchApply (not the hardcoded characters "应用")', () => {
     const w = mountPop(baseProps())
     const buttons = w.get('.fpop-foot').findAll('button')
     expect(buttons[0]!.text()).toBe(zh.photosCancel)
     expect(buttons[1]!.text()).toBe(zh.photosSearchApply)
   })
 
-  // fix round 1 · M6 (folded in from review): if the previous assertion's implementation
-  // were changed to hardcode Chinese "提交"/"取消" directly in the template, both sides would
-  // happen to equal the zh key values and it would still be all green -- not enough
-  // discriminating power. Switching to the en_us locale and asserting 'Apply'/'Cancel' is what
-  // actually catches the difference between "goes through the t() key" and "hardcodes
-  // Chinese".
+  // If the previous assertion's implementation were changed to hardcode Chinese
+  // "提交"/"取消" directly in the template, both sides would happen to equal the zh key
+  // values and it would still be all green -- not enough discriminating power. Switching to
+  // the en_us locale and asserting 'Apply'/'Cancel' is what actually catches the difference
+  // between "goes through the t() key" and "hardcodes Chinese".
   it('switching to en_us locale -> button copy changes via t() to Cancel / Apply (proves it truly goes through the key, not hardcoded Chinese)', () => {
     const i18nEn = createI18n({ legacy: false, locale: 'en_us', messages: { zh_cn: zh, en_us: en } })
     const w = mount(PhotosFilterPopover, { props: baseProps(), global: { plugins: [i18nEn] } })
@@ -214,8 +210,8 @@ describe('footer buttons + bubbling', () => {
 })
 
 describe('styles', () => {
-  // 2026-08-13 rollback (owner overturned the EXIF glass exception): .btn/.btn-primary
-  // (+:hover) have been removed entirely from this component's scoped style -- the global
+  // Rollback: the EXIF glass exception was reverted, so .btn/.btn-primary (+:hover) have been
+  // removed entirely from this component's scoped style -- the global
   // `.photos-root .btn`/`.photos-root .btn-primary` (+:hover) family in
   // vue2-parity/photos.scss (:262-273) covers app-wide every button mounted under
   // .photos-root, so this component does not need its own copy any more. This asserts in place
@@ -235,7 +231,7 @@ describe('styles', () => {
     expect(primaryHoverIdx).toBeGreaterThan(baseHoverIdx)
   })
 
-  it('cssCascade (the third hard constraint added by B4): the winning hover rule for .fpop-item[data-active="true"] contains :hover and contains data-active', () => {
+  it('cssCascade: the winning hover rule for .fpop-item[data-active="true"] contains :hover and contains data-active', () => {
     const style = extractStyleBlock(photosFilterPopoverRaw)
     const winner = winningHoverBackground(style, ['fpop-item'])
     expect(winner.selector).toContain(':hover')
@@ -250,7 +246,7 @@ describe('styles', () => {
     expect(rule?.body).toContain('overflow-y: auto')
   })
 
-  // 2026-08-13 rollback: .fpop-quick (+:hover) has likewise been handed off entirely to
+  // Rollback: .fpop-quick (+:hover) has likewise been handed off entirely to
   // vue2-parity/photos.scss (:2674-2678, a single rule
   // `.fpop-quick:hover, .fpop-quick[data-on="true"] { … }` where both selectors share the same
   // set of values -- neither one overrides the other, so there is no need here to also check
@@ -270,10 +266,9 @@ describe('styles', () => {
     expect(rule).toBeDefined()
   })
 
-  // fix round 1 · M7 (folded in from review): add programmatic assertions for non-color
-  // visual properties, anchoring the rule body first before asserting on properties.
-  // flex:1 is the most worth adding -- lose it and the two footer buttons collapse to
-  // content width instead of each taking half.
+  // Add programmatic assertions for non-color visual properties, anchoring the rule body
+  // first before asserting on properties. flex:1 is the most worth adding -- lose it and the
+  // two footer buttons collapse to content width instead of each taking half.
   it('.fpop-foot .fpop-quick, .fpop-foot .btn rule contains flex: 1 and justify-content: center', () => {
     const style = extractStyleBlock(photosFilterPopoverRaw)
     const rule = parseCssRules(style).find(

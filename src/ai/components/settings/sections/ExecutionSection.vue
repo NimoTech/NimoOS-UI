@@ -1,5 +1,5 @@
 <!--
-  SP8-P2b Task 5 — 1:1 port from Vue2 src/views/AI/Settings/sections/ExecutionSection.vue (80 lines).
+  1:1 port from Vue2 src/views/AI/Settings/sections/ExecutionSection.vue (80 lines).
 
   【D2 Declaration】 State stays local to the component (ref), directly calls service.ai —
   consistent with Vue2's approach, not centralizing to store. User decided 2026-07-28.

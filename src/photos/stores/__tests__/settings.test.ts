@@ -78,12 +78,12 @@ describe('photosSettings store · aiFeatures', () => {
   })
 })
 
-// P8a-T6: the sidebar (a component shared across the whole Photos area) and each view
+// The sidebar (a component shared across the whole Photos area) and each view
 // now call fetchAiFeatures() in their own onMounted — the store is a singleton, so
 // multiple consumers mounting within the same frame will call it concurrently. These two
 // cases lock in the two required behaviors of "in-flight dedup": dedup takes effect + it
 // is not a permanent cache.
-describe('photosSettings store · fetchAiFeatures in-flight dedup (P8a-T6)', () => {
+describe('photosSettings store · fetchAiFeatures in-flight dedup', () => {
   beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks() })
 
   it('fetchAiFeatures concurrent dedup: two consumers mounting simultaneously only issue one getConfig', async () => {

@@ -1,4 +1,4 @@
-// SP8-P5f Task 3 — guard for `wikiViewHelpers.ts`.
+// Guard for `wikiViewHelpers.ts`.
 //
 // Inherit all behavior from the Vue 2 panel's
 // `src/views/AI/Knowledge/__tests__/wikiViewHelpers.spec.js` (main@7a6ee6b7, 119 lines / 9 cases)
@@ -27,7 +27,7 @@
 // ① This repo's `package.json` is `"type": "module"` ⇒ `__dirname` unavailable in ESM,
 //    use equivalent via `import.meta.url` + `fileURLToPath`;
 // ② Type declarations for `node:fs` / `node:path` / `node:url` come from
-//    `@types/node`, already installed in this repo (SP8-P6 merged from master)
+//    `@types/node`, already installed in this repo
 //    ⇒ `vue-tsc --noEmit`(one of the task gates) passes directly, **no need for**
 //    `@ts-expect-error` suppression; suppression lines that existed on sp8-ai
 //    branch were deleted during merge;
@@ -402,7 +402,7 @@ describe('opToType', () => {
 // ═══════════════════════════════════════════════════════════════════════════
 // parseTs — blueprint `:73-77`
 // 🔴 Returns **milliseconds**; downstream `fmtAgo(ms)`(`knowledgeStore.ts:190`) consumes ms.
-//    Feeding wrong unit doesn't error, silently calculates as 1970 (per P5d-T3 / P5e §9.13).
+//    Feeding wrong unit doesn't error, silently calculates as 1970 (see governance §9.13).
 // ═══════════════════════════════════════════════════════════════════════════
 describe('parseTs', () => {
   // Original value of normal[0].last_modified from fixture `wiki-tree.CONSTRUCTED.json`.
@@ -667,7 +667,7 @@ describe('T3 auto-prime guard — if views/WikiView.vue exists, it must import .
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🔴🔴 SP8-P5f **Task 6 addition** (ruling **R22** — Important I-1 from T3 review assigned to this blade)
+// 🔴🔴 **Addition** (ruling **R22** — Important I-1 from T3 review assigned to this blade)
 //
 // ⚠️ This file to T6 is **extremely narrow allowance: additions only, zero changes to existing lines**
 // (ruling R22). 🔴 **`wikiViewHelpers.ts` product code untouched** — review verified every byte as
@@ -688,7 +688,7 @@ describe('T3 auto-prime guard — if views/WikiView.vue exists, it must import .
 //
 // [Sample source] 🔴 **locally constructed in this file** (not sampled from a fixture) —
 //   paths specified by ruling R22 (`/DATA/Media` + `/DATA/MediaBackup`), constructed with this
-//   file's existing `flatNode()` per shared package `WikiTreeNode` shape, **explicitly declared in T6 report**.
+//   file's existing `flatNode()` per shared package `WikiTreeNode` shape.
 //   Precedent: `rootForPath` case above "root.path with trailing slash" also locally constructed variant.
 //
 // [Criterion] replace `findParent` with this wrong implementation → **this group must red**:
@@ -766,7 +766,7 @@ describe('buildWikiTree — 🔴 sibling directories with same prefix must not b
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🔴 SP8-P5f **Task 6 addition · correction block** (ruling **R22** Minor M-1) — "reverse not delete"
+// 🔴 **Addition · correction block** (ruling **R22** Minor M-1) — "reverse not delete"
 //
 // Subject of correction: case above in `rootForPath`
 // "root.path with trailing slash still matches after normalization"

@@ -1,4 +1,4 @@
-// SP8-P5d Task 6 — `NotesView.vue` Notes View test.
+// `NotesView.vue` Notes View test.
 // Blueprint from the Vue 2 panel(main@7a6ee6b7)`src/views/AI/Knowledge/NotesView.vue`
 // (271 lines).
 //
@@ -41,7 +41,7 @@ import NotesView from './NotesView.vue'
 // ?raw" (vitest's CSSEnablerPlugin replaces style source with empty string,
 // assertion false-passes; precedent in knowledgeStyles.test.ts header comment
 // ③). Type declarations for node: prefix modules are provided by `@types/node`,
-// already installed in this repo (SP8-P6 merged from master), vue-tsc passes
+// already installed in this repo (merged from master), vue-tsc passes
 // directly, **no need for** @ts-expect-error suppression (the suppression line
 // that existed on sp8-ai branch was deleted during merge; see
 // knowledgeStyles.test.ts / QueueView.test.ts header comments ①②).
@@ -713,11 +713,11 @@ describe('NotesView — T6 placeholder component auto-load guard (NoteEditPane.v
     const hasLocalPlaceholder = src.includes('kn-edit-pane-stub') || src.includes('NoteEditPanePlaceholder')
 
     if (exists) {
-      // loaded state: T7 already placed true file in position.
+      // loaded state: the real file is already in position.
       expect(
         hasRealImport,
         'NoteEditPane.vue exists: please change NotesView.vue to `import NoteEditPane from ' +
-          "'../components/NoteEditPane.vue'` (T6\'s local placeholder needs replacement, see T6 report)",
+          "'../components/NoteEditPane.vue'` (the local placeholder needs replacement)",
       ).toBe(true)
       expect(
         hasLocalPlaceholder,

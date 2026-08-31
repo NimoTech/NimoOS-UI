@@ -1,4 +1,4 @@
-// Task 10 (SP7-P5 People): PersonHero.vue — People detail page hero section. Pure display + emit, does not touch store,
+// PersonHero.vue — People detail page hero section. Pure display + emit, does not touch store,
 // only mocks two URL builders from @nimotech/nimoos-service (following the existing mock in PersonAvatar.test.ts).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'

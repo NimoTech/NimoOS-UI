@@ -31,7 +31,7 @@ import { isIsoFile } from '../util/isoMatch'
  *   (issued first, settled later) from overwriting B's (issued later, settled first) result.
  * Both are load-bearing mechanisms, not defense-in-depth -- each has its own dedicated test
  * case covering only its layer; deleting either layer turns the corresponding case red
- * (mutation verification in task-6-report.md).
+ * (mutation-verified).
  */
 export function useIsoBrowser(): {
   path: Ref<string>

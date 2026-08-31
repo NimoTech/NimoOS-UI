@@ -1,18 +1,18 @@
 <script setup lang="ts">
-// Task 6 (SP7-P5 People): people list view — banner + filter/sort row +
+// People list view — banner + filter/sort row +
 // two warning banners + merge-suggestion banner + Pinned/Named/Unnamed three-section grid +
 // floating action menu + empty state.
 // Ported section-by-section against the Vue 2 panel's src/views/Photos/PhotosPeopleView.vue:2-235
-// and src/views/Photos/photos-people.scss:1-275; the Ask Nimo branch is not built, per the brief.
+// and src/views/Photos/photos-people.scss:1-275; the Ask Nimo branch is deliberately not built.
 // The shell was originally copied from PhotosAlbums.vue:185-188's AreaShell/.photos-layout/
 // PhotosSidebar/.photos-main (not extracted into anything shared, per P3/P4). Document-level
 // listeners follow PhotosAlbums.vue:159-181.
 //
-// Plan D Task 2 (re-shell): the transitional AreaShell/.photos-layout shell has been swapped for
-// PhotosAlbums.vue's own Plan C Task 2 `.photos-root > .app[data-collapsed] > PhotosSidebar +
+// The transitional AreaShell/.photos-layout shell has been swapped for
+// PhotosAlbums.vue's own `.photos-root > .app[data-collapsed] > PhotosSidebar +
 // main.main > PhotosTopbar + .photos-main` structure (useSidebarCollapse shared singleton). The
 // overlays (cluster-menu/ClusterActionDialog) moved back inside `.photos-root` (a sibling of
-// `.app`) along with it — see their own comments above for why. Full detail in task-2-report.md.
+// `.app`) along with it — see their own comments above for why.
 //
 // T7 (added this round): wires up ClusterActionDialog (the name/merge/delete three-mode dialog);
 // `dialog` state moves from T6's hidden placeholder node to a real dialog. The store calls,
@@ -36,7 +36,7 @@
 // duplicate-name merge prompt on PhotosPersonDetail.vue is a wholly separate flow (renamePerson's
 // own dup-name detection, not this suggestion machinery) and is untouched.
 //
-// Two Vue2 bug fixes for T7 (explicitly required by the brief, not copied as-is):
+// Two Vue2 bug fixes for T7 (deliberately fixed, not copied as-is):
 //  8) Vue2 confirmMergeTo :654-660 doesn't await the potentially-rejecting mergeClusterInto, and
 //     **fires the "merged" success toast before closing the dialog** — if the merge fails, the
 //     user still sees a fake "merged into xxx" success message, and the promise rejection is
@@ -80,7 +80,7 @@
 // instead (see peopleView.ts's file header). The per-cluster confidence percentage badge
 // (mergeConfidencePct) is unrelated and stays.
 //
-// Fix round 2 (2026-08-19, product decision — supersedes the fold-expander part of Task 4):
+// Product decision — supersedes the earlier fold-expander approach:
 // the unnamed-clusters grid shows ONLY splitUnnamedByDistribution's `visible` head. Nothing
 // else on this page can reach the folded long tail or the singleton clusters — the "Show N
 // more clusters" expander and the "Show N single-photo" toggle (plus all the store state that
@@ -116,8 +116,8 @@ type DialogMode = 'name' | 'merge' | 'delete'
 
 const { t, locale } = useI18n()
 const { themeClass } = usePhotosTheme()
-// Task 2 (Plan D re-shell): same collapse composable as PhotosAlbums.vue's own re-skin
-// (Plan C Task 2) — shared module singleton, `toggle` wired straight to the topbar button.
+// Same collapse composable as PhotosAlbums.vue's own re-skin — shared module singleton,
+// `toggle` wired straight to the topbar button.
 const { collapsed, toggle: onToggleCollapse } = useSidebarCollapse()
 const router = useRouter()
 const people = usePhotosPeople()
@@ -125,7 +125,7 @@ const timeline = useTimelineStore()
 const settings = usePhotosSettingsStore()
 const toast = useToast()
 
-// Vue2 data() :461-472. sort is deliberately not persisted (matching Vue2). Fix round 2: the
+// Vue2 data() :461-472. sort is deliberately not persisted (matching Vue2). The
 // showSingletons/showFoldedClusters store state this comment used to describe is gone —
 // the grid always shows exactly splitUnnamedByDistribution's `visible` head.
 const filter = ref<FilterId>('all')
@@ -137,7 +137,7 @@ const clusterMenu = ref<{ person: Person; x: number; y: number } | null>(null)
 const hiddenExpanded = ref(false)
 // T7 three-mode dialog state.
 const dialog = ref<{ mode: DialogMode; person: Person } | null>(null)
-// Independent in-flight guards for naming/merging (hard constraint from the brief: this class
+// Independent in-flight guards for naming/merging (hard constraint: this class
 // of bug was caught three times during the P4 phase). The two refs are kept separate and not
 // shared — same rationale as the AlbumPickerDialog.vue:35-42 precedent: both paths can be
 // triggered back-to-back in real usage (e.g. immediately clicking merge right after a naming
@@ -152,12 +152,11 @@ const dialog = ref<{ mode: DialogMode; person: Person } | null>(null)
 // ref entirely (declaration/set/finally-reset), the regression tests stayed green, because what
 // actually blocks a second call was always the `!dialog.value` short-circuit at the top of
 // `onSubmitDelete`, not this ref — the ref was just decorative "standard shape" with no real
-// protective value. The specifics of that delete-and-verify pass and its results are recorded
-// in the fix report; this ref is not being added back. Review confirmed the async guards on the
+// protective value; this ref is not being added back. Review confirmed the async guards on the
 // naming/merging paths are genuinely effective and unaffected.
 const namingSubmitting = ref(false)
 const mergingSubmitting = ref(false)
-// P8a-T6 (§7e-10): facesEnabled used to be a one-off implementation reading /photos/config
+// (§7e-10): facesEnabled used to be a one-off implementation reading /photos/config
 // directly in this page's own onMounted (before P8 owned a shared store). Now reads from T1's
 // photosSettings store instead — semantics unchanged: missing field/request failure is always
 // treated as enabled (don't show the warning banner, better not to scare the user), and that
@@ -209,7 +208,7 @@ const topbarSub = computed(() => t('photosPeopleTopbarSub', {
   unnamed: filteredUnnamed.value.length,
 }))
 
-// Deviation logged (plan item 9): Vue2 :575-580 hardcodes the locale to 'en', which shows
+// Deviation: Vue2 :575-580 hardcodes the locale to 'en', which shows
 // English month names under a Chinese UI. Here it follows the current i18n locale instead
 // ('zh_cn' → BCP47 'zh-cn'); an invalid date still returns '' (matching Vue2).
 function formatIndexedDate(iso: string | null): string {
@@ -305,7 +304,7 @@ function suggestionFaceThumb(faceId: string): string {
 // Merge-cards feature (2026-08-21): the entry card's count now covers BOTH review-queue sources
 // (face suggestions + cluster-merge questions — people.reviewQueueCount, the store's own single
 // source of truth for this total, kept in lockstep with the wizard's own totalAtOpen). The
-// preview row stays simple per the brief ("keep simple: total count, face previews first"): up
+// preview row is kept simple by design (total count, face previews first): up
 // to 6 thumbs, face-suggestion previews first, then merge-question previews filling any
 // remaining slots (a merge pair previews via its "into" side's first face, falling back to
 // "from" — whichever side actually has a preview face).
@@ -334,7 +333,7 @@ function closeDialog(): void {
 }
 
 // Per Vue2 confirmName :645-652, the optimistic dialog-close is changed to wait for store
-// success before closing (the path the brief explicitly calls for): short-circuit → await
+// success before closing (the required path): short-circuit → await
 // renamePerson → success toast + close dialog; on failure, toast the failure copy and leave the
 // dialog open (per the precedent of AlbumPickerDialog submitCreate not closing the panel on
 // failure, so the user can see why it failed and retry).
@@ -354,13 +353,12 @@ async function onSubmitName(name: string): Promise<void> {
   }
 }
 
-// T7 deviation logged (a Vue2 bug the brief explicitly requires fixing — see item 8 in the file
-// header comment): Vue2 confirmMergeTo :654-660 doesn't await mergeClusterInto, fires the
+// Deviation (a Vue2 bug fixed here): Vue2 confirmMergeTo :654-660 doesn't await mergeClusterInto, fires the
 // "merged" success toast right after issuing the request, and closes the dialog unconditionally
 // — if the request genuinely fails, the user sees a fake success message, and the returned
 // rejected promise is never handled at all (unhandled rejection). Fixed here to await + only
 // toast success on the success path; failure toasts photosPersonMergeFailed; the dialog closes
-// in a finally regardless of outcome (per the brief: "close dialog + reset in finally" — unlike
+// in a finally regardless of outcome (convention: close dialog + reset in finally — unlike
 // naming, this merge path doesn't leave the user in the dialog to retry, since the target
 // person is picked from a candidate list rather than typed, so reopening the menu and picking
 // again on failure is clearer).
@@ -371,7 +369,7 @@ async function onSubmitMerge(targetId: string | number): Promise<void> {
   mergingSubmitting.value = true
   try {
     await people.mergePersonInto(fromId, targetId)
-    // P8a-T10: same fallback as confirmMergeTo above (:266) — avoids rendering "Merged into """
+    // Same fallback as confirmMergeTo above (:266) — avoids rendering "Merged into """
     // when the target is unnamed (or personById can't find it).
     toast.show(t('photosPersonMergedToast', { name: targetName || t('photosPersonMergeAsSame') }))
   } catch {
@@ -389,7 +387,7 @@ async function onSubmitMerge(targetId: string | number): Promise<void> {
 // reentrancy lock for this path. When two rapid clicks both hit the same button within the
 // synchronous window before Vue removes the dialog from the DOM, the second call gets blocked
 // by the `!dialog.value` check at the top of the function body (the first call already cleared
-// it). Delete-and-verify pass, see the fix report: this spot also once had a
+// it). Verified by a delete-and-verify pass: this spot also once had a
 // `deletingSubmitting` ref added following the naming/merging shape; removing it entirely
 // (declaration/set/finally-reset) left the regression tests green — proof it had no real
 // protective value, so it isn't being added back.
@@ -398,7 +396,7 @@ function onSubmitDelete(): void {
   const person = dialog.value.person
   const undo = people.purgePersonWithUndo(person.id)
   dialog.value = null
-  // Final-review Important 4: when the name is empty, the placeholder label must be
+  // When the name is empty, the placeholder label must be
   // photosPersonUnnamedLabel ("Unnamed person"), not photosPersonThisPerson ("this person").
   // Both of Vue2's delete paths (PhotosPeopleView.vue:665 and PhotosPersonDetail.vue:962) are
   // **both** $t('Unnamed person') — verified word-for-word against the source. And this page's
@@ -435,7 +433,7 @@ onMounted(() => {
   // and then make it disappear. The section itself is still collapsed by default; only the count
   // is no longer lazy.
   void people.fetchHiddenPeople()
-  // Plan C Task 2: eager fetch (not lazy), same rationale as fetchHiddenPeople right above —
+  // Eager fetch (not lazy), same rationale as fetchHiddenPeople right above —
   // this GET also doubles as the 404 feature-detection probe for suggestionsSupported, so a
   // legacy backend without the endpoint never flashes the section before hiding it.
   void people.fetchSuggestions()
@@ -444,7 +442,7 @@ onMounted(() => {
   // mergeQuestionsSupported, so a backend without the feat/cluster-merge-questions branch
   // never flashes the entry card before hiding it.
   void people.fetchMergeQuestions()
-  // P8a-T6: now reads from the shared photosSettings store (§7e-10). The sidebar
+  // Now reads from the shared photosSettings store (§7e-10). The sidebar
   // (PhotosSidebar, also mounted on this page) calls fetchAiFeatures() in the same frame too —
   // concurrent dedup is handled in settings.ts, so there's nothing to worry about here.
   void settings.fetchAiFeatures()
@@ -657,7 +655,7 @@ onUnmounted(() => {
               </div>
             </div>
 
-            <!-- Unnamed (Vue2 :176-206). Fix round 2 (product decision, 2026-08-19): the grid
+            <!-- Unnamed (Vue2 :176-206). Product decision: the grid
                  shows ONLY splitUnnamedByDistribution's `visible` head -- nothing else is
                  reachable from this page. Both the "Show N more clusters" fold expander and the
                  "Show N single-photo" singleton toggle (and the store state feeding them) are
@@ -737,8 +735,8 @@ onUnmounted(() => {
     <!-- Task 2 (Plan D re-shell): the cluster menu + both dialogs used to sit as template-root
          siblings of `.photos-root` — outside its DOM subtree entirely. Every `.photos-root .xxx`
          parity selector is a descendant selector and needs a real `.photos-root` ANCESTOR in the
-         DOM, which a sibling position does not provide (acceptance-fix-report.md §F1/§F2/§F4;
-         same rule PhotosAlbums.vue's own dialogs follow, its Fix-1 item 3). Moved back inside
+         DOM, which a sibling position does not provide (the
+         same rule PhotosAlbums.vue's own dialogs follow). Moved back inside
          `.photos-root` (sibling of `.app` is fine — `position: fixed` means nesting here does
          not reintroduce `.app`'s `overflow: hidden` clipping). -->
     <div
@@ -786,7 +784,7 @@ onUnmounted(() => {
     </div>
 
     <!-- T7: the three-mode action dialog is really wired up now. Candidates pass the full named
-         list — sorting/filtering/truncation happen inside the dialog (per the brief's decision). -->
+         list — sorting/filtering/truncation happen inside the dialog (by design). -->
     <ClusterActionDialog
       :open="dialog !== null"
       :mode="dialog?.mode ?? 'name'"
@@ -826,9 +824,9 @@ onUnmounted(() => {
    img`, a DOM shape this page never has), a New-UI-only empty state, a New-UI-only "em"
    emphasis span, the merge-banner's warning variant (no Vue2 counterpart, see below), and the
    suggestion-stack avatar's border (its sizing model differs from parity's `.dot`, see below).
-   See task-2-report.md's deviations table for what changed value/token when a duplicate was
-   deleted (fonts, paddings, colors, radii, z-index, several dark-glass tokens that were
-   theme-variant here but must be theme-invariant per Vue2's own design). */
+   Where a duplicate was deleted, the surviving parity value/token governs (fonts, paddings,
+   colors, radii, z-index, several dark-glass tokens that were theme-variant here but must be
+   theme-invariant per Vue2's own design). */
 .photos-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; min-height: 0; }
 
 /* Vue2 wraps the title+sub pair in an unclassed div (PhotosPeopleView.vue:3); New-UI's own

@@ -1,4 +1,4 @@
-// SP15-P1-T2: mosaic size/template pure functions. Ported field-by-field from Vue2
+// Mosaic size/template pure functions. Ported field-by-field from Vue2
 // 899af59b:src/views/Photos/PhotosSmartViewsView.vue:322-357 (classifyMomentSize/
 // pickMomentTemplate/assignMomentSizes); the rules themselves are unchanged.
 import { describe, it, expect } from 'vitest'
@@ -102,7 +102,7 @@ describe('spanForMomentSize', () => {
   })
 })
 
-// Fix-6 (owner acceptance, 2026-08-18): the masonry packer that replaces CSS Grid's own
+// The masonry packer that replaces CSS Grid's own
 // `grid-auto-flow: row dense` auto-placement. See momentLayout.ts's own header comment above
 // packMasonry for the full root-cause trace (a column can lose a same-row tie to a leftward
 // column and then sit empty for several rows until a later wide card claims it).

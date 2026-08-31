@@ -1,16 +1,16 @@
 <script setup lang="ts">
-// SP7-P7a-T8: SmartViewActivityFeed.vue — activity feed, 4th section in smart view detail page right column.
+// SmartViewActivityFeed.vue — activity feed, 4th section in smart view detail page right column.
 // Based on the Vue 2 panel's src/views/Photos/PhotosSmartViewDetail.vue:211-229 (template),
 // :270-280 (activityText), :318-324 (activity computed, `seeds: a.assetIds`), ported;
 // styles from photos-smartview.scss:606-625 (+ placeholder thumbnail inline style from :211-221, converted to class).
 //
-// — Unknown eventType (last row of structural spec table, same handling as P6b insight unknown key,
-//    entry) ──────────────────────────────────────────────────────────────────────
+// — Unknown eventType (same handling as the unknown-insight-key case elsewhere in this
+//    codebase) ──────────────────────────────────────────────────────────────────────
 // Vue2 activityText()'s default branch (:278) renders the backend's raw eventType string directly
 // to users. New-UI changes to: skip the line entirely + console.warn once, don't let internal enum values leak to the UI.
 //
-// — Zero v-html (§7e-6) ────────────────────────────────────────────────────────
-// fix round 1 · I3 (Important, controller verified against zh_CN.json and corrected): matched (1 photo)/
+// — Zero v-html ────────────────────────────────────────────────────────
+// A correction verified against zh_CN.json: matched (1 photo)/
 // matched (N photos) — the `<b>` in both texts wraps the entire phrase "interpolation + language-specific static word" —
 // `<b>1 new photo</b>` and `<b>{n} new photos</b>` are completely symmetric in form, not 'one wraps the whole phrase, one only
 // wraps the digit'. Round 1 simplified the N photos version to only bold `{n}` itself, causing adjacent rows in the activity feed to have one line with the whole phrase bold,
@@ -55,7 +55,7 @@ const rows = computed<Row[]>(() => {
       case 'renamed':
         out.push({ a, kind: 'renamed', n: 0 })
         break
-      // SP15-P2b Task 8: the backend records this when ConvertFromAlbum finishes; assetIds
+      // The backend records this when ConvertFromAlbum finishes; assetIds
       // is the original album's full membership, so the count is real when present. Absent
       // is defensive only -- keep the count-free wording rather than printing "0 photos
       // locked in".

@@ -12,7 +12,7 @@
 // this directory's exclusion must be kept.
 /// <reference types="node" />
 // Explicitly reference node types here instead of adding "node" to tsconfig's types array.
-// 🔴 [SP8-P6 T10 correction] The original comment's closing claim — "this only applies to this file" — **is wrong**: `/// <reference types="…" />`
+// 🔴 [Correction] The original comment's closing claim — "this only applies to this file" — **is wrong**: `/// <reference types="…" />`
 // is a **program-level** directive — it pulls the whole `@types/node` package (including the `declare var process`
 // / `NodeJS.Timeout` global declarations in `globals.d.ts`) into the entire compilation program, visible to **all** source files, not just this one.
 // Proof (T10 two-way probe): create a new file that neither imports `node:` nor has the reference, containing only
@@ -182,7 +182,7 @@ delete this line and let it cascade from the root, or add /* theme-exception: re
   }
 })
 
-// ── Comment-integrity guard (a real defect exposed by SP9-P8 acceptance testing on 2026-08-05: an entire rule swallowed by a comment) ──────
+// ── Comment-integrity guard (a real defect exposed by acceptance testing on 2026-08-05: an entire rule swallowed by a comment) ──────
 //
 // Incident: the header blurb in `src/kvm/styles/kvm.css` wrote `os-*/category-*`,
 // `--kvm-modal-*/--kvm-field-*/` — **the `*/` closed the block comment early**. The prose after it was then parsed as CSS,

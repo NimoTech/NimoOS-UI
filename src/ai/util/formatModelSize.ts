@@ -1,4 +1,4 @@
-// SP8-P2a Task 9 — Extracted from Vue2 src/views/AI/Settings/sections/ModelsSection.vue
+// Extracted from Vue2 src/views/AI/Settings/sections/ModelsSection.vue
 // component methods (structural adjustment, not behavioral change — extracted to enable
 // precise boundary testing; originally mixed into `methods` object, not unit-testable).
 

@@ -12,11 +12,11 @@ import type { AxiosInstance } from 'axios'
  * the Files area's right-click "distill" action (not the AI area)
  * (2) the 8 pure functions need to be importable directly by unit tests and consumers, independent of the http instance.
  *
- * [Structural deviation, declared under SP8-P5a Task 1] In Vue2, getNotesSettings/putNotesSettings/
+ * [Structural deviation] In Vue2, getNotesSettings/putNotesSettings/
  * distillFile/cancelDistillJob/listDistillJobs/getDistillStatus are six module-level named exports,
  * not part of the default-exported `notes` object (the blueprint puts them in the second half of the
  * file, exported separately). This repo's consumption convention
- * is "REST always goes through `service.notes.*`" — one entry point per domain — so per the brief
+ * is "REST always goes through `service.notes.*`" — one entry point per domain — so
  * we folded them into the object returned by `createNotes(http)`, as its methods. This is an
  * adjustment to the package's API shape, not a UI/behavior change —
  * the method bodies were carried over line-for-line from the blueprint, with no logic changes.

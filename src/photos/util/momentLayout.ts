@@ -1,4 +1,4 @@
-// SP15-P1-T2: Moments mosaic layout engine — a pure function, no Date/random/DOM dependency.
+// Moments mosaic layout engine — a pure function, no Date/random/DOM dependency.
 // Ported line-by-line from the Vue 2 panel 899af59b:src/views/Photos/PhotosSmartViewsView.vue:322-357
 // (that side was already a module-level `export function`, designed to be unit-testable as-is).
 // The only changes are the snake_case → camelCase field rename and the type annotations; the
@@ -77,10 +77,9 @@ export function assignMomentSizes(
   return map
 }
 
-// Fix-6 (owner acceptance, 2026-08-18) — masonry packer. Ported from no prior source (new-UI-
+// Masonry packer. Ported from no prior source (new-UI-
 // only; Vue2's PhotosSmartViewsView.vue relies on the same CSS-only `grid-auto-flow: row dense`
-// this replaces, so there is nothing to port here — full rationale, deviation-registered, in the
-// acceptance report).
+// this replaces, so there is nothing to port here).
 //
 // Root cause it fixes: the `.mo-grid` CSS (photos-smartview.scss:132-146, byte-identical between
 // Vue2 and this repo) sizes standard/wide/tall cards via `grid-row: span 3/5` + `grid-column:
@@ -96,7 +95,7 @@ export function assignMomentSizes(
 // by contrast, oddly cramped) packed. Confirmed reproducible with `.mo-grid`'s exact production
 // CSS via getBoundingClientRect measurement in an isolated repro (16 mock moments, realistic
 // wide/tall spacing) — not a light/dark theme issue (both themes share the identical grid math);
-// the owner's light-theme screenshot just happened to be the one that got checked.
+// the reported light-theme screenshot just happened to be the one that got checked.
 //
 // This packer is a "shortest column" skyline bin-packer with backfill: for every item, in DOM
 // order, it scans every valid column start (0..cols-colSpan) and picks whichever position has

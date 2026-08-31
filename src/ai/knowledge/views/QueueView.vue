@@ -1,5 +1,5 @@
 <!--
-  SP8-P5b Task 5 — "Job Queue" page, 1:1 port from Vue2 blueprint
+  "Job Queue" page, 1:1 port from Vue2 blueprint
   the Vue 2 panel (main@7a6ee6b7) `src/views/AI/Knowledge/QueueView.vue` (417 lines,
   read via `git show main:`, governance file §1: working tree is old branch not trustworthy).
 

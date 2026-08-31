@@ -1,5 +1,5 @@
 <!--
-  SP8-P4 Task 6 — 1:1 ported from the Vue 2 panel's `src/views/AI/MCP/McpServerDetail.vue`
+  1:1 ported from the Vue 2 panel's `src/views/AI/MCP/McpServerDetail.vue`
   (174 lines) :1-157. Task 7 (test connection) fills three gaps T6 left:
     - :50-53 "Test connection" button
     - :87-100 test hint `.mcp-test-hint` / result panel `.mcp-test-result`

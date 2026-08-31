@@ -1,53 +1,64 @@
 <script setup lang="ts">
-// P6b-T9(SP7 相册「地点」详情,本期最后一任务):`/photos/places/:key` 地点照片页(D6)——
-// 从地图详情面板「查看全部 N 张」/「在图库中打开」/某个 spot 卡片的「在 Library 中查看这个
-// spot 的全部照片」(T8 goLibrary/onOpenSpotLibrary)跳库落点。按月分组网格 + 灯箱 + 面包屑
-// 「城市 › spot」+ 三态门控。D10:跳库页最小面,只浏览不接多选/批操作(归 P7/P8)。
+// The `/photos/places/:key` place-assets page — the landing page reached from the map detail
+// panel's "view all N photos" / "open in library" links, or a spot card's "view all photos for
+// this spot in the library" action (goLibrary/onOpenSpotLibrary). Month-grouped grid + lightbox +
+// breadcrumb ("city › spot") + three-state gate. This page is a minimal drop-in for jumping into
+// the library: browse only, no multi-select or batch operations.
 //
-// 参考:
-//  - 壳/route 参数归一/灯箱挂载位置:PhotosAlbumDetail.vue:1-80(AreaShell + .photos-layout +
-//    PhotosSidebar + .photos-main,P3/P4/P5 既定不抽公共)。
-//  - 三态门控体例:PhotosPersonDetail.vue:583-611(loading&&!loaded / failed / 空 / 正常)。
-//  - 面包屑信息层级:Vue2 的 PhotosTimeline.vue:1073-1090(地图图标 + 城市段(有 spot
-//    时是按钮,点击回整城)+ 右尖角 + spot 段 + 右侧计数)。
-//  - spot 深链找不到时的静默降级语义:Vue2 PhotosTimeline.vue:547-551(`_applyPlaceFromQuery`:
-//    spotKey 传了但在详情 spots 里找不到 → 只清 spot 键,不弹 toast,按整城显示)。
+// References:
+//  - Shell / route-param normalization / lightbox mount site: PhotosAlbumDetail.vue:1-80
+//    (AreaShell + .photos-layout + PhotosSidebar + .photos-main; deliberately not extracted into
+//    a shared component).
+//  - Three-state gate convention: PhotosPersonDetail.vue:583-611 (loading && !loaded / failed /
+//    empty / normal).
+//  - Breadcrumb information hierarchy: Vue2's PhotosTimeline.vue:1073-1090 (map icon + city
+//    segment (a button when a spot is active, returns to the whole city) + right chevron + spot
+//    segment + count on the right).
+//  - Silent-degradation semantics when a spot deep link can't be found: Vue2
+//    PhotosTimeline.vue:547-551 (`_applyPlaceFromQuery`: if spotKey is present but not found among
+//    the detail's spots, just clear the spot key — no toast, fall back to the whole-city view).
 //
-// 铁律:
-//  1) placeKey/spotKey 恒 String() 归一;lat/lon 用 Number()+Number.isFinite 守卫,非有限值传
-//     null(共享包 usePlaceAssets.load 要求 lat/lon 与 spotKey 成对,不能把 NaN 传给后端)。
-//  2) 路由参数(key/spot/lat/lon)变化必须重新拉取详情与资产——SP6-P5.5 抓到的真 bug:hash
-//     路由同组件不重建,详情页缺 :id watcher 会让新地点渲染上一个地点的陈旧数据。
-//  3) 面包屑的城市名/spot 名一律从 store.detail 回源派生,不信任 URL 上可能带的旧字符串
-//     (本页的 query 本就只放 spot/lat/lon,不放 city/spotName —— 那两个字符串会在改名后
-//     过期,T8 评审已指出这一点)。
+// Hard rules:
+//  1) placeKey/spotKey are always normalized with String(); lat/lon are guarded with
+//     Number()+Number.isFinite, passing null for anything not finite (the shared package's
+//     usePlaceAssets.load requires lat/lon to come paired with spotKey — a NaN must never reach
+//     the backend).
+//  2) Route param changes (key/spot/lat/lon) must always re-fetch both detail and assets — a real
+//     bug caught earlier: a hash-route change reusing the same component doesn't remount it, and
+//     without an :id watcher on the detail page, a new place would render with the previous
+//     place's stale data.
+//  3) The breadcrumb's city/spot names are always derived from `store.detail`, never trusted from
+//     a possibly-stale string on the URL (this page's query only ever carries spot/lat/lon, never
+//     city/spotName — those two strings would go stale after a rename, as review already pointed
+//     out).
 //
-// 偏离登记(超出 brief 字面列的必含用例,理由见下):`currentDetail` 只在 `store.detail.id`
-// 与当前 `placeKey` 一致时才采信,不是随手加的判断——`usePhotosPlaces.loadDetail` 内部虽有
-// seq 竞态守卫(保证不会把旧响应写成新数据),但从地点 A 跳到地点 B 时,在 B 的响应回来之前
-// store.detail 仍持有着 A 的数据;不加这层身份核对,面包屑会在跳转的短暂窗口内显示上一个
-// 城市的名字。姐妹页 PhotosPlaces.vue:99-100 的 `activeDetail` 对同一个 store 已有这个先例
-// (`store.detail && String(store.detail.id) === String(activeId.value)`),这里照抄同一手法,
-// 不是新发明的复杂度。
+// A departure from the literal brief (an extra required case beyond what was spelled out, rationale
+// below): `currentDetail` is only trusted when `store.detail.id` matches the current `placeKey` —
+// this isn't an arbitrary extra check. `usePhotosPlaces.loadDetail` already has a sequence guard
+// against races (so an old response can never overwrite newer data), but when navigating from
+// place A to place B, `store.detail` still holds A's data until B's response arrives; without this
+// identity check, the breadcrumb would show the previous city's name during that brief transition
+// window. The sister page PhotosPlaces.vue:99-100 already established this same pattern on the
+// same store (`activeDetail`: `store.detail && String(store.detail.id) === String(activeId.value)`),
+// and this page copies that same technique rather than inventing new complexity.
 //
-// Task 1 (Plan E re-shell, 2026-08-14): the transitional AreaShell/.photos-layout shell has been
-// swapped for the same `.photos-root > .app[data-collapsed] > PhotosSidebar + main.main >
-// PhotosTopbar + .photos-main` structure every other re-shelled Photos page uses (PhotosPeople
-// .vue/PhotosAlbums.vue's own Plan C/D Task 2 precedent), via the shared `useSidebarCollapse`
-// singleton. Topbar copy: `title = cityName` (this page's existing fallback logic, unchanged —
-// city name once the detail resolves, `t('photosPlaces')` before it does); `sub=""` — Vue2 has
-// no dedicated topbar for this detail context at all (this route's Vue2 counterpart is a
-// breadcrumb embedded inside PhotosTimeline.vue's own library topbar area, not a standalone
-// topbar component with a sub-line). Fix round 1 · Important 1 (2026-08-14 review): simply
-// omitting `sub` does NOT mean "no subtitle" — PhotosTopbar's own default computed falls back
-// to the library-wide photo/video count summary on an omitted prop, which would render a wrong,
-// stray subtitle under the city name (a regression vs. the old AreaShell shell, which had none
-// here at all). `sub=""` is PhotosTopbar's explicit opt-out for exactly this case (see that
-// component's own fix-round comment) — it renders no `.topbar-sub` node. No `back` (Plan D ruling: back
-// affordances don't go in the topbar — this page's own breadcrumb already carries that
-// affordance, see `showWholeCity`/the `.place-crumb` markup below). PhotoLightbox re-nested in
-// Plan F: the re-skin (Tasks 3-4) removed the scoped-vs-parity cascade tie that F8-r4 guarded
-// against (see the mount site near this file's template root for the full note).
+// The transitional AreaShell/.photos-layout shell has been swapped for the same
+// `.photos-root > .app[data-collapsed] > PhotosSidebar + main.main > PhotosTopbar + .photos-main`
+// structure every other re-shelled Photos page uses (PhotosPeople.vue/PhotosAlbums.vue's own
+// precedent), via the shared `useSidebarCollapse` singleton. Topbar copy: `title = cityName` (this
+// page's existing fallback logic, unchanged — city name once the detail resolves, `t('photosPlaces')`
+// before it does); `sub=""` — Vue2 has no dedicated topbar for this detail context at all (this
+// route's Vue2 counterpart is a breadcrumb embedded inside PhotosTimeline.vue's own library topbar
+// area, not a standalone topbar component with a sub-line). Simply omitting `sub` does NOT mean "no
+// subtitle" — PhotosTopbar's own default computed falls back to the library-wide photo/video count
+// summary on an omitted prop, which would render a wrong, stray subtitle under the city name (a
+// regression vs. the old AreaShell shell, which had none here at all). `sub=""` is PhotosTopbar's
+// explicit opt-out for exactly this case (see that component's own comment) — it renders no
+// `.topbar-sub` node. No `back` button — back affordances don't go in the topbar; this page's own
+// breadcrumb already carries that affordance (see `showWholeCity`/the `.place-crumb` markup below).
+// PhotoLightbox is re-nested here because the re-skin removed the scoped-vs-parity cascade tie that
+// previously made nesting unsafe (see the mount site near this file's template root for the full
+// note).
 import '../photos/styles/vue2-parity'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -68,41 +79,45 @@ import { useTimelineStore } from '../photos/stores/timeline'
 import { usePhotosTrash } from '../photos/stores/trash'
 import { usePhotosToast } from '../photos/composables/usePhotosToast'
 import type { Photo } from '../photos/util/assetToPhoto'
-// P7b-T5:跳库页叠加 EXIF 筛选(D19)——对应 Vue2 PhotosTimeline.vue:167,spot 分支把
-// placeAssets 作为基础集,在其上叠加 FilterBar 的 years/cameras 两个维度。位置维度按 D19
-// 不出现:Vue2 那条筛选栏是时间线与 spot 跳转共用的同一条,但 spot 分支明确只传
-// years/cameras、把 places 丢掉(注释自陈「城市已框定,再套位置文本会误杀」)——在 New-UI
-// 这个独立页面上照搬,就是摆一个点了没反应的死胶囊。
+// This page layers EXIF filtering on top of the place-assets view — mirroring Vue2
+// PhotosTimeline.vue:167, where the spot branch uses placeAssets as its base set and layers the
+// FilterBar's years/cameras dimensions on top of it. The places dimension is deliberately left
+// out: Vue2's filter bar is shared between the timeline and the spot jump-in, but the spot branch
+// explicitly only passes years/cameras and drops places (its own comment there says "the city is
+// already fixed, layering a place-text filter on top would wrongly exclude results") — carrying
+// that same chip over onto this standalone New-UI page would just be a chip that sits there doing
+// nothing when tapped.
 import PhotosFilterBar, { type ExifFilterValue } from '../photos/components/PhotosFilterBar.vue'
 import { applyExifFilters } from '../photos/util/photosFilterUtils'
 import { groupPhotosByMonth } from '../photos/util/groupPhotosByMonth'
 
 const { t } = useI18n()
 const { themeClass } = usePhotosTheme()
-// Task 1 (Plan E re-shell): same shared module singleton every other re-shelled Photos page
-// uses (PhotosPeople.vue/PhotosAlbums.vue's own precedent) — toggle wired straight to the
-// topbar button.
+// Same shared module singleton every other re-shelled Photos page uses (PhotosPeople.vue/
+// PhotosAlbums.vue's own precedent) — toggle wired straight to the topbar button.
 const { collapsed, toggle: onToggleCollapse } = useSidebarCollapse()
 const route = useRoute()
 const router = useRouter()
 const store = usePhotosPlaces()
 const assets = usePlaceAssets()
 const lb = useLightbox()
-// Task 6 (Plan F): real delete/Undo pathway for this page's own PhotoLightbox mount (see
-// onLightboxDelete's own comment below).
+// Real delete/Undo pathway for this page's own PhotoLightbox mount (see onLightboxDelete's own
+// comment below).
 const timeline = useTimelineStore()
 const trash = usePhotosTrash()
 const photosToast = usePhotosToast()
 
-// ── 结构规格 2:参数归一 ──────────────────────────────────────────────────────
+// ── Route param normalization ────────────────────────────────────────────────
 const placeKey = computed(() => String(route.params.key))
 const spotKey = computed(() => String(route.query.spot ?? ''))
-// 评审 I1 修正:lat/lon 必须与 spotKey 挂钩,不能独立生效——回源 Vue2
-// `_applyPlaceFromQuery`(Vue2 的 src/views/Photos/PhotosTimeline.vue:538-545):只在 spot
-// 命中时才赋 spotLat/spotLon,否则强制 null。共享包 `listAssetsByPlace` 要求 lat/lon 与
-// spotKey 成对(见共享服务包 src/photos.ts 该方法的注释)——没有 spotKey 时哪怕
-// URL 上手工带了 `?lat=1&lon=2`,也必须传 null,否则违反这个不变量。应用内导航碰不到这条
-// (showWholeCity/spot 卡片都是三键一起清、一起带),但手改地址栏或旧书签会触发。
+// lat/lon must be tied to spotKey and never take effect on their own — this follows Vue2's
+// `_applyPlaceFromQuery` (src/views/Photos/PhotosTimeline.vue:538-545): it only assigns
+// spotLat/spotLon when a spot actually matches, otherwise forcing them to null. The shared
+// package's `listAssetsByPlace` requires lat/lon to come paired with spotKey (see that method's
+// own comment in the shared service package's src/photos.ts) — without a spotKey, even if the URL
+// manually carries `?lat=1&lon=2`, they must still be passed as null, or this invariant is
+// violated. In-app navigation never hits this case (showWholeCity/spot cards always clear or
+// carry all three keys together), but hand-editing the address bar or an old bookmark can.
 const lat = computed(() => {
   if (!spotKey.value) return null
   const n = Number(route.query.lat)
@@ -114,15 +129,17 @@ const lon = computed(() => {
   return Number.isFinite(n) ? n : null
 })
 
-// 身份守卫(偏离登记,理由见文件头注释)——只信任与当前 placeKey 匹配的详情。
+// Identity guard (a departure from the literal brief, rationale in this file's header comment) —
+// only trust the detail that matches the current placeKey.
 const currentDetail = computed(() =>
   (store.detail && String(store.detail.id) === placeKey.value) ? store.detail : null)
 
 const cityName = computed(() => currentDetail.value?.city || t('photosPlaces'))
 
-// 有 spot 时,spot 名从 store.detail.spots 按 key 找;找不到（深链失效/改名/详情未到位）
-// 时不渲染 spot 段——下面的 watch 会同步把 query 清掉，静默降级为整城视图（照 Vue2 :547-551,
-// 不弹 toast）。
+// When a spot is present, its name is looked up by key in store.detail.spots; when it can't be
+// found (a stale deep link, a rename, or the detail hasn't arrived yet) the spot segment isn't
+// rendered — the watch below syncs by clearing the query, silently falling back to the
+// whole-city view (per Vue2 :547-551, no toast).
 const matchedSpot = computed(() => {
   if (!spotKey.value || !currentDetail.value) return null
   return currentDetail.value.spots.find((s) => String(s.key) === spotKey.value) ?? null
@@ -133,67 +150,82 @@ function loadAll(): void {
   void assets.load(placeKey.value, spotKey.value, lat.value, lon.value)
 }
 
-// ── 结构规格 3:数据编排 ──────────────────────────────────────────────────────
+// ── Data orchestration ───────────────────────────────────────────────────────
 onMounted(loadAll)
 
-// 结构规格 3:路由参数变化重跑两者(SP6-P5.5 第 6 条教训)。
+// Route param changes re-run both fetches (a lesson learned from an earlier real bug).
 watch(
   () => [route.params.key, route.query.spot, route.query.lat, route.query.lon],
   loadAll,
 )
 
-// 城市段点击:去掉 query 只留 path,回到整城视图(结构规格 4)。
+// Clicking the city segment: drop the query, keep only the path, returning to the whole-city view.
 function showWholeCity(): void {
   void router.replace({ path: route.path, query: {} })
 }
 
-// spot 找不到时的静默降级(结构规格 4 + Vue2 :547-551 语义):一旦确认（身份匹配的）详情里
-// 没有这个 spot key，清掉 spot/lat/lon 三个 query，不弹 toast。
+// Silent degradation when a spot can't be found (per Vue2 :547-551 semantics): once the
+// identity-matched detail is confirmed not to contain this spot key, clear all three of the
+// spot/lat/lon query params — no toast.
 //
-// 踩坑记录:这里**必须**watch `currentDetail`(它在每次 loadDetail 成功后都会指向一个全新
-// 对象引用——`toPlaceDetail` 每次都 `return { ... }` 新建),而不能直接 watch `matchedSpot`。
-// `matchedSpot` 在"详情还没到位"(currentDetail 为 null)与"详情到位但确实没这个 spot"两种
-// 情形下的值**都是 null**——Vue 的 `watch` 对新旧值做 `hasChanged` 比较,null→null 判定为
-// 未变化,回调根本不会跑,降级就成了死代码(有对应的删码验证用例钉住)。watch 一个"确定会换
-// 新引用"的量,再在回调里读 matchedSpot.value,才能保证"详情从无到有"这一刻必然触发一次判断。
+// Gotcha: this **must** watch `currentDetail` (it points to a brand-new object reference every
+// time loadDetail succeeds — `toPlaceDetail` always `return`s a freshly built `{ ... }`), not
+// `matchedSpot` directly. `matchedSpot`'s value is **null in both** cases — "detail hasn't arrived
+// yet" (currentDetail is null) and "detail arrived but genuinely has no such spot" — and Vue's
+// `watch` compares old vs. new via `hasChanged`, so null→null is treated as unchanged and the
+// callback never runs, turning the degradation into dead code (there's a mutation-style test
+// pinning this down). Watching a value that's guaranteed to get a new reference, then reading
+// `matchedSpot.value` inside the callback, is what guarantees a check actually fires the moment
+// the detail goes from absent to present.
 watch(currentDetail, (d) => {
   if (d && spotKey.value && !matchedSpot.value) showWholeCity()
 })
 
-// ── 结构规格 6:网格 + 灯箱 ────────────────────────────────────────────────────
-// P7b-T5:EXIF 筛选态(同 T4 形状)。D19:只留年份/相机两个胶囊——见上方 import 处注释。
-// P8a-T10 挂账登记(只登记不改):`places` 这个 EXIF 维度在本页从未端到端贯通过——
-// PLACE_CHIP_KEYS 不含 'places' 故 UI 从不渲染/不产出这个胶囊,下面 gridMonths 也只投影
-// years/cameras 两个键给 applyExifFilters(:146-150)。exifFilter.places 恒为 []。P7b 只把
-// cameras 维度接通,places 维度的"未贯通"是本页刻意设计(见下方注释),不是遗漏。
+// ── Grid + lightbox ───────────────────────────────────────────────────────────
+// EXIF filter state (same shape as the other similar pages). Only the years/cameras chips are
+// kept — see the comment at the import above.
+// Noted as a known gap (recorded, not changed here): the `places` EXIF dimension has never been
+// wired end-to-end on this page — PLACE_CHIP_KEYS doesn't include 'places', so the UI never
+// renders or produces that chip, and gridMonths below only projects the years/cameras keys into
+// applyExifFilters (:146-150). exifFilter.places is always []. Only the cameras dimension was
+// wired up here; leaving the places dimension unwired is a deliberate design choice for this page
+// (see the comment below), not an oversight.
 const exifFilter = ref<ExifFilterValue>({ years: [], places: [], cameras: [] })
 const PLACE_CHIP_KEYS = ['years', 'cameras'] as const
 
-// 不改 usePlaceAssets 的 months(那是 P6b 的组件,禁无关重构)——本页自己再算一份筛选后
-// 的月份分组,并丢掉空月份(同 T4 的理由:月份刻度尺读的是未按标签页过滤的 months,这里
-// 同理不读 assets.months.value,自己对 assets.photos.value 先筛再分组)。
+// Doesn't touch usePlaceAssets' own `months` (that composable belongs to another page — no
+// unrelated refactors here) — this page computes its own filtered month grouping and drops empty
+// months (same reasoning as elsewhere: the month ruler reads `months` unfiltered by tab, so here
+// too, instead of reading assets.months.value, it filters assets.photos.value first and then
+// groups it).
 //
-// fix round 1 Minor 1(评审):这里的调用顺序是「先筛后分组」——groupPhotosByMonth
-// (util/groupPhotosByMonth.ts:15-23)的桶是遇到照片才创建,永不产出空桶,所以本页这个
-// `.filter(m => m.photos.length > 0)` 在结构上不可能剔掉任何东西,是防御性死代码。仍然
-// 保留它(brief 明文要求),是为了与 T4(views/Photos.vue,那边 months 来自后端预分桶、
-// 筛选发生在桶内、空月份是真实可能出现的)保持同一套调用惯例口径,不是本页此刻需要的
-// 逻辑保护。
-// fix round(终审 M1):显式投影只喂 years/cameras 两个维度,对齐 Vue2
-// `PhotosTimeline.vue:167`(spot 分支同样显式传 `{ years, cameras }`,不整个 filter 对象
-// 转发)。今天 exifFilter.places 恒空,喂整个对象与只喂两个键结果等价——但一旦将来有代码
-// (深链/store)往 exifFilter.places 塞值,喂整个对象会静默按位置筛出结果,而 UI 上既看不到
-// 这个胶囊也清不掉它(T2 挂账的「幽灵筛选」)。显式投影让 D19 在数据层自证,不只靠 UI 侧
-// 不渲染位置胶囊这一层防线。
+// The call order here is "filter, then group" — groupPhotosByMonth
+// (util/groupPhotosByMonth.ts:15-23) only creates a bucket when it encounters a photo, so it can
+// never produce an empty bucket, which means this page's own
+// `.filter(m => m.photos.length > 0)` can never structurally remove anything — it's defensive
+// dead code. It's kept anyway to match the same calling convention used on the timeline page
+// (views/Photos.vue, where months come pre-bucketed from the backend, filtering happens inside
+// each bucket, and an empty month is a real possibility there), not because this page currently
+// needs that logical protection.
+// The explicit projection only feeds the years/cameras dimensions, matching Vue2
+// `PhotosTimeline.vue:167` (the spot branch likewise explicitly passes `{ years, cameras }`
+// rather than forwarding the whole filter object). Today exifFilter.places is always empty, so
+// feeding the whole object vs. just these two keys gives an identical result — but if some future
+// code (a deep link/store) ever puts a value into exifFilter.places, feeding the whole object
+// would silently filter results by place with no chip visible in the UI to show or clear it (a
+// "ghost filter"). The explicit projection makes the years/cameras-only behavior self-evident at
+// the data layer, instead of relying solely on the UI not rendering a places chip as the only
+// line of defense.
 const gridMonths = computed(() =>
   groupPhotosByMonth(applyExifFilters(assets.photos.value, {
     years: exifFilter.value.years,
     cameras: exifFilter.value.cameras,
   })).filter((m) => m.photos.length > 0))
 
-// PhotosGrid 自己 emit 的 list 恒为 undefined(它不知道"整页"的边界在哪)。翻页集跟着
-// 筛选走(D9 同型要求:灯箱能翻到的必须是这一屏看得见的),所以重建翻页集时用 gridMonths
-// 而不是 assets.photos.value——与 T4(views/Photos.vue)的 onOpenTile 同一理由。
+// PhotosGrid's own emitted list is always undefined (it doesn't know where the "whole page"
+// boundary is). The paging set follows the active filter (the lightbox must only be able to page
+// through what's visible on screen), so gridMonths is used to rebuild the paging set instead of
+// assets.photos.value — same reasoning as onOpenTile on the timeline page (views/Photos.vue).
 function onOpen(photo: Photo, _list: undefined, startMs: number): void {
   lb.openAt(photo, gridMonths.value.flatMap((m) => m.photos), startMs)
 }
@@ -202,9 +234,9 @@ function retry(): void {
   void assets.load(placeKey.value, spotKey.value, lat.value, lon.value)
 }
 
-// ── Task 6 (Plan F): PhotoLightbox event wiring ─────────────────────────────────────────
+// ── PhotoLightbox event wiring ───────────────────────────────────────────────
 // This page mounted <PhotoLightbox> with NO listeners at all (delete/add-to-album silently
-// no-op'd — the same false-success bug class Plan F Task 5's fix round 1 found and fixed on
+// no-op'd — the same false-success bug class an earlier fix found and fixed on
 // PhotosSearch.vue, now formally audited and closed here too).
 //
 // @toggle-fav: no-op, same convention every other host page uses — see PhotosSearch.vue's own
@@ -247,7 +279,7 @@ async function onLightboxDelete(id: string | number): Promise<void> {
 }
 
 // @add-to-album: single-asset picker, same PhotosMomentDetail.vue/PhotosSearch.vue precedent
-// (D10: this page has no batch-selection state to clear afterward either).
+// (this page has no batch-selection state to clear afterward either).
 const albumPickerOpen = ref(false)
 const albumPickerIds = ref<Array<string | number>>([])
 function openAlbumPicker(ids: Array<string | number>): void {
@@ -270,7 +302,7 @@ function onAlbumPickerAdded(): void {}
           @toggle-collapse="onToggleCollapse"
         />
         <div class="photos-main">
-        <!-- 面包屑(结构规格 4)——独立于下面的三态门控,任何状态下都显示。 -->
+        <!-- Breadcrumb — independent of the three-state gate below, shown in every state. -->
         <div class="place-crumb" data-test="place-crumb">
           <svg class="crumb-icon" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2z" /><path d="M9 4v14M15 6v14" /></svg>
           <button
@@ -289,17 +321,19 @@ function onAlbumPickerAdded(): void {}
             v-model:filter="exifFilter" :photos="assets.photos.value"
             :chip-keys="[...PLACE_CHIP_KEYS]"
           />
-          <!-- P7b-T5(终审 I1 订正措辞):读**未筛选**的 assets.photos,是为了让这个计数
-               表达「这个地点一共多少张」,不是「筛完剩多少张」。筛到零时,门控走向下面的
-               v-else(PhotosGrid 自己渲染空网格),不会命中下方 place-assets-empty 那个
-               分支——但 PhotosGrid 自己的空态用的正是同两个键(photosNoPhotos /
-               photosNoPhotosHint),所以用户最终看到的文案与那个分支逐字相同,只是换了个
-               DOM 路径,不是「避免了误导文案」。若要一个真正的「没有匹配的筛选结果」文案,
-               是 Vue2 也没有的新功能,应挂债务,本期不做。 -->
+          <!-- Reads **unfiltered** assets.photos so this count expresses "how many photos this
+               place has in total", not "how many are left after filtering". When filtering down
+               to zero, the gate falls through to the v-else below (PhotosGrid renders its own
+               empty grid) rather than hitting the place-assets-empty branch below — but
+               PhotosGrid's own empty state uses the very same two keys (photosNoPhotos /
+               photosNoPhotosHint), so what the user ultimately sees is word-for-word identical to
+               that branch, just through a different DOM path — not "avoiding misleading copy". A
+               genuine "no results match this filter" message would be a new feature Vue2 doesn't
+               have either; that should be tracked as a backlog item, not built now. -->
           <span class="crumb-count" data-test="place-crumb-count">{{ t('photosPlacesPhotoCount', { n: assets.photos.value.length }) }}</span>
         </div>
 
-        <!-- 结构规格 5:三态门控(照 PhotosPersonDetail.vue:583-611 体例)。 -->
+        <!-- Three-state gate (following PhotosPersonDetail.vue:583-611's convention). -->
         <div v-if="assets.loading.value && !assets.loaded.value" class="place-skeleton" data-test="place-assets-skeleton">
           <div class="place-skeleton-grid">
             <div v-for="i in 12" :key="i" class="place-skeleton-tile"></div>
@@ -313,17 +347,19 @@ function onAlbumPickerAdded(): void {}
           </button>
         </div>
 
-        <!-- P7b-T5(终审 I1 订正措辞):这个门控同样读**未筛选**的 assets.photos,只判定
-             「这个地点本身有没有资产」(与筛选无关)——筛到零张时走的是下面的 v-else 分支
-             (PhotosGrid 渲染空网格),不落在这里。但那个分支渲染出的空态文案与这里逐字
-             相同(见下方面包屑计数处的同款注释),两条门控路径的区分只对代码/测试有意义,
-             用户看到的东西不会因为走哪条分支而不同。 -->
+        <!-- This gate likewise reads **unfiltered** assets.photos, deciding only whether this
+             place has any assets at all (unrelated to filtering) — when filtering down to zero
+             photos, it falls through to the v-else branch below (PhotosGrid renders an empty
+             grid), not here. But that branch's empty-state copy is word-for-word identical to
+             this one (see the matching comment at the breadcrumb count above); the distinction
+             between these two gate paths only matters for code/tests, not for what the user
+             sees. -->
         <div v-else-if="assets.loaded.value && assets.photos.value.length === 0" class="empty-state" data-test="place-assets-empty">
           <div class="empty-state-title">{{ t('photosNoPhotos') }}</div>
           <div class="empty-state-desc">{{ t('photosNoPhotosHint') }}</div>
         </div>
 
-        <!-- 结构规格 6:D10 只浏览,不接多选/批操作——selectable=false。 -->
+        <!-- Browse-only, no multi-select/batch operations — selectable=false. -->
         <div v-else class="place-grid-slot">
           <PhotosGrid
             :months="gridMonths"
@@ -335,8 +371,8 @@ function onAlbumPickerAdded(): void {}
       </main>
     </div>
 
-    <!-- PhotoLightbox re-nested in Plan F: the re-skin (Tasks 3-4) removed the scoped-vs-parity cascade tie that F8-r4 guarded against. -->
-    <!-- Task 6 (Plan F): event wiring added -- this mount had none before (delete/add-to-album
+    <!-- PhotoLightbox is re-nested here: the re-skin removed the scoped-vs-parity cascade tie that previously made this unsafe. -->
+    <!-- Event wiring added -- this mount had none before (delete/add-to-album
          silently no-op'd, see onLightboxDelete's own comment above). -->
     <PhotoLightbox
       @delete="onLightboxDelete"
@@ -349,24 +385,23 @@ function onAlbumPickerAdded(): void {}
          <body> and re-applies photos-root + themeClass on its own portal target (same mount
          Photos.vue/PhotosSearch.vue already use for the identical Undo-toast pattern). -->
     <PhotosToastHost />
-    <!-- Plan G: Ask Nimo FAB + popup + drawer, same "mount once per view, Teleport to body" shape
+    <!-- Ask Nimo FAB + popup + drawer, same "mount once per view, Teleport to body" shape
          as PhotosToastHost -- Photos has no shared shell to mount this once at. -->
     <AskNimoHost />
   </div>
 </template>
 
 <style scoped>
-/* Task 1 (Plan E re-shell): the transitional `.sidebar` flex-width pin and the `.photos-layout`
-   flex-row shell (Fix round 1's own interim AreaShell workaround) are both gone — the shell is
-   now the shared Vue2-structured `.app` CSS Grid (parity photos.scss's own `.app`/`.main` rules
-   under `.photos-root`), which already gives the sidebar its pixel-parity column width and the
-   page its height cap (same as PhotosPeople.vue's own re-shell; see
-   photosLayoutHeightCap.test.ts for why this page no longer needs a local height-capping rule
-   or a mobile-only `gap:0` override — the old max-width:768px media query wrapped nothing but
-   that one now-deleted rule, so the whole query block is deleted outright rather than kept as
-   an empty shell). `.photos-main` survives as pure layout scaffolding — no
-   parity selector by that name (same situation as every other re-shelled Photos page's own
-   copy) — it's just the flex child that now sits inside `<main class="main">`, after
+/* The transitional `.sidebar` flex-width pin and the `.photos-layout` flex-row shell (an earlier
+   interim AreaShell workaround) are both gone — the shell is now the shared Vue2-structured
+   `.app` CSS Grid (parity photos.scss's own `.app`/`.main` rules under `.photos-root`), which
+   already gives the sidebar its pixel-parity column width and the page its height cap (same as
+   PhotosPeople.vue's own re-shell; see photosLayoutHeightCap.test.ts for why this page no longer
+   needs a local height-capping rule or a mobile-only `gap:0` override — the old max-width:768px
+   media query wrapped nothing but that one now-deleted rule, so the whole query block is deleted
+   outright rather than kept as an empty shell). `.photos-main` survives as pure layout
+   scaffolding — no parity selector by that name (same situation as every other re-shelled Photos
+   page's own copy) — it's just the flex child that now sits inside `<main class="main">`, after
    `<PhotosTopbar>`, instead of being the `<main>` element itself. */
 .photos-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; min-height: 0; }
 
@@ -388,15 +423,15 @@ button.crumb-city:hover { color: var(--accent); }
 .crumb-spacer { flex: 1; }
 .crumb-count { font-size: 12px; color: var(--fg-muted); }
 
-/* Task 1 cleanup: parity does have a same-anchor `.photos-root .empty-state`/-title/-desc
-   (photos.scss:1105-1124), but this page's own values predate the Plan C/D re-shell token
-   migration — they were still on the pre-migration `--fg`/`--fg-muted` app-wide tokens and a
-   stray `padding: 80px 20px`/`max-width: 340px` that don't match parity OR the convention this
-   fleet settled on once re-shelled (identical byte-for-byte in both PhotosAlbums.vue and
-   PhotosPeople.vue: `padding: 60px 20px 20px`, `--text-2`/`--text-1`, no max-width on the desc
-   line — parity's own `font-size: 13px` on `.empty-state-desc` already matches, so nothing
-   local is needed there at all). Aligned to that same cross-page convention here rather than
-   left on stale tokens now that this page is re-shelled too. */
+/* Parity does have a same-anchor `.photos-root .empty-state`/-title/-desc (photos.scss:1105-1124),
+   but this page's own values predated the re-shell's token migration — they were still on the
+   pre-migration `--fg`/`--fg-muted` app-wide tokens and a stray `padding: 80px 20px`/
+   `max-width: 340px` that don't match parity OR the convention this fleet settled on once
+   re-shelled (identical byte-for-byte in both PhotosAlbums.vue and PhotosPeople.vue:
+   `padding: 60px 20px 20px`, `--text-2`/`--text-1`, no max-width on the desc line — parity's own
+   `font-size: 13px` on `.empty-state-desc` already matches, so nothing local is needed there at
+   all). Aligned to that same cross-page convention here rather than left on stale tokens now that
+   this page is re-shelled too. */
 .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 60px 20px 20px; color: var(--text-2); text-align: center; }
 .empty-state-title { font-size: 16px; font-weight: 600; color: var(--text-1); }
 .empty-state-desc { font-size: 13px; }

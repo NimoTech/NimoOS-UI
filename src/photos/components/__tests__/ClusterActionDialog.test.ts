@@ -1,4 +1,4 @@
-// Task 7 (SP7-P5 People): ClusterActionDialog.vue — unlabeled person three-state action dialog.
+// ClusterActionDialog.vue — unlabeled person three-state action dialog.
 // This component only collects input and emits, does not call store/toast (division of labor
 // in component header comment), so we don't mock @nimotech/nimoos-service here, only inject
 // i18n (using real zh_cn entries, core behavior is text interpolation itself).
@@ -426,17 +426,17 @@ describe('ClusterActionDialog.vue — close interaction', () => {
   })
 })
 
-// ── Plan D Task 4 (scoped zeroed out): this file used to have a set of tests for "the hover
+// This file used to have a set of tests for "the hover
 // state's background doesn't get stolen by the base class's rule", reading the component's own
 // <style scoped> source via `?raw` and asserting, using ./cssCascade's small CSS-priority
-// calculator, which background declaration actually wins on hover. This task deleted the
-// component's entire <style scoped> block (the class names are unchanged, but styling authority
+// calculator, which background declaration actually wins on hover. The component's entire
+// <style scoped> block was deleted (the class names are unchanged, but styling authority
 // has moved to the .cad-* parity rules in src/photos/styles/vue2-parity/photos-people.scss — see
 // the component's own script-header comment), so the source read in via `?raw` no longer has a
 // <style> block to extract, and that test group's precondition no longer holds — deleted along
 // with it. All that's pinned down here is one thing: the component's root class name is unaffected.
 //
-// Fix round 1 (final-review Important): the old comment above used to also say "once scoped is
+// The old comment above used to also say "once scoped is
 // entirely zeroed out this can't recur, parity's own internal declaration order is correct as
 // is" — **that sentence was wrong, and has been deleted.** The CSS cascade decides a winner per
 // property, not per rule as a whole: `.cad-btn:hover { background: var(--surface-3); ... }` and
@@ -450,7 +450,7 @@ describe('ClusterActionDialog.vue — close interaction', () => {
 // "every variant's hover rule must re-declare background itself" — the test group below reads the
 // parity file directly and asserts against that requirement rule-by-rule, no longer depending on
 // whether the component's local scoped block has been deleted.
-describe('ClusterActionDialog.vue — Plan D Task 4: the root class names survive the scoped-style removal', () => {
+describe('ClusterActionDialog.vue — the root class names survive the scoped-style removal', () => {
   it('after mounting, [data-test="cad-overlay"] still carries the cad-overlay class (the class-name rework only touched PhotosPersonDetail.vue pd-*, not this component)', async () => {
     const w = mountDialog({ open: true, mode: 'name', person: person(), candidates: [] })
     await w.vm.$nextTick()
@@ -459,7 +459,7 @@ describe('ClusterActionDialog.vue — Plan D Task 4: the root class names surviv
   })
 })
 
-// ── Plan D Task 4, fix round 1 (final-review Important): the delete-confirm button hover
+// ── the delete-confirm button hover
 // regression guard ──────────
 //
 // jsdom neither computes the CSS cascade nor can enter a real hover state, and the real source of
@@ -491,15 +491,15 @@ function backgroundOf(body: string): string | null {
   return m ? m[1].trim() : null
 }
 
-describe('ClusterActionDialog.vue — Plan D Task 4 fix round 1: in parity, a variant button hover background is not stolen by .cad-btn:hover', () => {
-  it('.cad-btn-danger:hover must re-declare background itself (otherwise the base class .cad-btn:hover var(--surface-3) takes that property, regressing the bug fixed in this round)', () => {
+describe('ClusterActionDialog.vue — in parity, a variant button hover background is not stolen by .cad-btn:hover', () => {
+  it('.cad-btn-danger:hover must re-declare background itself (otherwise the base class .cad-btn:hover var(--surface-3) takes that property, regressing the fixed bug)', () => {
     const baseBg = backgroundOf(parityRuleBody('.cad-btn:hover'))
     const dangerHoverBg = backgroundOf(parityRuleBody('.cad-btn-danger:hover'))
     const dangerBaseBg = backgroundOf(parityRuleBody('.cad-btn-danger'))
     expect(baseBg).toBe('var(--surface-3)')
     expect(dangerHoverBg, '.cad-btn-danger:hover has no background declaration — by the CSS cascade the base class .cad-btn:hover background wins on that property').not.toBeNull()
     // The value must match its own resting state (Vue2 uses an inline style, so the background
-    // never actually changes on hover — see the component's own fix round 1 comment); it can't
+    // never actually changes on hover — see the component's own comment about this); it can't
     // just be "non-null, whatever it is".
     expect(dangerHoverBg).toBe(dangerBaseBg)
     expect(dangerHoverBg).not.toBe(baseBg)

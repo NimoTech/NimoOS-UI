@@ -1,5 +1,5 @@
 <!--
-  SP8-P3a Task 4 — 1:1 port from Vue2 src/views/AI/Skills/SkillGroup.vue (64 lines).
+  1:1 port from Vue2 src/views/AI/Skills/SkillGroup.vue (64 lines).
 
   [Deviation 2 (shared constraint §3.2)] Vue2 :43 `SkillIcon` is not ported, uniformly using
   `../../icons/AgentIcon.vue` (the chevDown icon already exists at AgentIcon.vue:19).

@@ -1,4 +1,4 @@
-// SP8-P5d Task 3 —— 1:1 ported from Vue2
+// 1:1 ported from Vue2
 // the Vue 2 panel's `src/views/AI/Knowledge/notesViewHelpers.js` (main@7a6ee6b7, 50 lines).
 //
 // 🔴 K40: `NOTE_TYPES[*].color` changed from original color-literal gradients to

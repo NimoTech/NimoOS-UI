@@ -211,7 +211,7 @@ describe('agentStore (session slice)', () => {
 
   it('toggleTheme: flip and write back to same localStorage key', () => {
     const s = useAgentStore()
-    // SP8-P2a Task 4: deleted line `s.theme = 'light'`. The setup of the original
+    // Deleted line `s.theme = 'light'`. The setup of the original
     // assertion was actually redundant — each test before `beforeEach` does
     // `setActivePinia(createPinia())` rebuilding a fresh store, and aiTheme's
     // initial value is already 'light' (see aiTheme.ts), so this line never
@@ -230,11 +230,11 @@ describe('agentStore (session slice)', () => {
   })
 
   it('initial state (fresh store): busy===false, rightCollapsed defaults to open (false)', () => {
-    // Note: busy can be flipped by setBusy/setStreamingDone starting this task (P1b);
+    // Note: busy can be flipped by setBusy/setStreamingDone;
     // this only asserts a fresh store's initial value, no longer assumes busy "never
     // written". pendingPrompt already removed in Task 11 (from 1b, send() sends
     // directly, no longer needs staging). rightCollapsed assertion changed from true
-    // to false in SP8-P1c2 — in 1a phase right panel not yet implemented so hard-coded
+    // to false — in 1a phase right panel not yet implemented so hard-coded
     // closed (true); this period store state + top-bar toggle landed, reverted to Vue2
     // agentStore.js:37 default (open). See agentStore.p1c2.test.ts.
     const s = useAgentStore()

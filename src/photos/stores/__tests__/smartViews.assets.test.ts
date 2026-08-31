@@ -1,4 +1,4 @@
-// SP15-P2a-T1: the smart view manual asset actions on the store.
+// Tests for the smart view manual asset actions on the store.
 // Two things are deliberately different from Vue 2 and are asserted here:
 //  1) the post-write statistics refetch lives inside each action rather than at
 //     the call sites — Vue 2 shipped #82 precisely because a call site forgot it;

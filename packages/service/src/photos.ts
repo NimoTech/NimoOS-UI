@@ -27,7 +27,7 @@ export function createPhotos(http: AxiosInstance, getToken: () => string | null)
       const res = await http.get('/photos/timeline')
       return body<unknown>(res.data)
     },
-    // Bucketed timeline (SP15-P3). The directory is the cheap half: one row per
+    // Bucketed timeline. The directory is the cheap half: one row per
     // month, so the grid can render structure before any asset arrives. Bare
     // camelCase array from the backend, no envelope.
     async getTimelineBuckets(): Promise<unknown> {
@@ -156,7 +156,7 @@ export function createPhotos(http: AxiosInstance, getToken: () => string | null)
       return `/v1/photos/favorites/export${tokenQ('?')}`
     },
     // ─── Albums ───
-    // SP15-P2c Task 2. Same GET + token shape as exportFavoritesUrl above: the backend serves
+    // Same GET + token shape as exportFavoritesUrl above: the backend serves
     // this as a plain download URL the browser navigates to, and Photos exempts the
     // `/albums/:id/export` suffix from JWT so the query token is the only credential
     // (NimoOS-Photos route/router.go:52, :178). The Vue2 comment claiming this endpoint was
@@ -234,7 +234,7 @@ export function createPhotos(http: AxiosInstance, getToken: () => string | null)
       const res = await http.post(`/photos/persons/${id}/restore`, {})
       return body<unknown>(res.data)
     },
-    // Task 7 (SP7-P5 People, Plan D): the literal counterpart of Vue2's src/service/photos.js:78-79
+    // The literal counterpart of Vue2's src/service/photos.js:78-79
     // endpoints — hidePerson is an immediate hide (non-destructive, no grace period,
     // restorePerson can always undo it); listHiddenPersons fetches the hidden-person list, the
     // backend responds with a bare array (no envelope), same unwrapping as mergeSuggestions().
@@ -415,7 +415,7 @@ export function createPhotos(http: AxiosInstance, getToken: () => string | null)
       const res = await http.post('/photos/smart-views/preview', { condsRaw, description, threshold, includeVideos })
       return body<unknown>(res.data)
     },
-    // ─── Album <-> smart view conversion (SP15-P2b) ───
+    // ─── Album <-> smart view conversion ───
     // Both endpoints convert in place and delete the source object, and both answer
     // with the full new object rather than a change count — the callers push straight
     // into their store and navigate to the new detail route, so a count would be
@@ -432,7 +432,7 @@ export function createPhotos(http: AxiosInstance, getToken: () => string | null)
       const res = await http.post('/photos/albums/from-smartview', { smartViewId })
       return body<unknown>(res.data)
     },
-    // ─── Smart view manual asset actions (SP15-P2a) ───
+    // ─── Smart view manual asset actions ───
     // Re-verified against NimoOS-Photos/route/v1/smartviews.go: the shared request
     // body is svAssetIDsReq {assetIds}, and an empty array is rejected with 400, so
     // callers must not send one. The three write endpoints return only the counts of
@@ -545,10 +545,10 @@ export function createPhotos(http: AxiosInstance, getToken: () => string | null)
       const res = await http.post('/photos/trash/empty', {})
       return body<unknown>(res.data)
     },
-    // ─── Video hover sprite (via shared axios, 401 goes through singleflight —— SP7 decision: fold this domain's one remaining bare fetch into the shared channel) ───
+    // ─── Video hover sprite (via shared axios, 401 goes through singleflight —— fold this domain's one remaining bare fetch into the shared channel) ───
     // The request URL must exactly match the overlay's <img src="spriteUrl(id)"> (including the same tokenQ fragment),
     // otherwise the browser cache stores each distinct URL separately and the sprite gets downloaded twice (the
-    // double-download fixed after SP7-P1 review found it). withVersion() passes a URL that already has the /v1 prefix through unchanged, hence the hand-written /v1 prefix here.
+    // double-download fixed after an earlier review found it). withVersion() passes a URL that already has the /v1 prefix through unchanged, hence the hand-written /v1 prefix here.
     async spriteMeta(id: string | number): Promise<{ frames: number; durationMs: number; frameW: number; frameH: number }> {
       const res = await http.get(`/v1/photos/assets/${id}/sprite${tokenQ('?')}`, { responseType: 'blob' })
       const h = res.headers as Record<string, string | undefined>

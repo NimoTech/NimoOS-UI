@@ -1,4 +1,4 @@
-// SP15-P1-T3: Moments store.
+// Moments store.
 // Ported from the Vue 2 panel's 899af59b:src/views/Photos/PhotosSmartViewsView.vue:553-624
 // (fetchMoments/persistMomentsOrder/onMomentDeleted/onMomentAssetCountChanged) and
 // PhotosMomentDetail.vue:307-338 (loadFeatured/loadAll).
@@ -11,8 +11,7 @@
 //     hand via a `$emit('asset-count-changed')`. Here it is folded into one store:
 //     the detail page finishes a write by calling applyAssetCount, and the list
 //     item is the very same object — there is nothing left to synchronise.
-//  2) fetchMoments carries an epoch staleness guard (see plan Global Constraints
-//     §6). Vue 2 did not need one — its fetchMoments only ran once on mount, so
+//  2) fetchMoments carries an epoch staleness guard. Vue 2 did not need one — its fetchMoments only ran once on mount, so
 //     two calls never overlapped. Here the detail page's return-to-list path
 //     refetches too, so two fetchMoments calls can interleave, and a late
 //     response would otherwise clobber a newer one.
@@ -31,7 +30,7 @@
 //     which wraps these calls in its own try/catch (later tasks) — but is
 //     logged so a later task doesn't assume Vue 2's swallow-and-toast
 //     semantics still hold.
-//  5) (fix round 1) listError + an awaited inFlight promise. Vue 2 needed
+//  5) listError + an awaited inFlight promise. Vue 2 needed
 //     neither: its list lived in the view that owned the only fetch, and its
 //     detail page could not be reached without a moment object in hand, so
 //     "the list failed to load" was never a state anything downstream had to
@@ -101,7 +100,7 @@ export const usePhotosMoments = defineStore('photosMoments', () => {
   /** True when the most recent fetchMoments failed. Consumers need this to tell
    *  "the library is empty / this id is gone" apart from "we could not reach the
    *  server" — without it the detail page told the user a moment had been deleted
-   *  every time the list request blipped (fix round 1 · finding 4). Cleared by the
+   *  every time the list request blipped. Cleared by the
    *  next successful load. */
   const listError = ref(false)
   // Staleness guard: bumped on every fetchMoments call; only the response
@@ -109,7 +108,7 @@ export const usePhotosMoments = defineStore('photosMoments', () => {
   // listError, which is just as much shared state.
   let fetchEpoch = 0
   /** The fetch currently in flight, so ensureLoaded can await it rather than
-   *  returning while the list is still on the wire (fix round 1 · finding 7). */
+   *  returning while the list is still on the wire. */
   let inFlight: Promise<void> | null = null
 
   const sizeMap = computed(() =>
@@ -166,7 +165,7 @@ export const usePhotosMoments = defineStore('photosMoments', () => {
     // Await the in-flight fetch rather than returning early. The old
     // `if (listLoaded || listLoading) return` handed the caller a resolved promise
     // while the list was still on the wire: the caller then saw byId() === undefined,
-    // gave up, and nothing ever watched listLoaded to try again (fix round 1 · finding 7).
+    // gave up, and nothing ever watched listLoaded to try again.
     if (inFlight) {
       await inFlight
       return

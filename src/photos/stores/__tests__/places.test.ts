@@ -26,9 +26,11 @@ vi.mock('@nimotech/nimoos-service', () => ({
   },
 }))
 
-/* 真机抓下来的裸响应形状(Photos v1 无信封,listPlaces 是对象包裹体)。
-   ⚠ 手编 fixture 复发坑:这个形状照 NimoOS-Photos/service/places_types.go:36-40
-   的 PlacesResponse 逐字段核对过 —— key 是数字、thumbs 可能是 null。 */
+/* The raw response shape as captured from a real device (Photos v1 has no envelope,
+   listPlaces is an object wrapper). Warning: a recurring pitfall with hand-written
+   fixtures -- this shape has been checked field-by-field against
+   NimoOS-Photos/service/places_types.go:36-40's PlacesResponse -- key is a number,
+   thumbs can be null. */
 const RESP = {
   regions: [{ id: 'asia', label: 'Asia', count: 2 }],
   places: [
@@ -45,7 +47,7 @@ beforeEach(() => {
 })
 
 describe('fetchPlaces', () => {
-  it('解开对象包裹体、归一 id、兜底 null slice、成功才置 placesLoaded', async () => {
+  it('unwraps the object wrapper, normalizes ids, defaults null slices, and only sets placesLoaded on success', async () => {
     listPlaces.mockResolvedValue(RESP)
     const s = usePhotosPlaces()
     expect(s.placesLoaded).toBe(false)
@@ -57,20 +59,20 @@ describe('fetchPlaces', () => {
     expect(s.placesLoaded).toBe(true)
   })
 
-  it('失败时保留上一次数据、placesLoaded 不倒退、不抛', async () => {
+  it('keeps the previous data on failure, does not regress placesLoaded, and does not throw', async () => {
     listPlaces.mockResolvedValueOnce(RESP)
     const s = usePhotosPlaces()
     await s.fetchPlaces()
     listPlaces.mockRejectedValueOnce(new Error('boom'))
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
     await expect(s.fetchPlaces()).resolves.toBeUndefined()
-    expect(s.places).toHaveLength(2)          // 上一次数据还在
+    expect(s.places).toHaveLength(2)          // previous data is still there
     expect(s.placesLoaded).toBe(true)
     expect(spy).toHaveBeenCalled()
     spy.mockRestore()
   })
 
-  it('首次就失败时 placesLoaded 留 false(可重试)', async () => {
+  it('leaves placesLoaded false when the first fetch fails (retryable)', async () => {
     listPlaces.mockRejectedValue(new Error('boom'))
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const s = usePhotosPlaces()
@@ -79,14 +81,14 @@ describe('fetchPlaces', () => {
     spy.mockRestore()
   })
 
-  it('不自动选中第一个地点(那是视图层职责)', async () => {
+  it('does not auto-select the first place (that is the view layer\'s responsibility)', async () => {
     listPlaces.mockResolvedValue(RESP)
     const s = usePhotosPlaces()
     await s.fetchPlaces()
     expect(s.detail).toBeNull()
   })
 
-  it('regions/stats 字段缺失时兜底为 [] / 全零统计', async () => {
+  it('defaults regions/stats to [] / all-zero stats when the fields are missing', async () => {
     listPlaces.mockResolvedValue({ places: [] })
     const s = usePhotosPlaces()
     await s.fetchPlaces()
@@ -95,7 +97,7 @@ describe('fetchPlaces', () => {
     expect(s.placesLoaded).toBe(true)
   })
 
-  it('loading 在请求期间为 true,结束后回落 false', async () => {
+  it('loading is true during the request and falls back to false afterward', async () => {
     let resolveFn: (v: unknown) => void = () => {}
     listPlaces.mockReturnValueOnce(new Promise((r) => { resolveFn = r }))
     const s = usePhotosPlaces()
@@ -107,8 +109,8 @@ describe('fetchPlaces', () => {
   })
 })
 
-describe('loadDetail seq 竞态守卫(偏离登记 8)', () => {
-  it('后发先回时,先发的旧响应不得覆盖新详情', async () => {
+describe('loadDetail seq race guard', () => {
+  it('the earlier response must not overwrite the newer detail when the later request resolves first', async () => {
     listPlaces.mockResolvedValue(RESP)
     const s = usePhotosPlaces()
     await s.fetchPlaces()
@@ -121,17 +123,17 @@ describe('loadDetail seq 竞态守卫(偏离登记 8)', () => {
 
     const pA = s.loadDetail('7')
     const pB = s.loadDetail('8')
-    // B(后发)先回
+    // B (issued second) resolves first
     resolveB({ key: 8, city: 'Kyoto', country: 'Japan', count: 5, trips: 1, spots: [], insights: [], visits: [], recent: [] })
     await pB
     expect(s.detail?.city).toBe('Kyoto')
-    // A(先发)后回 —— 必须被丢弃
+    // A (issued first) resolves after — must be discarded
     resolveA({ key: 7, city: 'Hangzhou', country: 'China', count: 40, trips: 2, spots: [], insights: [], visits: [], recent: [] })
     await pA
     expect(s.detail?.city).toBe('Kyoto')
   })
 
-  it('过期请求的 catch 也不得把新详情打成 null', async () => {
+  it('a stale request\'s catch must not null out the newer detail', async () => {
     const s = usePhotosPlaces()
     let rejectA: (e: unknown) => void = () => {}
     getPlace
@@ -143,18 +145,18 @@ describe('loadDetail seq 竞态守卫(偏离登记 8)', () => {
     expect(s.detail?.city).toBe('Kyoto')
     rejectA(new Error('boom'))
     await pA
-    expect(s.detail?.city).toBe('Kyoto')      // 没被过期 catch 清掉
+    expect(s.detail?.city).toBe('Kyoto')      // not cleared by the stale catch
     spy.mockRestore()
   })
 
-  it('传 null 立即清空详情且不发请求', async () => {
+  it('passing null clears the detail immediately without issuing a request', async () => {
     const s = usePhotosPlaces()
     await s.loadDetail(null)
     expect(s.detail).toBeNull()
     expect(getPlace).not.toHaveBeenCalled()
   })
 
-  it('已加载列表时用后端原始数字 key 调接口(不是归一后的字符串 id)', async () => {
+  it('calls the API with the backend\'s raw numeric key when the list is already loaded (not the normalized string id)', async () => {
     listPlaces.mockResolvedValue(RESP)
     getPlace.mockResolvedValue({ key: 7, city: 'Hangzhou', country: 'China', count: 40, trips: 2, spots: [], insights: [], visits: [], recent: [] })
     const s = usePhotosPlaces()
@@ -163,14 +165,14 @@ describe('loadDetail seq 竞态守卫(偏离登记 8)', () => {
     expect(getPlace).toHaveBeenCalledWith(7)
   })
 
-  it('列表未加载(深链)时回落用传入的 id', async () => {
+  it('falls back to the passed-in id when the list is not loaded (deep link)', async () => {
     getPlace.mockResolvedValue({ key: 7, city: 'X', country: 'Y', count: 1, trips: 1, spots: [], insights: [], visits: [], recent: [] })
     const s = usePhotosPlaces()
     await s.loadDetail('7')
     expect(getPlace).toHaveBeenCalledWith('7')
   })
 
-  it('正常成功:响应被归一成 PlaceDetail,缺字段的 home/coverAssetId/thumbs 兜底', async () => {
+  it('normal success: the response is normalized into PlaceDetail with home/coverAssetId/thumbs defaulted when missing', async () => {
     getPlace.mockResolvedValue({ key: 7, city: 'Hangzhou', country: 'China', count: 40, trips: 2, spots: [], insights: [], visits: [], recent: [] })
     const s = usePhotosPlaces()
     await s.loadDetail('7')
@@ -180,7 +182,7 @@ describe('loadDetail seq 竞态守卫(偏离登记 8)', () => {
     })
   })
 
-  it('detailLoading 在请求期间为 true,结束后回落 false', async () => {
+  it('detailLoading is true during the request and falls back to false afterward', async () => {
     let resolveFn: (v: unknown) => void = () => {}
     getPlace.mockReturnValueOnce(new Promise((r) => { resolveFn = r }))
     const s = usePhotosPlaces()
@@ -193,7 +195,7 @@ describe('loadDetail seq 竞态守卫(偏离登记 8)', () => {
 })
 
 describe('clearDetail', () => {
-  it('立即清空详情', async () => {
+  it('clears the detail immediately', async () => {
     getPlace.mockResolvedValue({ key: 7, city: 'X', country: 'Y', count: 1, trips: 1, spots: [], insights: [], visits: [], recent: [] })
     const s = usePhotosPlaces()
     await s.loadDetail('7')
@@ -202,7 +204,7 @@ describe('clearDetail', () => {
     expect(s.detail).toBeNull()
   })
 
-  it('作废在途的 loadDetail:clearDetail 之后旧响应回来也不得把 detail 写回非 null', async () => {
+  it('invalidates an in-flight loadDetail: a stale response arriving after clearDetail must not write detail back to a non-null value', async () => {
     let resolveFn: (v: unknown) => void = () => {}
     getPlace.mockReturnValueOnce(new Promise((r) => { resolveFn = r }))
     const s = usePhotosPlaces()
@@ -213,10 +215,12 @@ describe('clearDetail', () => {
     expect(s.detail).toBeNull()
   })
 
-  // 评审 I1(真 bug 回归):loadDetail(null) 只 seq++ + 清 detail,若不无条件复位
-  // detailLoading,在途请求的 finally 里 `mine === seq` 会因 seq 已推进而恒假,永远
-  // 轮不到它来复位——detailLoading 从此卡死 true,P6b 表现为清空详情后指示器永久转圈。
-  it('I1:loadDetail 在途时调 loadDetail(null),detailLoading 必须立即复位,且不被过期响应带歪', async () => {
+  // Regression case I1 (real bug): loadDetail(null) only does seq++ + clears detail; if it
+  // doesn't unconditionally reset detailLoading, the in-flight request's `if (mine === seq)`
+  // check in its finally block will always be false once seq has advanced, so it never gets a
+  // chance to reset it — detailLoading stays stuck at true forever, which shows up as the
+  // loading indicator spinning forever after the detail has been cleared.
+  it('I1: calling loadDetail(null) while loadDetail is in flight resets detailLoading immediately and is not skewed by the stale response', async () => {
     let resolveFn: (v: unknown) => void = () => {}
     getPlace.mockReturnValueOnce(new Promise((r) => { resolveFn = r }))
     const s = usePhotosPlaces()
@@ -224,17 +228,20 @@ describe('clearDetail', () => {
     expect(s.detailLoading).toBe(true)
     await s.loadDetail(null)
     expect(s.detailLoading).toBe(false)
-    // 过期响应回来:既不该复活 detail,也不该把已经复位的 detailLoading 又拨回去
-    // (它的 finally 走的是 `if (mine === seq)`,seq 已推进,不会命中,维持现状)。
+    // The stale response comes back: it should neither revive detail nor flip the
+    // already-reset detailLoading back on (its finally checks `if (mine === seq)`, which
+    // seq has already advanced past, so it doesn't match and the state stays as-is).
     resolveFn({ key: 7, city: 'X', country: 'Y', count: 1, trips: 1, spots: [], insights: [], visits: [], recent: [] })
     await p
     expect(s.detailLoading).toBe(false)
     expect(s.detail).toBeNull()
   })
 
-  // 同上,换成中断入口 clearDetail() —— 两个中断入口是两条独立的生产码路径,分别测,
-  // 不合成一条(避免重演"多处一起删遮蔽盲区"的老问题)。
-  it('I1:loadDetail 在途时调 clearDetail(),detailLoading 必须立即复位,且不被过期响应带歪', async () => {
+  // Same as above, but through the other cancellation entry point, clearDetail() — the two
+  // cancellation entry points are two separate production code paths, tested separately rather
+  // than merged into one (to avoid repeating the old problem where removing several things
+  // together masked a blind spot).
+  it('I1: calling clearDetail() while loadDetail is in flight resets detailLoading immediately and is not skewed by the stale response', async () => {
     let resolveFn: (v: unknown) => void = () => {}
     getPlace.mockReturnValueOnce(new Promise((r) => { resolveFn = r }))
     const s = usePhotosPlaces()
@@ -249,8 +256,8 @@ describe('clearDetail', () => {
   })
 })
 
-describe('封面与 spot 改名', () => {
-  it('setPlaceCover 成功后同时回写 detail 与 places 两处', async () => {
+describe('cover and spot renaming', () => {
+  it('setPlaceCover writes back to both detail and places on success', async () => {
     listPlaces.mockResolvedValue(RESP)
     getPlace.mockResolvedValue({ key: 7, city: 'Hangzhou', country: 'China', count: 40, trips: 2, coverAssetId: '', spots: [], insights: [], visits: [], recent: [] })
     setPlaceCoverApi.mockResolvedValue(undefined)
@@ -262,7 +269,7 @@ describe('封面与 spot 改名', () => {
     expect(s.places.find(p => p.id === '7')?.coverAssetId).toBe('asset-9')
   })
 
-  it('resetPlaceCover 把两处都写回空串', async () => {
+  it('resetPlaceCover writes an empty string back to both places', async () => {
     listPlaces.mockResolvedValue(RESP)
     getPlace.mockResolvedValue({ key: 7, city: 'Hangzhou', country: 'China', count: 40, trips: 2, coverAssetId: 'old', spots: [], insights: [], visits: [], recent: [] })
     resetPlaceCoverApi.mockResolvedValue(undefined)
@@ -274,17 +281,18 @@ describe('封面与 spot 改名', () => {
     expect(s.places.find(p => p.id === '7')?.coverAssetId).toBe('')
   })
 
-  it('三个提交路径各自 in-flight 短路:重入时第二次调用不打后端', async () => {
-    setPlaceCoverApi.mockReturnValue(new Promise(() => {}))   // 永不 settle
+  it('each of the three submit paths short-circuits its own in-flight call: the second reentrant call does not hit the backend', async () => {
+    setPlaceCoverApi.mockReturnValue(new Promise(() => {}))   // never settles
     const s = usePhotosPlaces()
     void s.setPlaceCover('7', 'a')
     void s.setPlaceCover('7', 'b')
     expect(setPlaceCoverApi).toHaveBeenCalledTimes(1)
   })
 
-  // 评审指正:标题原写"与 setPlaceCover 共享 coverBusy",但断言内容只验了自重入,
-  // 没有测到"共享"本身——已改成准确的标题,"共享"的证据挪到下面两条 I2 用例。
-  it('resetPlaceCover 自重入短路', async () => {
+  // Review correction: the title used to read "shares coverBusy with setPlaceCover", but the
+  // assertion only verified self-reentrancy, not the "sharing" itself — the title has been
+  // changed to accurately reflect that, and the evidence for "sharing" moved to the two I2 cases below.
+  it('resetPlaceCover short-circuits its own reentrant call', async () => {
     resetPlaceCoverApi.mockReturnValue(new Promise(() => {}))
     const s = usePhotosPlaces()
     void s.resetPlaceCover('7')
@@ -292,7 +300,7 @@ describe('封面与 spot 改名', () => {
     expect(resetPlaceCoverApi).toHaveBeenCalledTimes(1)
   })
 
-  it('setSpotName 重入短路(spotBusy 独立)', async () => {
+  it('setSpotName short-circuits reentrant calls (spotBusy is independent)', async () => {
     setSpotNameApi.mockReturnValue(new Promise(() => {}))
     const s = usePhotosPlaces()
     void s.setSpotName('7', 's1', 'a')
@@ -300,27 +308,29 @@ describe('封面与 spot 改名', () => {
     expect(setSpotNameApi).toHaveBeenCalledTimes(1)
   })
 
-  // 评审 I2(覆盖缺口):coverBusy 在 setPlaceCover/resetPlaceCover 之间是**共享**的
-  // ——这是刻意设计(同一份"封面"资源上的互斥写),但此前完全没有测试证明"共享"本身,
-  // 只测了各自的自重入。若日后被拆成两把独立锁,以下两条必须变红。双向各一条。
-  it('I2:setPlaceCover 在途时 resetPlaceCover 被 coverBusy 挡下,不打后端', async () => {
-    setPlaceCoverApi.mockReturnValue(new Promise(() => {}))   // 永不 settle,占住 coverBusy
+  // Coverage gap I2: coverBusy is **shared** between setPlaceCover/resetPlaceCover
+  // — this is a deliberate design (mutually exclusive writes on the same "cover" resource), but
+  // until now there was no test proving the "sharing" itself, only each one's own self-reentrancy.
+  // If this is ever split into two independent locks, the following two cases must fail. One case
+  // for each direction.
+  it('I2: resetPlaceCover is blocked by coverBusy while setPlaceCover is in flight and does not hit the backend', async () => {
+    setPlaceCoverApi.mockReturnValue(new Promise(() => {}))   // never settles, holds coverBusy
     const s = usePhotosPlaces()
     void s.setPlaceCover('7', 'a')
     void s.resetPlaceCover('7')
     expect(resetPlaceCoverApi).not.toHaveBeenCalled()
   })
 
-  it('I2:resetPlaceCover 在途时 setPlaceCover 被 coverBusy 挡下,不打后端(反向)', async () => {
-    resetPlaceCoverApi.mockReturnValue(new Promise(() => {}))   // 永不 settle,占住 coverBusy
+  it('I2: setPlaceCover is blocked by coverBusy while resetPlaceCover is in flight and does not hit the backend (reverse direction)', async () => {
+    resetPlaceCoverApi.mockReturnValue(new Promise(() => {}))   // never settles, holds coverBusy
     const s = usePhotosPlaces()
     void s.resetPlaceCover('7')
     void s.setPlaceCover('7', 'a')
     expect(setPlaceCoverApi).not.toHaveBeenCalled()
   })
 
-  it('coverBusy 与 spotBusy 互不阻塞:setPlaceCover 在途时 setSpotName 仍能发出请求', async () => {
-    setPlaceCoverApi.mockReturnValue(new Promise(() => {}))   // 永不 settle,占住 coverBusy
+  it('coverBusy and spotBusy do not block each other: setSpotName can still fire while setPlaceCover is in flight', async () => {
+    setPlaceCoverApi.mockReturnValue(new Promise(() => {}))   // never settles, holds coverBusy
     setSpotNameApi.mockResolvedValue(undefined)
     const s = usePhotosPlaces()
     void s.setPlaceCover('7', 'a')
@@ -328,7 +338,7 @@ describe('封面与 spot 改名', () => {
     expect(setSpotNameApi).toHaveBeenCalledTimes(1)
   })
 
-  it('失败一律 rethrow(视图层负责 toast):setPlaceCover', async () => {
+  it('always rethrows on failure (the view layer owns the toast): setPlaceCover', async () => {
     setPlaceCoverApi.mockRejectedValue(new Error('boom'))
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const s = usePhotosPlaces()
@@ -336,7 +346,7 @@ describe('封面与 spot 改名', () => {
     spy.mockRestore()
   })
 
-  it('失败一律 rethrow(视图层负责 toast):resetPlaceCover', async () => {
+  it('always rethrows on failure (the view layer owns the toast): resetPlaceCover', async () => {
     resetPlaceCoverApi.mockRejectedValue(new Error('boom'))
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const s = usePhotosPlaces()
@@ -344,7 +354,7 @@ describe('封面与 spot 改名', () => {
     spy.mockRestore()
   })
 
-  it('失败一律 rethrow(视图层负责 toast):setSpotName', async () => {
+  it('always rethrows on failure (the view layer owns the toast): setSpotName', async () => {
     setSpotNameApi.mockRejectedValue(new Error('boom'))
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const s = usePhotosPlaces()
@@ -352,7 +362,7 @@ describe('封面与 spot 改名', () => {
     spy.mockRestore()
   })
 
-  it('setSpotName 成功后只改中对象的 name,不重拉详情', async () => {
+  it('setSpotName only updates the matched object\'s name on success, without refetching the detail', async () => {
     getPlace.mockResolvedValue({
       key: 7, city: 'Hangzhou', country: 'China', count: 40, trips: 1,
       spots: [{ key: 's1', name: '老名', lon: 1, lat: 2, count: 3, thumb: 't' }],
@@ -367,7 +377,7 @@ describe('封面与 spot 改名', () => {
     expect(getPlace).not.toHaveBeenCalled()
   })
 
-  it('setSpotName 只改中命中的 spot,其余不动', async () => {
+  it('setSpotName only updates the matched spot, leaving the rest untouched', async () => {
     getPlace.mockResolvedValue({
       key: 7, city: 'Hangzhou', country: 'China', count: 40, trips: 1,
       spots: [
@@ -386,7 +396,7 @@ describe('封面与 spot 改名', () => {
     ])
   })
 
-  it('detail 为 null 时 setPlaceCover/resetPlaceCover/setSpotName 只回写 places、不炸', async () => {
+  it('setPlaceCover/resetPlaceCover/setSpotName only write back to places and do not crash when detail is null', async () => {
     listPlaces.mockResolvedValue(RESP)
     setPlaceCoverApi.mockResolvedValue(undefined)
     const s = usePhotosPlaces()
@@ -397,8 +407,8 @@ describe('封面与 spot 改名', () => {
   })
 })
 
-describe('resetSpotName(D8)', () => {
-  it('用后端原始数字 key 调用 service.photos.resetSpotName', async () => {
+describe('resetSpotName', () => {
+  it('calls service.photos.resetSpotName with the backend\'s raw numeric key', async () => {
     listPlaces.mockResolvedValue(RESP)
     getPlace.mockResolvedValue({ key: 7, city: 'Hangzhou', country: 'China', count: 40, trips: 2, spots: [], insights: [], visits: [], recent: [] })
     resetSpotNameApi.mockResolvedValue(undefined)
@@ -408,7 +418,7 @@ describe('resetSpotName(D8)', () => {
     expect(resetSpotNameApi).toHaveBeenCalledWith(7, 'spot-1')
   })
 
-  it('成功后重拉详情(后端自动名前端算不出),detail.spots 命中项拿到新名字', async () => {
+  it('refetches the detail on success (the backend-assigned name can\'t be computed on the frontend), and the matched spot in detail.spots gets the new name', async () => {
     getPlace
       .mockResolvedValueOnce({
         key: 7, city: 'Hangzhou', country: 'China', count: 40, trips: 1,
@@ -429,21 +439,21 @@ describe('resetSpotName(D8)', () => {
     expect(s.detail?.spots[0].name).toBe('默认名')
   })
 
-  it('与 setSpotName 共用 spotBusy:setSpotName 在途时调 resetSpotName 直接返回,resetSpotName 接口零调用', async () => {
-    setSpotNameApi.mockReturnValue(new Promise(() => {})) // 永不 settle
+  it('shares spotBusy with setSpotName: calling resetSpotName while setSpotName is in flight returns immediately with zero calls to the resetSpotName API', async () => {
+    setSpotNameApi.mockReturnValue(new Promise(() => {})) // never settles
     const s = usePhotosPlaces()
     void s.setSpotName('7', 'spot-1', 'x')
     await s.resetSpotName('7', 'spot-1')
     expect(resetSpotNameApi).not.toHaveBeenCalled()
   })
 
-  it('失败:console.error 被调、异常向上抛、spotBusy 复位为 false', async () => {
+  it('failure: console.error is called, the error is rethrown, and spotBusy resets to false', async () => {
     resetSpotNameApi.mockRejectedValue(new Error('boom'))
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const s = usePhotosPlaces()
     await expect(s.resetSpotName('7', 'spot-1')).rejects.toThrow('boom')
     expect(spy).toHaveBeenCalled()
-    // spotBusy 复位:紧接着的 setSpotName 应该能正常发起(不被卡死锁住)
+    // spotBusy reset: the immediately following setSpotName should be able to fire normally (not stuck locked)
     setSpotNameApi.mockResolvedValue(undefined)
     await s.setSpotName('7', 'spot-1', 'y')
     expect(setSpotNameApi).toHaveBeenCalledTimes(1)
@@ -452,34 +462,34 @@ describe('resetSpotName(D8)', () => {
 })
 
 describe('createPlaceAlbum', () => {
-  it('不传 from/to 时补空串(照 Vue2 :738-740)', async () => {
+  it('defaults from/to to empty strings when not passed (matches Vue2 :738-740)', async () => {
     createPlaceAlbumApi.mockResolvedValue({ albumId: 1, name: '杭州', count: 10 })
     const s = usePhotosPlaces()
     await s.createPlaceAlbum('7', { name: '杭州' })
     expect(createPlaceAlbumApi).toHaveBeenCalledWith('7', { name: '杭州', from: '', to: '' })
   })
 
-  it('返回归一:albumId/count 归一成 string/number', async () => {
+  it('return normalization: albumId/count are normalized to string/number', async () => {
     createPlaceAlbumApi.mockResolvedValue({ albumId: 12, name: '杭州', count: '30' })
     const s = usePhotosPlaces()
     const r = await s.createPlaceAlbum('7', { name: '杭州', from: '', to: '' })
     expect(r).toEqual({ albumId: '12', name: '杭州', count: 30 })
   })
 
-  it('重入:第一次在途时第二次被 reject 且 message 为 albumBusy,接口只调一次', async () => {
-    createPlaceAlbumApi.mockReturnValue(new Promise(() => {})) // 永不 settle
+  it('reentrancy: the second call is rejected with message albumBusy while the first is in flight, and the API is called only once', async () => {
+    createPlaceAlbumApi.mockReturnValue(new Promise(() => {})) // never settles
     const s = usePhotosPlaces()
     void s.createPlaceAlbum('7', { name: 'a' })
     await expect(s.createPlaceAlbum('7', { name: 'b' })).rejects.toThrow('albumBusy')
     expect(createPlaceAlbumApi).toHaveBeenCalledTimes(1)
   })
 
-  it('失败 rethrow,albumBusy 复位', async () => {
+  it('rethrows on failure and resets albumBusy', async () => {
     createPlaceAlbumApi.mockRejectedValueOnce(new Error('boom'))
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const s = usePhotosPlaces()
     await expect(s.createPlaceAlbum('7', { name: 'a' })).rejects.toThrow('boom')
-    // albumBusy 复位:紧接着的调用应该能正常发起
+    // albumBusy reset: the immediately following call should be able to fire normally
     createPlaceAlbumApi.mockResolvedValueOnce({ albumId: 1, name: 'a', count: 0 })
     await s.createPlaceAlbum('7', { name: 'a' })
     expect(createPlaceAlbumApi).toHaveBeenCalledTimes(2)
@@ -488,7 +498,7 @@ describe('createPlaceAlbum', () => {
 })
 
 describe('fetchCoverCandidates', () => {
-  it('成功时归一响应字段', async () => {
+  it('normalizes the response fields on success', async () => {
     placeCoverCandidates.mockResolvedValue({
       tabs: [{ id: 'recent', label: 'Recent', icon: 'clock', count: 3 }],
       items: ['a1', 'a2'],
@@ -507,7 +517,7 @@ describe('fetchCoverCandidates', () => {
     })
   })
 
-  it('失败时置成空结构(弹层内一次性查询,与主数据的「失败保留」口径不同)', async () => {
+  it('resets to an empty structure on failure (a one-off query inside the popover, unlike the main data\'s keep-on-failure semantics)', async () => {
     placeCoverCandidates.mockRejectedValue(new Error('boom'))
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const s = usePhotosPlaces()
@@ -516,7 +526,7 @@ describe('fetchCoverCandidates', () => {
     spy.mockRestore()
   })
 
-  it('seq 守卫:连发两次,后发先回时最终结果是后发的(第二次)', async () => {
+  it('seq guard: firing twice back-to-back, the final result is the later one when it resolves first', async () => {
     let resolveA: (v: unknown) => void = () => {}
     let resolveB: (v: unknown) => void = () => {}
     placeCoverCandidates
@@ -525,17 +535,17 @@ describe('fetchCoverCandidates', () => {
     const s = usePhotosPlaces()
     const pA = s.fetchCoverCandidates('7', { tab: 'recent' })
     const pB = s.fetchCoverCandidates('7', { tab: 'favorites' })
-    // B(后发)先回
+    // B (issued second) resolves first
     resolveB({ tabs: [], items: ['b1'], page: 0, totalPages: 1, total: 1 })
     await pB
     expect(s.coverCandidates.items).toEqual(['b1'])
-    // A(先发)后回 —— 必须被丢弃,不得覆盖 B 的结果
+    // A (issued first) resolves after — must be discarded, must not overwrite B's result
     resolveA({ tabs: [], items: ['a1'], page: 0, totalPages: 1, total: 1 })
     await pA
     expect(s.coverCandidates.items).toEqual(['b1'])
   })
 
-  it('seq 守卫的失败路径:过期请求的 catch 不得清空新结果', async () => {
+  it('seq guard failure path: a stale request\'s catch must not clear the newer result', async () => {
     let rejectA: (e: unknown) => void = () => {}
     placeCoverCandidates
       .mockReturnValueOnce(new Promise((_, rj) => { rejectA = rj }))
@@ -547,13 +557,13 @@ describe('fetchCoverCandidates', () => {
     expect(s.coverCandidates.items).toEqual(['b1'])
     rejectA(new Error('boom'))
     await pA
-    expect(s.coverCandidates.items).toEqual(['b1']) // 没被过期 catch 清空
+    expect(s.coverCandidates.items).toEqual(['b1']) // not cleared by the stale catch
     spy.mockRestore()
   })
 })
 
-describe('localStorage 持久化', () => {
-  it('mapTheme 白名单外的值回落 default,自定义色非 #RRGGBB 回落默认', () => {
+describe('localStorage persistence', () => {
+  it('mapTheme falls back to default outside the whitelist, and a custom color not in #RRGGBB format falls back to default', () => {
     localStorage.setItem('nimo_places_map_theme', JSON.stringify({ mapTheme: 'rainbow', customDotColor: 'red', customCityColor: '#ABCDEF' }))
     const s = usePhotosPlaces()
     expect(s.themePrefs.mapTheme).toBe('default')
@@ -561,7 +571,7 @@ describe('localStorage 持久化', () => {
     expect(s.themePrefs.customCityColor).toBe('#ABCDEF')
   })
 
-  it('坏 JSON 不抛,回落全默认', () => {
+  it('does not throw on bad JSON and falls back to all defaults', () => {
     localStorage.setItem('nimo_places_map_theme', '{not json')
     const s = usePhotosPlaces()
     expect(s.themePrefs.mapTheme).toBe('default')
@@ -573,39 +583,40 @@ describe('localStorage 持久化', () => {
   // is NOT migrated — a stored blob shaped like the pre-rename field just doesn't have the new
   // field, so it falls back to the default like any other missing field. This proves the same
   // no-migration behavior here rather than assuming it.
-  it('旧字段名 customGridColor 的存量值不迁移,新字段 customCityColor 直接回落默认(Vue2 同款不迁移行为)', () => {
+  it('the legacy customGridColor field\'s stored value is not migrated; the new customCityColor field falls straight back to default (same no-migration behavior as Vue2)', () => {
     localStorage.setItem('nimo_places_map_theme', JSON.stringify({ mapTheme: 'ocean', customDotColor: '#111111', customGridColor: '#ABCDEF' }))
     const s = usePhotosPlaces()
-    expect(s.themePrefs.mapTheme).toBe('ocean') // 未变的字段照常读入
-    expect(s.themePrefs.customDotColor).toBe('#111111') // 未变的字段照常读入
-    expect(s.themePrefs.customCityColor).toBe('#9C8EFF') // 旧键名对新字段是"没写过",回落默认
-    expect((s.themePrefs as unknown as Record<string, unknown>).customGridColor).toBeUndefined() // 旧字段名不会被保留在结果里
+    expect(s.themePrefs.mapTheme).toBe('ocean') // unchanged field reads in as usual
+    expect(s.themePrefs.customDotColor).toBe('#111111') // unchanged field reads in as usual
+    expect(s.themePrefs.customCityColor).toBe('#9C8EFF') // the old key name is "never written" for the new field, so it falls back to default
+    expect((s.themePrefs as unknown as Record<string, unknown>).customGridColor).toBeUndefined() // the old field name is not retained in the result
   })
 
-  it('没有保存过任何值时用默认值', () => {
+  it('uses the default values when nothing has ever been saved', () => {
     const s = usePhotosPlaces()
     expect(s.themePrefs).toEqual({ mapTheme: 'default', customDotColor: '#6E5BFF', customCityColor: '#9C8EFF' })
   })
 
-  // Task 5 (Plan E #106 perf architecture port, 2026-08-15): 落盘现在 250ms 防抖(见
-  // src/photos/stores/places.ts 的 persistTheme() 注释,ported from Vue2 PR #106's own
-  // perf sub-commit)——in-memory 的 `themePrefs` 仍是同步更新的(下面第一个 expect 不需要
-  // 计时器推进就该为真),只有实际写 localStorage 这一步被合并。
-  it('setMapTheme / setCustomColors 更新 themePrefs 同步、落盘防抖 250ms 合并成一次', () => {
+  // Persisting to disk is now debounced by 250ms (see the persistTheme() comment in
+  // src/photos/stores/places.ts, ported from Vue2 PR #106's own perf sub-commit) — the
+  // in-memory `themePrefs` is still updated synchronously (the first expect below should
+  // already be true without advancing the timer); only the actual localStorage write is
+  // coalesced.
+  it('setMapTheme / setCustomColors update themePrefs synchronously, with the disk write debounced and coalesced into one write after 250ms', () => {
     vi.useFakeTimers()
     const s = usePhotosPlaces()
     s.setMapTheme('ocean')
-    expect(s.themePrefs.mapTheme).toBe('ocean') // 内存态同步,不必等计时器
-    expect(localStorage.getItem('nimo_places_map_theme')).toBeNull() // 但还没落盘
+    expect(s.themePrefs.mapTheme).toBe('ocean') // in-memory state is synchronous, no need to wait for the timer
+    expect(localStorage.getItem('nimo_places_map_theme')).toBeNull() // but not written to disk yet
     s.setCustomColors('#111111', '#222222')
-    expect(localStorage.getItem('nimo_places_map_theme')).toBeNull() // 第二次调用仍在防抖窗口内
+    expect(localStorage.getItem('nimo_places_map_theme')).toBeNull() // the second call is still within the debounce window
     vi.advanceTimersByTime(250)
     const saved = JSON.parse(localStorage.getItem('nimo_places_map_theme')!)
     expect(saved).toMatchObject({ mapTheme: 'custom', customDotColor: '#111111', customCityColor: '#222222' })
     vi.useRealTimers()
   })
 
-  it('卸载 flush:flushThemePersist() 立即把防抖中的写入落盘,且清掉定时器(不会再落第二次)', () => {
+  it('unmount flush: flushThemePersist() writes the debounced value to disk immediately and clears the timer (no second write follows)', () => {
     vi.useFakeTimers()
     const setItemSpy = vi.spyOn(Storage.prototype, 'setItem')
     const s = usePhotosPlaces()
@@ -614,14 +625,14 @@ describe('localStorage 持久化', () => {
     s.flushThemePersist()
     expect(setItemSpy).toHaveBeenCalledTimes(1)
     expect(JSON.parse(localStorage.getItem('nimo_places_map_theme')!).mapTheme).toBe('sand')
-    // 定时器已被 flush 清掉,推进计时不会再触发第二次写入。
+    // The timer has already been cleared by the flush, so advancing time won't trigger a second write.
     vi.advanceTimersByTime(1000)
     expect(setItemSpy).toHaveBeenCalledTimes(1)
     setItemSpy.mockRestore()
     vi.useRealTimers()
   })
 
-  it('没有待落盘的写入时,flushThemePersist() 是安全的空操作', () => {
+  it('flushThemePersist() is a safe no-op when there is nothing pending to persist', () => {
     const setItemSpy = vi.spyOn(Storage.prototype, 'setItem')
     const s = usePhotosPlaces()
     s.flushThemePersist()
@@ -629,18 +640,18 @@ describe('localStorage 持久化', () => {
     setItemSpy.mockRestore()
   })
 
-  it('railCollapsed 读入时 map(String) 归一(偏离登记 7)', () => {
+  it('railCollapsed is normalized with map(String) on read', () => {
     localStorage.setItem('nimo_places_rail_collapsed', JSON.stringify(['asia', 123]))
     const s = usePhotosPlaces()
     expect(s.railCollapsed).toEqual(['asia', '123'])
   })
 
-  it('railCollapsed 不是数组时回落空数组', () => {
+  it('railCollapsed falls back to an empty array when it is not an array', () => {
     localStorage.setItem('nimo_places_rail_collapsed', JSON.stringify({ asia: true }))
     expect(usePhotosPlaces().railCollapsed).toEqual([])
   })
 
-  it('toggleRegionFold 双向切换并落盘', () => {
+  it('toggleRegionFold toggles both directions and persists', () => {
     const s = usePhotosPlaces()
     s.toggleRegionFold('asia')
     expect(s.railCollapsed).toEqual(['asia'])
@@ -649,21 +660,21 @@ describe('localStorage 持久化', () => {
     expect(s.railCollapsed).toEqual([])
   })
 
-  it('isRegionCollapsed:搜索态压过折叠(匹配项绝不被藏)', () => {
+  it('isRegionCollapsed: search state overrides collapse (a match is never hidden)', () => {
     const s = usePhotosPlaces()
     s.toggleRegionFold('asia')
     expect(s.isRegionCollapsed('asia', false)).toBe(true)
     expect(s.isRegionCollapsed('asia', true)).toBe(false)
   })
 
-  it('isRegionCollapsed 对未折叠的大洲一律 false', () => {
+  it('isRegionCollapsed is always false for an uncollapsed region', () => {
     const s = usePhotosPlaces()
     expect(s.isRegionCollapsed('asia', false)).toBe(false)
   })
 })
 
 describe('__resetForTest', () => {
-  it('清空全部 state 并重新读一次 localStorage 默认值', async () => {
+  it('clears all state and re-reads the localStorage defaults', async () => {
     listPlaces.mockResolvedValue(RESP)
     getPlace.mockResolvedValue({ key: 7, city: 'X', country: 'Y', count: 1, trips: 1, spots: [], insights: [], visits: [], recent: [] })
     const s = usePhotosPlaces()
@@ -682,13 +693,14 @@ describe('__resetForTest', () => {
     expect(s.detail).toBeNull()
     expect(s.detailLoading).toBe(false)
     expect(s.coverCandidates).toEqual({ tabs: [], items: [], page: 0, totalPages: 1, total: 0 })
-    // 上面 setMapTheme/toggleRegionFold 已经落盘,__resetForTest 从 localStorage 重新读入,
-    // 因此不是清成空值,而是读回刚才落盘的那份 —— 用来确认它没有绕过 localStorage 直接清零。
+    // setMapTheme/toggleRegionFold above have already been persisted, and __resetForTest reads
+    // back in from localStorage, so this isn't cleared to an empty value — it reads back what was
+    // just persisted, confirming that it doesn't bypass localStorage and zero it out directly.
     expect(s.themePrefs.mapTheme).toBe('ocean')
     expect(s.railCollapsed).toEqual(['asia'])
   })
 
-  it('__resetForTest 不引入 seq 别名冲突:重置前的过期请求不会污染重置后的新一轮加载', async () => {
+  it('__resetForTest does not introduce a seq aliasing conflict: a stale pre-reset request does not pollute the new load after reset', async () => {
     let resolveFn: (v: unknown) => void = () => {}
     getPlace.mockReturnValueOnce(new Promise((r) => { resolveFn = r }))
     const s = usePhotosPlaces()
@@ -699,6 +711,6 @@ describe('__resetForTest', () => {
     expect(s.detail?.city).toBe('Kyoto')
     resolveFn({ key: 7, city: 'Hangzhou', country: 'China', count: 40, trips: 2, spots: [], insights: [], visits: [], recent: [] })
     await stale
-    expect(s.detail?.city).toBe('Kyoto') // 重置前的旧请求不得覆盖(若 seq 被重置为 0 会在这里露馅)
+    expect(s.detail?.city).toBe('Kyoto') // must not be overwritten by the pre-reset request (would surface here if seq were reset to 0)
   })
 })

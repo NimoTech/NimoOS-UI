@@ -6,19 +6,19 @@ import { ref, computed } from 'vue'
 // may pass a longer one, e.g. uploads use 5000ms). `msg` is kept as a
 // backward-compatible computed = the latest toast's text for legacy readers.
 //
-// `action` (Task 9, SP7-P3 photos trash view): optional inline affordance (e.g.
+// `action` (used by the photos trash view): optional inline affordance (e.g.
 // "Undo") rendered as a clickable pill inside the toast by AppToast.vue.
 // Third, optional `show()` param — fully backward compatible with the dozens
 // of existing `toast.show(text[, duration])` call sites across the app.
 //
-// SP8-P1c2 Task 6: added a `tier` so severity can be styled distinctly
+// Added a `tier` so severity can be styled distinctly
 // (info/warning/danger) — see AppToast.vue's `data-tier`. Backward
 // compatibility is a hard requirement: `tier` defaults to 'info', so every
 // existing `show(text)` / `show(text, ms)` call site across the repo
 // (files/apps/home areas) keeps working unchanged, same appearance
 // (the 'info' tier renders identically to the pre-tier pill).
 //
-// [SP8-P6-T3 merge] sp7 and sp8 each claimed the **third positional argument** for their own
+// sp7 and sp8 each claimed the **third positional argument** for their own
 // purpose: master's side used it as an `action` object, sp8's side used it as a `tier` string.
 // Both already have real call sites (tier ~48, action 4), and changing either signature would
 // touch dozens of call sites, so this makes the third param a **discriminated union** instead:

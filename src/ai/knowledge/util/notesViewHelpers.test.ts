@@ -1,4 +1,4 @@
-// SP8-P5d Task 3 — 1:1 port from Vue2
+// 1:1 port from Vue2
 // the Vue 2 panel's `src/views/AI/Knowledge/notesViewHelpers.js` (main@7a6ee6b7).
 // Inherit from Vue2 existing `__tests__/notesView.spec.js` (3 cases, governance §4.3),
 // with finer refinement than blueprint (each branch + both sides of boundaries,

@@ -1,7 +1,7 @@
-// Plan F Task 6: PhotosPlaces.vue mounted <PhotoLightbox> with NO event listeners at all
+// PhotosPlaces.vue used to mount <PhotoLightbox> with NO event listeners at all
 // (delete/add-to-album silently no-op'd — the confirm dialog runs to completion, the lightbox
 // closes, exactly as if the delete had succeeded, while nothing actually happened server-side).
-// Same false-success bug class Plan F Task 5's fix round 1 found and fixed on PhotosSearch.vue
+// Same false-success bug class already found and fixed on PhotosSearch.vue
 // (see PhotosSearch.lightbox.test.ts, the direct style/fixture reference for this file).
 //
 // This file uses the REAL useLightbox()/usePhotosPlaces()/useTimelineStore()/usePhotosTrash()
@@ -111,8 +111,8 @@ afterEach(() => {
 
 const body = () => new DOMWrapper(document.body)
 
-describe('PhotosPlaces.vue 灯箱「删除」接线(Task 6:补真删,原先 @delete 无监听,静默假成功)', () => {
-  it('确认删除 → 调 timeline.deleteAssets(真删路径)+ 重新拉取该地点详情(loadDetail 再次调用 getPlace)', async () => {
+describe('PhotosPlaces.vue lightbox delete wiring', () => {
+  it('confirming delete calls timeline.deleteAssets and re-fetches the place detail (loadDetail calls getPlace again)', async () => {
     const { w } = await mountView()
     const timeline = useTimelineStore()
     const deleteSpy = vi.spyOn(timeline, 'deleteAssets').mockResolvedValue(1)
@@ -137,7 +137,7 @@ describe('PhotosPlaces.vue 灯箱「删除」接线(Task 6:补真删,原先 @del
     expect(svc.photos.getPlace.mock.calls.length).toBeGreaterThan(getPlaceCallsBefore)
   })
 
-  it('删除后弹出带 Undo 的 photosToast,且 PhotosToastHost 真的挂载渲染(不是状态翻了但界面看不到)', async () => {
+  it('delete shows a photosToast with Undo, and PhotosToastHost actually renders it', async () => {
     const { w } = await mountView()
     vi.spyOn(useTimelineStore(), 'deleteAssets').mockResolvedValue(1)
     const photosToast = usePhotosToast()
@@ -158,7 +158,7 @@ describe('PhotosPlaces.vue 灯箱「删除」接线(Task 6:补真删,原先 @del
     expect(body().find('[data-role="photos-toast-action"]').exists()).toBe(true)
   })
 
-  it('点 Undo → trash.restore(真实还原路径)+ 再次刷新该地点详情', async () => {
+  it('clicking Undo calls trash.restore and refreshes the place detail again', async () => {
     const { w } = await mountView()
     vi.spyOn(useTimelineStore(), 'deleteAssets').mockResolvedValue(1)
 
@@ -180,8 +180,8 @@ describe('PhotosPlaces.vue 灯箱「删除」接线(Task 6:补真删,原先 @del
   })
 })
 
-describe('PhotosPlaces.vue 灯箱「加入相册」接线(Task 6:补真挂载,原先 @add-to-album 无监听)', () => {
-  it('灯箱「加入相册」→ AlbumPickerDialog 打开(单张场景,同 PhotosSearch.vue 先例)', async () => {
+describe('PhotosPlaces.vue lightbox add-to-album wiring', () => {
+  it('lightbox add-to-album opens AlbumPickerDialog (single-asset case)', async () => {
     const { w } = await mountView()
     await w.findComponent(PlaceDetailPanel).vm.$emit('open-photo', 'a', ['a'])
     await w.vm.$nextTick()

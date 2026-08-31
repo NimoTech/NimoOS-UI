@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// Plan B Task 7 (D19 floating top pill rebuild): P1 gave this a Files-style rectangular top bar
-// (`.selection-toolbar`/`.sel-btn`, own <style scoped>); this task replaces that with
+// Floating top pill rebuild: this component previously had a Files-style rectangular top bar
+// (`.selection-toolbar`/`.sel-btn`, own <style scoped>); it has been replaced with
 // Vue2 pixel parity — a floating, top-anchored glass pill. Classes/values now come
 // entirely from src/photos/styles/vue2-parity/photos.scss:444-468 (`.photos-root
 // .selectbar`/`.selectbar-count`/`.selectbar-btn`), ported from the Vue 2 panel's
@@ -9,23 +9,23 @@
 // The `bar-in` entrance keyframes + `backdrop-filter: blur(20px) saturate(160%)` glass
 // look live in that stylesheet, not here.
 //
-// B-scope button set (owner-registered, see Global handoff notes): count + Add to Album +
+// Button set: count + Add to Album +
 // Delete(data-danger) + close(x). Vue2's Favorite (star, data-ai fill) button is NOT
-// rendered — ledger 二-8 upheld the favorite cut. Emits were `clear`/`delete`/
+// rendered — this cut is intentional and upheld. Emits were `clear`/`delete`/
 // `add-to-album` only — no `favorite` emit.
 //
-// Vue2's trailing "x" icon button (no label, @click="$emit('cancel')") replaces P1's
-// leading text "Cancel" button. New-UI's hosts (Photos.vue/PhotosFavorites.vue) listen
-// for `clear`, not `cancel` — renaming the emit is a host-contract change out of this
-// task's scope, so the close button keeps emitting `clear`.
+// Vue2's trailing "x" icon button (no label, @click="$emit('cancel')") replaces the
+// previous leading text "Cancel" button. New-UI's hosts (Photos.vue/PhotosFavorites.vue) listen
+// for `clear`, not `cancel` — renaming the emit is a host-contract change out of
+// scope here, so the close button keeps emitting `clear`.
 //
-// Plan G Task 17: adds Ask Nimo (`data-ai="true"`, emits `ask-nimo`). Vue2 source of
+// Adds Ask Nimo (`data-ai="true"`, emits `ask-nimo`). Vue2 source of
 // truth is the Vue 2 panel's src/views/Photos/PhotosGrid.vue:120-123 — button order there is
 // Favorite → Add to Album → Delete → **Ask Nimo** → close (Ask Nimo sits right before
-// close, not right after Favorite as an earlier draft of this task's brief claimed);
+// close, not right after Favorite as an earlier draft of the design assumed);
 // with Favorite already cut in this repo, Ask Nimo lands between Delete and close.
 // The `.selectbar-btn[data-ai="true"]` hover/tint rule already exists in
-// src/photos/styles/vue2-parity/photos.scss:556-557 (pre-staged for this task), and the
+// src/photos/styles/vue2-parity/photos.scss:556-557 (pre-staged for this addition), and the
 // orb is sized 18x18 (Vue2 PhotosGrid.vue:121 `width:18px;height:18px`), not 13px —
 // 13px is only used for PhotosIcon glyphs on the other buttons in this bar, the Vue2
 // nimo-orb span itself is always sized independently of that convention (Vue2

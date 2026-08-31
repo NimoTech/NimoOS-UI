@@ -1,4 +1,4 @@
-// SP15-P2b-T2: the mixed manual/smart album list and the global sort that ranks both
+// The mixed manual/smart album list and the global sort that ranks both
 // kinds against each other. Ported from Vue2 939a7d3a:PhotosAlbumsView.vue:381-393
 // (smartAlbums / mixedAlbums) and :670-700 (applySort).
 import { describe, it, expect } from 'vitest'

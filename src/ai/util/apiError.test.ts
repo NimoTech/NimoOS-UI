@@ -11,7 +11,7 @@ describe('apiErrorMessage', () => {
     expect(apiErrorMessage({ response: { data: 'plain text error' } }, 'fallback')).toBe('plain text error')
   })
 
-  // [SP8-P2b acceptance round 3, user reported defect 2026-07-30, then fixed] Original assertion pinned Vue2
+  // [Fixed after an earlier reported defect] Original assertion pinned Vue2
   // BlacklistSection.vue:82 "object = JSON.stringify" behavior — when user failed to add a bot in Channels,
   // the interface directly showed the raw `{"detail":"bot token rejected"}`, explicitly requesting "do not
   // directly put the returned JSON on screen". **Intentionally different from Vue2**: completely remove the

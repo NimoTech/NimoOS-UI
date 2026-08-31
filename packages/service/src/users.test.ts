@@ -55,8 +55,8 @@ describe('createUsers', () => {
   })
 })
 
-// ── SP9-P4 additions ───────────────────────────────────────────────────────────
-// All fixtures come from real-device curl on 2026-08-01 (see plan §Fixtures); none are hand-written.
+// ── Users domain additions ───────────────────────────────────────────────────────────
+// All fixtures come from real-device curl; none are hand-written.
 
 function httpAll(map: Record<string, unknown>, calls?: { url: string; body?: unknown }[]): AxiosInstance {
   const rec = (url: string, body?: unknown) => { calls?.push({ url, body }) }
@@ -68,7 +68,7 @@ function httpAll(map: Record<string, unknown>, calls?: { url: string; body?: unk
   } as unknown as AxiosInstance
 }
 
-describe('createUsers — SP9-P4 users domain completion', () => {
+describe('createUsers — users domain completion', () => {
   // Verbatim real-device response: {"success":200,"message":"ok","data":{...}}
   const CURRENT = {
     success: 200, message: 'ok',
@@ -118,7 +118,7 @@ describe('createUsers — SP9-P4 users domain completion', () => {
   })
 })
 
-describe('createUsers — SP9-P4 write endpoints (⛔ not curl-verified, types are only matched against the Go struct)', () => {
+describe('createUsers — write endpoints (⛔ not curl-verified, types are only matched against the Go struct)', () => {
   it('changePassword PUTs the two snake_case keys old_password / password', async () => {
     const calls: { url: string; body?: unknown }[] = []
     const u = createUsers(httpAll({ '/users/current/password': { success: 200, message: 'ok', data: {} } }, calls))

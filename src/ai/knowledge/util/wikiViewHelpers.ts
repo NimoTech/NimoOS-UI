@@ -1,4 +1,4 @@
-// SP8-P5f Task 3 —— 1:1 ported from Vue2
+// 1:1 ported from Vue2
 // the Vue 2 panel's `src/views/AI/Knowledge/wikiViewHelpers.js` (main@7a6ee6b7, 95 lines).
 //
 // Pure functions for the Wiki navigation page (`/ai/knowledge/wiki`). `GET /wiki/tree` returns
@@ -140,7 +140,7 @@ export function opToType(op: string): 'add' | 'del' | 'ren' | 'mod' {
 /**
  * Original `:72` comment: RFC3339 string (formatTS in the wiki backend; '' when zero) → unix ms.
  * 🔴 Returns **milliseconds** (downstream `fmtAgo(ms)` expects ms, `knowledgeStore.ts:190-199`) ——
- * feeding wrong units silently calculates to 1970, no error (lesson from P5d-T3 / P5e §9.13).
+ * feeding wrong units silently calculates to 1970, no error (see governance §9.13).
  */
 export function parseTs(s: string | null | undefined): number {
   if (!s) return 0

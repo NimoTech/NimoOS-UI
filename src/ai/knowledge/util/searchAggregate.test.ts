@@ -1,4 +1,4 @@
-// SP8-P5e Task 3 — unit tests for `searchAggregate.ts`, inherit from Vue2 existing
+// Unit tests for `searchAggregate.ts`, inherit from Vue2 existing
 // `__tests__/searchAggregate.spec.js`(46 lines / 2 cases, governance §4.3) and add refinement
 // (`kindFromMime` six branches / `basename`/`dirname` boundaries / `chunkVM` boundaries /
 // N45 three things each independent), plus K48 (equivalence programmatically proven by T0)
@@ -77,7 +77,7 @@ describe('kindFromMime — blueprint :5-12', () => {
   })
 
   it('Broad match net of includes("pdf") catches docling variant: "text/markdown+docling/pdf" → pdf, not md', () => {
-    // 🔴 Independent verification (don't trust unverified brief/T0 report literals, governance §9/ruling R8 same discipline):
+    // 🔴 Independent verification (don't trust unverified brief literals, governance §9/ruling R8 same discipline):
     // Brief original claimed "swap `=== 'text/markdown'` and `includes('pdf')` branches →
     // this assertion must red". After hand-testing RED probe **not true**: `=== 'text/markdown'` exact match,
     // 'text/markdown+docling/pdf' can never exactly equal 'text/markdown' (extra suffix),
@@ -169,7 +169,7 @@ const FILES_BRANCH_TWO_REAL_FILES = [
     paths: [
       {
         root_id: 'dfcd1840f5dab439cd9d7050aa5bafd0',
-        path: '/DATA/.system_data/.docker/containers/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1-json.log',
+        path: '/DATA/Containers/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1-json.log',
         mtime_ms: 1784424392240,
       },
     ],
@@ -229,12 +229,12 @@ const FILES_BRANCH_TWO_REAL_FILES = [
  * entries" is spent, so everything here is truncated).
  */
 const HITS_ONLY_EIGHT_REAL_HITS = [
-  { score: 0.738, file_id: 'dce79e8ea5d48719cd4ad16fe48da843', mime: 'text/plain', kind: 'body', cite: { page: null, chunk_no: 0 }, preview: { text: '{"log":"/usr/share/nimoos/agent/main.py:201: Depre', thumbnail_url: null }, paths: [{ path: '/DATA/.system_data/.docker/containers/26be.../26be...-json.log', mtime_ms: 1784424392240 }] },
-  { score: 0.7354, file_id: 'dce79e8ea5d48719cd4ad16fe48da843', mime: 'text/plain', kind: 'body', cite: { page: null, chunk_no: 1 }, preview: { text: 'stAPI docs for Lifespan Events](https://fastapi.ti', thumbnail_url: null }, paths: [{ path: '/DATA/.system_data/.docker/containers/26be.../26be...-json.log', mtime_ms: 1784424392240 }] },
+  { score: 0.738, file_id: 'dce79e8ea5d48719cd4ad16fe48da843', mime: 'text/plain', kind: 'body', cite: { page: null, chunk_no: 0 }, preview: { text: '{"log":"/usr/share/nimoos/agent/main.py:201: Depre', thumbnail_url: null }, paths: [{ path: '/DATA/Containers/26be.../26be...-json.log', mtime_ms: 1784424392240 }] },
+  { score: 0.7354, file_id: 'dce79e8ea5d48719cd4ad16fe48da843', mime: 'text/plain', kind: 'body', cite: { page: null, chunk_no: 1 }, preview: { text: 'stAPI docs for Lifespan Events](https://fastapi.ti', thumbnail_url: null }, paths: [{ path: '/DATA/Containers/26be.../26be...-json.log', mtime_ms: 1784424392240 }] },
   { score: 0.6118, file_id: '05d732586959ea3f480b5feb4b0d17c8', mime: 'text/plain', kind: 'body', cite: { page: null, chunk_no: 0 }, preview: { text: '2026-04-13T15:38:19.417-0400\tinfo\tInitPathConfig: ', thumbnail_url: null }, paths: [{ path: '/DATA/.system_data/log/nimoos/log.log', mtime_ms: 1784404128499 }] },
   { score: 0.6002, file_id: '05d732586959ea3f480b5feb4b0d17c8', mime: 'text/plain', kind: 'body', cite: { page: null, chunk_no: 1 }, preview: { text: 'nimoos/file/upload", "func": "route.InitV2Router",', thumbnail_url: null }, paths: [{ path: '/DATA/.system_data/log/nimoos/log.log', mtime_ms: 1784404128499 }] },
-  { score: 0.5127, file_id: 'e531767d0b917dfb86ea6c8451c4bf65', mime: 'text/plain', kind: 'body', cite: { page: null, chunk_no: 0 }, preview: { text: '{"log":"/usr/share/nimoos/agent/main.py:127: Depre', thumbnail_url: null }, paths: [{ path: '/DATA/.system_data/.docker/containers/9f4d.../9f4d...-json.log', mtime_ms: 1784359333549 }] },
-  { score: 0.5044, file_id: 'e531767d0b917dfb86ea6c8451c4bf65', mime: 'text/plain', kind: 'body', cite: { page: null, chunk_no: 1 }, preview: { text: 'stdout","time":"2026-07-16T06:37:33.686913167Z"}\n{', thumbnail_url: null }, paths: [{ path: '/DATA/.system_data/.docker/containers/9f4d.../9f4d...-json.log', mtime_ms: 1784359333549 }] },
+  { score: 0.5127, file_id: 'e531767d0b917dfb86ea6c8451c4bf65', mime: 'text/plain', kind: 'body', cite: { page: null, chunk_no: 0 }, preview: { text: '{"log":"/usr/share/nimoos/agent/main.py:127: Depre', thumbnail_url: null }, paths: [{ path: '/DATA/Containers/9f4d.../9f4d...-json.log', mtime_ms: 1784359333549 }] },
+  { score: 0.5044, file_id: 'e531767d0b917dfb86ea6c8451c4bf65', mime: 'text/plain', kind: 'body', cite: { page: null, chunk_no: 1 }, preview: { text: 'stdout","time":"2026-07-16T06:37:33.686913167Z"}\n{', thumbnail_url: null }, paths: [{ path: '/DATA/Containers/9f4d.../9f4d...-json.log', mtime_ms: 1784359333549 }] },
   { score: 0.4824, file_id: '4018267c2ec373cddb244ac220a06cc2', mime: 'text/plain', kind: 'body', cite: { page: null, chunk_no: 0 }, preview: { text: '2026-07-13T16:10:05.000+0800\terror\terror while upd', thumbnail_url: null }, paths: [{ path: '/DATA/.system_data/log/nimoos/app-management.log', mtime_ms: 1784434525914 }] },
   { score: 0.4666, file_id: '4018267c2ec373cddb244ac220a06cc2', mime: 'text/plain', kind: 'body', cite: { page: null, chunk_no: 1 }, preview: { text: 'ce/appstore_management.go", "line": 442}\n2026-07-1', thumbnail_url: null }, paths: [{ path: '/DATA/.system_data/log/nimoos/app-management.log', mtime_ms: 1784434525914 }] },
 ]
@@ -291,7 +291,7 @@ describe('toFileResults — N45(1) resp.files takes priority', () => {
     const f = out[0]
     expect(f.id).toBe('dce79e8ea5d48719cd4ad16fe48da843')
     expect(f.name).toBe('26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1-json.log')
-    expect(f.path).toBe('/DATA/.system_data/.docker/containers/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1/')
+    expect(f.path).toBe('/DATA/Containers/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1/')
     expect(f.kind).toBe('txt')
     expect(f.mtimeMs).toBe(1784424392240)
     expect(f.score).toBe(0.738)
@@ -362,8 +362,8 @@ describe('toFileResults — N45(3) fileVM.score has three tiers: group.score || 
     expect(out[0].score).toBe(0.738) // best/first chunk, consistent with the blueprint spec's `// best chunk` comment
   })
 
-  // ═════ 【Added in P5e-T4, ruling R21】fills the coverage gap from T3 review Important-1 ═════
-  // Fact (confirmed by an extra T3 review probe #7): changing groupHits' "take the first
+  // ═════ 【Added later, ruling R21】fills a coverage gap found in review Important-1 ═════
+  // Fact (confirmed by an extra review probe #7): changing groupHits' "take the first
   // chunk's score" to "take the highest-scoring chunk's score" left the "tier 1 (variant)"
   // case above (and all 74 existing cases) 74/74 green — zero discriminating power. The root
   // cause is that in the real F5b data, "the first chunk happens to also be the
@@ -431,7 +431,7 @@ describe('toFileResults — N45(3) fileVM.score has three tiers: group.score || 
 // ═══════════════════════════════════════════════════════════════════════════
 // chunkVM boundaries (tested indirectly through toFileResults; the blueprint itself doesn't
 // export chunkVM either)
-// 🔴 【Added in passing in P5e-T4, ruling R21 · Minor-2 · R3 constraint 1】All test cases
+// 🔴 【Added in passing, ruling R21 · Minor-2 · R3 constraint 1】All test cases
 // below this describe block use fixtures (`oneChunkResp` and the chunk literals passed to
 // each call: missing `cite` / non-numeric `chunk_no` / missing or explicit-null `page` /
 // missing `preview.text`, etc.) that are all **`.CONSTRUCTED`** (D-6 mold) — hand-built
@@ -689,11 +689,11 @@ describe('fileVM.name fallback — aiKbSrUntitled', () => {
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🔴 SP8-P5f Task 1b — a coverage-gap patch for debt M-2 (P5e final review Minor-2)
+// 🔴 A coverage-gap patch for debt M-2 (P5e final review Minor-2)
 //
 // P5e final review found by hands-on testing: the minimum-length gate on `terms` inside
 // `highlight()` has **zero coverage** — tighten it to `s.length >= 2` and all 3125 cases
-// stay green (final-review probe F6), and the consequence is that **all single-character
+// stay green (probe F6), and the consequence is that **all single-character
 // queries stop highlighting entirely** (single-character queries like "税" or "猫" in
 // Chinese are a common query shape).
 //

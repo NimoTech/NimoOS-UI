@@ -1,16 +1,6 @@
 node_modules
 dist
 
-# Claude Code local state (isolated worktrees, session config) — not committed
-.claude/
-# Local collaboration guide — kept on each working copy, not versioned (2026-08-27)
-CLAUDE.md
-# Sprint ledgers and working design notes — kept on disk, not versioned (2026-08-27).
-# They were briefly versioned; the repository now keeps only the durable product docs
-# under docs/ (THEMING.md, nimoos-app-label-spec.md).
-# Note: with these untracked, git no longer backs them up — keep your own copy.
-.superpowers/
-docs/superpowers/
 
 # Env vars / local config (may contain secrets, never committed)
 .env

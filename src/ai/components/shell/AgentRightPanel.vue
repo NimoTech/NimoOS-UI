@@ -1,6 +1,6 @@
 <!--
-  1:1 ported from Vue2 src/views/AI/Agent/shell/AgentRightPanel.vue (80 lines). SP8-P1c2
-  Task 10. Dumb component (props in, events out), the parent holds all state — Vue2 had no
+  1:1 ported from Vue2 src/views/AI/Agent/shell/AgentRightPanel.vue (80 lines).
+  Dumb component (props in, events out), the parent holds all state — Vue2 had no
   emits declaration (Vue2 doesn't require one), added here per Vue3 convention.
 
   Dual collapse mechanism (both are required, per the brief):
@@ -13,12 +13,12 @@
   1 without 2 leaves the 360px column reserved but empty inside; keeping only 2 without 1 leaves
   the DOM present with its width visually zeroed, still occupying tab focus order / the a11y tree).
 
-  SP8-P1c2 Task 13 — all four tabs are now wired to the real thing: SystemTab (Task 11) /
-  ResourcesTab (Task 12) replace the two placeholder divs left by Task 10. Resources is still
+  All four tabs are now wired to the real thing: SystemTab and
+  ResourcesTab replace the two placeholder divs. Resources is still
   the v-else fallback branch (an unknown tab value also lands here, matching Vue2
   AgentRightPanel.vue:15-16 verbatim). ResourcesTab's 6 emits are forwarded as-is to the parent
   (AgentPage) here; this component never touches the store.
-  (After the F1 final-review fix, ResourcesTab gained a 7th emit, `remove-resource-by-path`,
+  (After the F1 fix, ResourcesTab gained a 7th emit, `remove-resource-by-path`,
   forwarded the same way — see the template and the emits declaration comments below.)
 -->
 <script setup lang="ts">
@@ -77,7 +77,7 @@ const emit = defineEmits<{
   // store.setRightTab (the same union type) without a cast.
   (e: 'set-tab', tab: 'activity' | 'context' | 'system' | 'resources'): void
   (e: 'remove-resource', id: string | number): void
-  // F1 fix (final-review opus pass) — the 7th emit added to ResourcesTab, forwarded
+  // F1 fix — the 7th emit added to ResourcesTab, forwarded
   // as-is to AgentPage (see the comment at its declaration in ResourcesTab.vue).
   (e: 'remove-resource-by-path', path: string): void
   (e: 'remove-attachment', id: string | number): void
@@ -117,7 +117,7 @@ const { t } = useI18n()
       <SystemTab v-else-if="tab === 'system'" :storage="storage" />
       <!-- Vue2 AgentRightPanel.vue:15-30 — the v-else fallback branch (an unknown
            tab value also lands here), 7 props + 6 emits matched one-to-one (after
-           the F1 final-review fix, this component also forwards the 7th emit
+           the F1 fix, this component also forwards the 7th emit
            `remove-resource-by-path` as-is, see the file-header comment above). -->
       <ResourcesTab
         v-else

@@ -1,6 +1,6 @@
 <!--
   1:1 ported from Vue2 src/views/AI/Agent/blocks/BlockRenderer.vue — full BLOCK_MAP
-  (SP8-P1b Task 8: restore the degraded state from P1a where only "md" remained, complete all 20 dispatch types).
+  (restore the degraded state from the previous pass where only "md" remained, complete all 20 dispatch types).
   terminal/semantic_search point to stubs created in Task 8 (Task 9 adds the real implementations), the remaining 17 are genuinely ported
   from this task. Unmapped block.type still uses gray degradation chip (P1a behavior retained).
 -->

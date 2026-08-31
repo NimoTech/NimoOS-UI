@@ -1,4 +1,4 @@
-// Plan B Task 7: the timeline selection action bar moves off the P1 Files-style
+// The timeline selection action bar moves off the earlier Files-style
 // `.selection-toolbar` rectangle onto the Vue2 pixel-parity floating glass pill
 // (`.selectbar`/`.selectbar-count`/`.selectbar-btn`, parity scss
 // src/photos/styles/vue2-parity/photos.scss:444-468).
@@ -26,8 +26,8 @@ describe('PhotosSelectionToolbar', () => {
     expect(w.get('.selectbar-count').text()).toBe('已选择 3 项')
   })
 
-  // B-scope button set + Plan G Task 17's Ask Nimo: Add to Album / Delete / Ask Nimo /
-  // close(x) — no Favorite (owner-registered scope cut, see component header comment).
+  // Button set: Add to Album / Delete / Ask Nimo /
+  // close(x) — no Favorite (deliberately cut from scope, see component header comment).
   it('renders as the Vue2 glass pill .selectbar with exactly four .selectbar-btn buttons', () => {
     const w = mount(PhotosSelectionToolbar, { props: { count: 2 }, global: { plugins: [i18n] } })
     expect(w.find('.selectbar').exists()).toBe(true)
@@ -55,7 +55,7 @@ describe('PhotosSelectionToolbar', () => {
   })
 
   // The "Add to Album" button sits between count and delete, non-danger; click only emits add-to-album (regression).
-  // Order (Plan G Task 17): Add to Album → Delete → Ask Nimo → close — matches Vue2
+  // Order: Add to Album → Delete → Ask Nimo → close — matches Vue2
   // PhotosGrid.vue:114-126 with Favorite (already cut in this repo) removed from the front.
   it('"Add to Album" sits between count and delete, non-danger, click only emits add-to-album', async () => {
     const w = mount(PhotosSelectionToolbar, { props: { count: 2 }, global: { plugins: [i18n] } })
@@ -71,7 +71,7 @@ describe('PhotosSelectionToolbar', () => {
     expect(w.emitted('delete')).toBeUndefined()
   })
 
-  // Plan G Task 17: Ask Nimo button — data-ai="true" (Vue2 PhotosGrid.vue:120), emits
+  // Ask Nimo button — data-ai="true" (Vue2 PhotosGrid.vue:120), emits
   // ask-nimo only, not clear/delete/add-to-album.
   it('clicking the Ask Nimo button (data-ai) emits ask-nimo (not clear/delete/add-to-album)', async () => {
     const w = mount(PhotosSelectionToolbar, { props: { count: 2 }, global: { plugins: [i18n] } })
@@ -85,10 +85,10 @@ describe('PhotosSelectionToolbar', () => {
   })
 })
 
-// Brief's own minimal repro (uses the globally-installed real i18n plugin from
+// Minimal repro (uses the globally-installed real i18n plugin from
 // vitest.setup.ts, not the local zh_cn stub above — photosAskNimo already exists in
-// src/i18n/*.photos.ts, pre-staged by an earlier task).
-describe('PhotosSelectionToolbar — Plan G ask-nimo action', () => {
+// src/i18n/*.photos.ts, pre-staged earlier).
+describe('PhotosSelectionToolbar — ask-nimo action', () => {
   it('renders an Ask Nimo button that emits ask-nimo on click', async () => {
     const w = mount(PhotosSelectionToolbar, { props: { count: 3 } })
     await w.find('[data-test="selectbar-ask-nimo"]').trigger('click')

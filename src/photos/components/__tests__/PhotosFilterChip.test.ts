@@ -1,6 +1,6 @@
-// SP7-P7a-T12: PhotosFilterChip.vue — filter chip primitive.
-// Byte-for-byte comparison result (PhotosSearchView.vue:51-59 vs PhotosFilterBar.vue:16-24,
-// also logged in the task report): the markup is identical on both sides, with only two
+// PhotosFilterChip.vue — filter chip primitive.
+// Byte-for-byte comparison result (PhotosSearchView.vue:51-59 vs PhotosFilterBar.vue:16-24):
+// the markup is identical on both sides, with only two
 // differences — ① handler name (clearFilter/clearChip) ② component tag casing
 // (<photos-icon>/<PhotosIcon>) — neither affects the New-UI port.
 import { describe, it, expect } from 'vitest'

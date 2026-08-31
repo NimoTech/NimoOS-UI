@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// SP8-P5e Task 6+7 — `SearchView.vue` (1:1 port from blueprint
+// `SearchView.vue` (1:1 port from blueprint
 // `the Vue 2 panel@7a6ee6b7` `src/views/AI/Knowledge/SearchView.vue`, 401 lines).
 //
 // T6 scope (governance `p5e-plan.md` §T6, `p5e-coordinator-rulings-T0.md` R25):

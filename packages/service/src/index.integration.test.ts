@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { initService, service } from './index'
 
-describe('service wiring (SP4-P0)', () => {
+describe('service wiring', () => {
   it('file/batch/folder/storage domains resolve after initService', () => {
     initService({
       getToken: () => 'TKN',

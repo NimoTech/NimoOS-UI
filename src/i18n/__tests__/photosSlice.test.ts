@@ -1,17 +1,23 @@
-// SP7-P8b:相册文案分片的守卫。
+// Guard tests for the Photos copy slice.
 //
-// 结构:`zh_cn.ts` 是 3 行的**合并出口**(`{...base, ...photos}`),内容在 `zh_cn.base.ts`
-// 与 `zh_cn.photos.ts` 两块里 —— 那 702 个 photos* 键原先散在主文件 90 多个区段,自成一块
-// 之后主表才维护得动。
+// Structure: `zh_cn.ts` is a 3-line **merge export** (`{...base, ...photos}`); the actual content
+// lives in the two files `zh_cn.base.ts` and `zh_cn.photos.ts` — those 702 photos* keys used to be
+// scattered across 90-odd sections of the main file, and only became maintainable once split out
+// into their own block.
 //
-// 分片这个做法只在三个前提成立时才安全,下面三组断言各守一条:
-//   ① 出口是**纯合并**、没有自己的内容 —— 否则「改出口」会连带改掉别的东西;
-//   ② 相册文案**全都**在分片里(base 里一个 photos* 键都不剩)—— 否则分片就不再是
-//      「相册区的全部文案」,按区取用的地方会漏;
-//   ③ 分片里**只有**相册面在用的键 —— 否则别的页面会依赖这块,拆分名存实亡
-//      (vue-i18n 找不到 key 时静默回落成 key 名,不报错不崩,单测也抓不到)。
+// This slicing approach is only safe if three preconditions hold; the three assertion groups below
+// each guard one of them:
+//   ① The export is a **pure merge** with no content of its own — otherwise "editing the export"
+//      would end up changing other things too;
+//   ② **All** Photos copy lives in the slice (not a single photos* key left in base) — otherwise
+//      the slice would no longer be "the complete set of Photos-area copy", and places that pull by
+//      area would be missing entries;
+//   ③ The slice contains **only** keys used by the Photos surface — otherwise other pages would end
+//      up depending on this block, making the split a fiction in practice
+//      (vue-i18n silently falls back to the raw key name when a key isn't found — no error, no
+//      crash — so unit tests wouldn't catch it either).
 //
-// 读盘一律 node:fs —— 本仓测试环境里 `?raw` 恒空(color-guard 曾因此空转)。
+// Always read files via node:fs — `?raw` imports are always empty in this repo's test environment (color-guard once spun uselessly because of this).
 import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -21,10 +27,12 @@ import zhBase from '../zh_cn.base'
 import enBase from '../en_us.base'
 import zhPhotos from '../zh_cn.photos'
 import enPhotos from '../en_us.photos'
-// SP8-P6-T3 合流:出口从 {base, photos} 变成 {base, photos, ai}(AI 区同样自成一块,
-// 做法与 photos 分片逐条对应)。本文件是 photos 分片的守卫,只在"出口是纯合并"
-// 那一条上把 ai 一并计入 —— 否则该断言会把 AI 键当成"出口凭空多出来的内容"而误报。
-// ai 分片自身的守卫(前缀、两语言一致、反向引用)由 T4 单独补,不在本文件里。
+// Merged in: the export went from {base, photos} to {base, photos, ai} (the AI area is likewise
+// split into its own block, following the same approach point-for-point as the photos slice). This
+// file guards the photos slice; it only counts ai in on the "export is a pure merge" assertion —
+// otherwise that assertion would misreport the AI keys as "content the export added out of nowhere".
+// The ai slice's own guards (prefix, cross-language consistency, reverse references) are added
+// separately elsewhere; they are not in this file.
 import zhAi from '../zh_cn.ai'
 import enAi from '../en_us.ai'
 
@@ -34,21 +42,21 @@ const SRC_DIR = path.resolve(__dirname, '../..')
 const zhKeys = Object.keys(zhPhotos as Record<string, unknown>)
 const enKeys = Object.keys(enPhotos as Record<string, unknown>)
 
-describe('相册文案分片 · 分片自身', () => {
-  it('两语言键集完全一致', () => {
+describe('photos copy slice · the slice itself', () => {
+  it('key sets are identical across both languages', () => {
     expect(zhKeys.slice().sort()).toEqual(enKeys.slice().sort())
   })
 
-  it('非空(防被误清空之后所有断言都恒真)', () => {
+  it('is non-empty (guards against being emptied and every assertion becoming vacuously true)', () => {
     expect(zhKeys.length).toBeGreaterThan(600)
   })
 
-  it('每个键都是 photos 前缀(分片的判据就是前缀,混进别的键会让开源侧删错东西)', () => {
+  it('every key has a photos prefix (the prefix is the slicing criterion; a stray key would make the open-source side delete the wrong thing)', () => {
     const bad = zhKeys.filter((k) => !k.startsWith('photos'))
     expect(bad, `非 photos 前缀的键: ${bad.join(', ')}`).toEqual([])
   })
 
-  it('值均为非空字符串', () => {
+  it('all values are non-empty strings', () => {
     for (const o of [zhPhotos, enPhotos]) {
       for (const [k, v] of Object.entries(o as Record<string, unknown>)) {
         expect(typeof v, `key ${k}`).toBe('string')
@@ -58,8 +66,8 @@ describe('相册文案分片 · 分片自身', () => {
   })
 })
 
-describe('相册文案分片 · 出口是纯合并', () => {
-  it('zh_cn.ts / en_us.ts 导出的就是 base ∪ photos ∪ ai,不多不少', () => {
+describe('photos copy slice · the export is a pure merge', () => {
+  it('zh_cn.ts / en_us.ts export exactly base ∪ photos ∪ ai, no more, no less', () => {
     expect(Object.keys(merged as Record<string, unknown>).sort())
       .toEqual([...Object.keys(zhBase as Record<string, unknown>), ...zhKeys,
         ...Object.keys(zhAi as Record<string, unknown>)].sort())
@@ -68,19 +76,19 @@ describe('相册文案分片 · 出口是纯合并', () => {
         ...Object.keys(enAi as Record<string, unknown>)].sort())
   })
 
-  it('base 与 photos 键集不相交(展开顺序因此不构成语义)', () => {
+  it('base and photos key sets are disjoint (so spread order carries no semantics)', () => {
     const dup = zhKeys.filter((k) => k in (zhBase as Record<string, unknown>))
     expect(dup, `base 与分片撞键: ${dup.join(', ')}`).toEqual([])
   })
 
-  it('三片两两不相交(同上:展开顺序不构成语义,后展开的不会静默盖掉前面的)', () => {
+  it('all three slices are pairwise disjoint (same as above: spread order carries no semantics, a later spread never silently shadows an earlier one)', () => {
     const ai = Object.keys(zhAi as Record<string, unknown>)
     expect(ai.filter((k) => k in (zhBase as Record<string, unknown>)),
       'base 与 ai 分片撞键').toEqual([])
     expect(ai.filter((k) => zhKeys.includes(k)), 'photos 与 ai 分片撞键').toEqual([])
   })
 
-  it('出口文件本身不含任何键定义(只许 import + 一行展开)', () => {
+  it('the export files themselves contain no key definitions (only imports + one spread line are allowed)', () => {
     for (const f of ['zh_cn.ts', 'en_us.ts']) {
       const src = fs.readFileSync(path.join(I18N_DIR, f), 'utf8')
       expect(src.length, `${f} 读到空内容,取数方式失效了`).toBeGreaterThan(0)
@@ -90,14 +98,14 @@ describe('相册文案分片 · 出口是纯合并', () => {
   })
 })
 
-describe('相册文案分片 · 正向(base 里不许残留)', () => {
-  it('base 的导出对象里没有 photos* 键', () => {
+describe('photos copy slice · positive (no leftovers allowed in base)', () => {
+  it("base's exported object has no photos* keys", () => {
     const leftover = (o: Record<string, unknown>) => Object.keys(o).filter((k) => k.startsWith('photos'))
     expect(leftover(zhBase as Record<string, unknown>)).toEqual([])
     expect(leftover(enBase as Record<string, unknown>)).toEqual([])
   })
 
-  it('两个 base 的源码里也没有 photos* 键行(连注释掉的残骸都不留)', () => {
+  it("neither base's source has a photos* key line either (not even a commented-out remnant)", () => {
     for (const f of ['zh_cn.base.ts', 'en_us.base.ts']) {
       const src = fs.readFileSync(path.join(I18N_DIR, f), 'utf8')
       expect(src.length, `${f} 读到空内容,取数方式失效了`).toBeGreaterThan(0)
@@ -107,10 +115,12 @@ describe('相册文案分片 · 正向(base 里不许残留)', () => {
   })
 })
 
-describe('相册文案分片 · 反向(分片里不许有相册面之外消费的键)', () => {
-  // 把 src/ 下**除相册面之外**的源码全读进来,查每个分片键有没有被字面引用。
-  // 相册面 = src/photos/** + src/views/Photos*.vue + 它们的测试 —— 这些在开源导出里整体
-  // 删除,引用分片键是应该的。分片键若被这以外的地方引用,删掉分片就会让那处渲染出 key 名。
+describe('photos copy slice · negative (the slice must not contain keys consumed outside the Photos surface)', () => {
+  // Reads in all source under src/ **except the Photos surface**, and checks whether any slice key is
+  // referenced literally. The Photos surface = src/photos/** + src/views/Photos*.vue + their tests —
+  // these get deleted wholesale in the open-source export, so it's fine for them to reference slice
+  // keys. If a slice key is referenced anywhere outside that surface, deleting the slice would make
+  // that spot render the raw key name.
   function collectSources(dir: string, out: string[] = []): string[] {
     for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
       const p = path.join(dir, e.name)
@@ -131,14 +141,15 @@ describe('相册文案分片 · 反向(分片里不许有相册面之外消费�
   const files = collectSources(SRC_DIR)
   const corpus = files.map((f) => fs.readFileSync(f, 'utf8')).join('\n')
 
-  it('取数有效(扫到了文件、内容非空)', () => {
+  it('data fetch is valid (found files, content is non-empty)', () => {
     expect(files.length).toBeGreaterThan(100)
     expect(corpus.length).toBeGreaterThan(10000)
   })
 
-  it('相册面之外没有任何地方引用分片里的键', () => {
-    // 允许清单:确实被相册面之外引用、但**刻意**留在分片里的键。每条都要写清为什么 ——
-    // 新增一条就等于新增一处开源侧要单独处理的残留。
+  it('no key in the slice is referenced anywhere outside the Photos surface', () => {
+    // Allow-list: keys that genuinely are referenced outside the Photos surface but are **deliberately**
+    // kept in the slice anyway. Each entry must document why — adding one means adding another spot the
+    // open-source side has to handle as a leftover.
     const ALLOW = new Set<string>([])
     const used = zhKeys
       .filter((k) => !ALLOW.has(k))

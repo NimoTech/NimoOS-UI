@@ -1,13 +1,13 @@
 <!--
-  SP8-P3a Task 3 — 1:1 port from Vue2 src/views/AI/Skills/SkillTile.vue (43 lines).
+  1:1 port from Vue2 src/views/AI/Skills/SkillTile.vue (43 lines).
 
   [Deviation 2 (shared constraint §3.2)] SkillIcon.vue is not ported; use AgentIcon
   (../../icons/AgentIcon.vue) uniformly instead.
 
   [Color lookup table change] Vue2 :18-26's COLORS is a literal gradient table
   (color-guard forbids literals). Replaced with a token-name lookup →
-  var(--grad-sk-<id>); token definitions are in tokens.scss:228-234 (added by
-  SP8-P3a Task 1). Unknown ids fall back to blue, matching Vue2 :40's
+  var(--grad-sk-<id>); token definitions are in tokens.scss:228-234. Unknown ids fall
+  back to blue, matching Vue2 :40's
   `COLORS[this.color] || COLORS.blue` behavior.
 
   [color="white" handling] Vue2 :11 passes the named color white to SkillIcon.

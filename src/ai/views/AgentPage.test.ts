@@ -12,16 +12,16 @@ const svc = vi.hoisted(() => ({
   listAgentMessages: vi.fn(),
   updateAgentSessionTitle: vi.fn(),
   getContextUsage: vi.fn(),
-  // SP8-P1c2 Task 3 — thinking scope (session watcher triggers loadSessionThinking).
+  // Thinking scope (session watcher triggers loadSessionThinking).
   getThinkingDefaults: vi.fn(),
   getSessionThinking: vi.fn(),
   patchSessionThinking: vi.fn(),
-  // SP8-P1c2 Task 13 — called by attachment download link in ResourcesTab after right panel mounts.
+  // Called by attachment download link in ResourcesTab after right panel mounts.
   attachmentRawUrl: vi.fn(() => '/raw/1'),
 }))
-// SP8-P1c2 Task 11 — disks.list() one-shot fetches storage capacity (Agent.vue:159-162).
+// disks.list() one-shot fetches storage capacity (Agent.vue:159-162).
 const disksList = vi.hoisted(() => vi.fn())
-// SP8-P1c2 Task 13 — right panel SystemTab uses useUtilization() (Pinia utilization store
+// Right panel SystemTab uses useUtilization() (Pinia utilization store
 // → service.sys.getUtilization + MessageBus subscription). utilization store also named-imports
 // parseUtil from shared package, so must importActual as base here, cannot just bare service object.
 const getUtilization = vi.hoisted(() => vi.fn())
@@ -80,7 +80,7 @@ describe('AgentPage', () => {
     w.unmount()
   })
 
-  it('SP8-P1c2: calls loadThinkingDefaults on mount first, before loadSessions/loadAvailableModels (Vue2 Agent.vue:151)', async () => {
+  it('Calls loadThinkingDefaults on mount first, before loadSessions/loadAvailableModels (Vue2 Agent.vue:151)', async () => {
     const store = useAgentStore()
     const defaultsSpy = vi.spyOn(store, 'loadThinkingDefaults')
     const sessionsSpy = vi.spyOn(store, 'loadSessions')
@@ -186,7 +186,7 @@ describe('AgentPage', () => {
     expect(replace).toHaveBeenCalledWith({ path: '/ai/agent', query: { tab: 'x' } })
   })
 
-  // SP8-P3a added after acceptance②: ?skill= must be erased from URL immediately after reading
+  // Added after an acceptance review: ?skill= must be erased from URL immediately after reading
   // (Vue2 Agent.vue:145-148 has same defect unfixed; here we correct per "logic matches right"
   // aligning with precedent of adjacent ?search=/?message=).
   it('?skill=abc → stashes store.pendingSkillId, and immediately erases skill from URL (F5 after unmount/send will not revive)', async () => {
@@ -297,7 +297,7 @@ describe('AgentPage', () => {
     w.unmount()
   })
 
-  it('SP8-P2a Task 12: sidebar open-settings (settings gear) → router.push to /ai/settings, no placeholder toast (Vue2 Agent.vue:209, route exists)', async () => {
+  it('Sidebar open-settings (settings gear) → router.push to /ai/settings, no placeholder toast (Vue2 Agent.vue:209, route exists)', async () => {
     const w = mountPage()
     await flushPromises()
     const toast = useToast()
@@ -353,7 +353,7 @@ describe('AgentPage', () => {
     expect(w.findComponent({ name: 'AgentComposer' }).props('ctxUsage')).toBe(null)
   })
 
-  it('SP8-P1c2 Task 11: calls service.disks.list() once-shot on mount (Agent.vue:159-162, storage capacity not real-time)', async () => {
+  it('Calls service.disks.list() once-shot on mount (Agent.vue:159-162, storage capacity not real-time)', async () => {
     disksList.mockResolvedValue([{ size: 4e12, used: 2e12 }])
     const w = mountPage()
     await flushPromises()
@@ -361,7 +361,7 @@ describe('AgentPage', () => {
     w.unmount()
   })
 
-  it('SP8-P1c2 Task 11: disks.list() failure → swallows error, no unhandled exception, storage becomes null (same as Vue2 Agent.vue try/catch)', async () => {
+  it('disks.list() failure → swallows error, no unhandled exception, storage becomes null (same as Vue2 Agent.vue try/catch)', async () => {
     // Code review F2: original assertion `expect(() => mountPage()).not.toThrow()` always true —
     // rejection inside onMounted is async, will not sync throw out to sync wrapper catch.
     // Changed to assert actual outcome: after reject settles, storage state inside page should be null
@@ -374,7 +374,7 @@ describe('AgentPage', () => {
     w.unmount()
   })
 
-  it('SP8-P1c2: switch session → loadSessionThinking(newId) + updateThinkingForModel + refreshContextUsage fire in parallel (Vue2 Agent.vue:120-123)', async () => {
+  it('Switch session → loadSessionThinking(newId) + updateThinkingForModel + refreshContextUsage fire in parallel (Vue2 Agent.vue:120-123)', async () => {
     svc.getContextUsage.mockResolvedValue({ tokens: 1, window: 10, pct: 10 })
     const w = mountPage()
     await flushPromises()
@@ -390,7 +390,7 @@ describe('AgentPage', () => {
     w.unmount()
   })
 
-  it('SP8-P1c2: switching back to no session (newId empty) does not call loadSessionThinking/updateThinkingForModel', async () => {
+  it('Switching back to no session (newId empty) does not call loadSessionThinking/updateThinkingForModel', async () => {
     const w = mountPage()
     await flushPromises()
     const store = useAgentStore()
@@ -405,7 +405,7 @@ describe('AgentPage', () => {
     w.unmount()
   })
 
-  it('SP8-P1c2 Task 8: AgentTopbar thinking-enabled/thinking-level wired to store.setThinkingEnabled/setThinkingLevel', async () => {
+  it('AgentTopbar thinking-enabled/thinking-level wired to store.setThinkingEnabled/setThinkingLevel', async () => {
     const w = mountPage()
     await flushPromises()
     const store = useAgentStore()
@@ -419,7 +419,7 @@ describe('AgentPage', () => {
     w.unmount()
   })
 
-  it('SP8-P1c2 Task 8: AgentTopbar thinking prop bound to store.thinking', async () => {
+  it('AgentTopbar thinking prop bound to store.thinking', async () => {
     const w = mountPage()
     await flushPromises()
     const store = useAgentStore()
@@ -431,14 +431,14 @@ describe('AgentPage', () => {
     w.unmount()
   })
 
-  it('SP8-P1c2: root element data-rightcollapsed defaults to false (expanded, align Vue2 agentStore.js:37)', async () => {
+  it('Root element data-rightcollapsed defaults to false (expanded, align Vue2 agentStore.js:37)', async () => {
     const w = mountPage()
     await flushPromises()
     expect(w.find('.agent-app').attributes('data-rightcollapsed')).toBe('false')
     w.unmount()
   })
 
-  it('SP8-P1c2: data-rightcollapsed changes with store.toggleRight, top bar button also wired to same action', async () => {
+  it('data-rightcollapsed changes with store.toggleRight, top bar button also wired to same action', async () => {
     const w = mountPage()
     await flushPromises()
     const store = useAgentStore()
@@ -451,7 +451,7 @@ describe('AgentPage', () => {
     w.unmount()
   })
 
-  it('SP8-P1c2 Task 9: AgentTopbar select-model wired to store.selectModel, available-models/selected-model passed through', async () => {
+  it('AgentTopbar select-model wired to store.selectModel, available-models/selected-model passed through', async () => {
     const w = mountPage()
     await flushPromises()
     const store = useAgentStore()
@@ -467,7 +467,7 @@ describe('AgentPage', () => {
     w.unmount()
   })
 
-  it('SP8-P2a Task 12: AgentTopbar open-settings shares same real navigation with sidebar (router.push to /ai/settings, no placeholder toast)', async () => {
+  it('AgentTopbar open-settings shares same real navigation with sidebar (router.push to /ai/settings, no placeholder toast)', async () => {
     const w = mountPage()
     await flushPromises()
     const toast = useToast()
@@ -479,7 +479,7 @@ describe('AgentPage', () => {
     w.unmount()
   })
 
-  it('SP8-P1c2 Task 9: regenerate-title → store.regenerateTitle(activeSessionId); does not call without active session (Vue2 Agent.vue:216-220)', async () => {
+  it('regenerate-title → store.regenerateTitle(activeSessionId); does not call without active session (Vue2 Agent.vue:216-220)', async () => {
     const w = mountPage()
     await flushPromises()
     const store = useAgentStore()
@@ -496,7 +496,7 @@ describe('AgentPage', () => {
     w.unmount()
   })
 
-  it('SP8-P1c2 Task 9: regeneratingTitleFor passed through to topbar (disable matrix calculated by AgentTopbar itself, only verify pass-through here)', async () => {
+  it('regeneratingTitleFor passed through to topbar (disable matrix calculated by AgentTopbar itself, only verify pass-through here)', async () => {
     const w = mountPage()
     await flushPromises()
     const store = useAgentStore()
@@ -507,7 +507,7 @@ describe('AgentPage', () => {
     w.unmount()
   })
 
-  it('SP8-P1c2 Task 9: lastFallbackNotice changes → 4000ms warning toast, then reset to null (Vue2 Agent.vue:133-142)', async () => {
+  it('lastFallbackNotice changes → 4000ms warning toast, then reset to null (Vue2 Agent.vue:133-142)', async () => {
     const w = mountPage()
     await flushPromises()
     const store = useAgentStore()
@@ -528,7 +528,7 @@ describe('AgentPage', () => {
     w.unmount()
   })
 
-  it('SP8-P1c2 Task 9: lastFallbackNotice.to empty → uses aiNoModelAvailable fallback text', async () => {
+  it('lastFallbackNotice.to empty → uses aiNoModelAvailable fallback text', async () => {
     const w = mountPage()
     await flushPromises()
     const store = useAgentStore()
@@ -545,7 +545,7 @@ describe('AgentPage', () => {
     w.unmount()
   })
 
-  // ── SP8-P1c2 Task 13: right panel wiring (Vue2 Agent.vue:44-64) ──
+  // ── Right panel wiring (Vue2 Agent.vue:44-64) ──
   it('Task 13: AgentRightPanel mounted, 11 props each from store / page storage ref', async () => {
     disksList.mockResolvedValue([{ size: 4e12, used: 2e12 }])
     const w = mountPage()

@@ -26,7 +26,7 @@ export const useFoldersStore = defineStore('home-folders', () => {
   // "NimoOS-HD" — remap it to /DATA so we never browse from `/`.
   async function loadDisks() {
     try {
-      // SP6-P1: unified to use service.storage.list (behavior equivalent, original getHttp hit /storage directly)
+      // Unified to use service.storage.list (behavior equivalent, original getHttp hit /storage directly)
       // SP12-T9: a single transient failure used to blank the disk list for good,
       // and with no disk roots the Files page has no default directory to open.
       const groups = ((await retryRequest(() => service.storage.list({ system: 'show' }) as Promise<any[]>)) as any[]) || []

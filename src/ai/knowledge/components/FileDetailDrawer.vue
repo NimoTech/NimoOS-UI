@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// SP8-P5e Task 5 — 1:1 ported from the Vue 2 panel's blueprint `FileDetailDrawer.vue`
+// 1:1 ported from the Vue 2 panel's blueprint `FileDetailDrawer.vue`
 // (`src/views/AI/Knowledge/components/FileDetailDrawer.vue`, 220 lines,
 // template+script :1-220 all ported this round).
 //

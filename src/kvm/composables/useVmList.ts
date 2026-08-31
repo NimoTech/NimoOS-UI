@@ -96,7 +96,7 @@ export function useVmList() {
           if (idx !== -1) vms.value[idx] = selectedVM.value
         }
       } else if (vms.value.length > 0) {
-        // ⚠️ Deviation from Vue2 (SP9-P5 logged, review verified): Vue2 fetchVMs(:898-899) here
+        // ⚠️ Deviation from Vue2 (logged, review verified): Vue2 fetchVMs(:898-899) here
         // calls this.selectVM(this.vms[0]), which triggers another fetchVM→getVM detail request. But the backend
         // ListVMs(NimoOS-KVM vm_service.go:245) and GetVM(:270) both return full model.VM copies with identical field sets —
         // merging does not drop any fields, so a second detail request is purely redundant network traffic.
@@ -268,7 +268,7 @@ export function useVmList() {
   }
 
   async function restart(vm: KvmVM): Promise<boolean> {
-    // ⚠️ Deviation from Vue2 (SP9-P5 logged): Vue2 restartVM(:1557-1571) immediately calls
+    // ⚠️ Deviation from Vue2 (logged): Vue2 restartVM(:1557-1571) immediately calls
     // disconnectVNC() + connectVNC() after the request returns. A freshly rebooted VM's VNC port is likely not listening yet, connect fails,
     // and vncError gets permanently pinned to the screen with no self-healing. Here we only disconnect; reconnection defers to the kvm:vm_started
     // event fallback (backend definitely sends it, NimoOS-KVM/common/constants.go:17). Visual behavior unchanged, just no longer stuck in error state.
@@ -330,7 +330,7 @@ export function useVmList() {
   // caller can read vm.autostart directly to decide whether toast says "on" or "off"), false = failed/
   // short-circuited after dispose.
   async function toggleAutostart(vm: KvmVM): Promise<boolean> {
-    // ⚠️ Deviation from Vue2 (SP9-P5 logged, review 2): Vue2 toggleAutoStart(:1516-1528) records
+    // ⚠️ Deviation from Vue2 (logged, review 2): Vue2 toggleAutoStart(:1516-1528) records
     // originalValue first, then writes vm.autostart = newValue(:1522) only after await succeeds, then in catch
     // changes vm.autostart back to originalValue(:1525). But with this write order, the failure branch never writes the new value —
     // vm.autostart is already originalValue, the catch "rollback" is dead code (copying this logic has no observable effect;

@@ -33,7 +33,7 @@ export function useVncConsole(hostEl: Ref<HTMLElement | null>) {
   // Generation counter. Each connect() increments and records myGen; after await, compare if
   // gen is still from this invocation, else discard result.
   //
-  // ⚠️ Deviation from Vue2 (SP9-P5 logged): Vue2's connectVNC (:956-1018) connects immediately
+  // ⚠️ Deviation from Vue2 (logged): Vue2's connectVNC (:956-1018) connects immediately
   // after /vnc response, with no generation check. On quick VM switch, the earlier request might
   // arrive after the later one, attaching VM A's display to container already switched to B (and
   // B's freshly-built RFB gets overwritten by A's late result). Generation guard added here:
@@ -75,7 +75,7 @@ export function useVncConsole(hostEl: Ref<HTMLElement | null>) {
   /** Follow Vue2's disconnectVNC (:944-954): release modifiers first (else they stay pressed),
    * then destroy connection.
    *
-   * ⚠️ Deviation from Vue2 (SP9-P5 logged, generation guard extension): also advance gen here.
+   * ⚠️ Deviation from Vue2 (logged, generation guard extension): also advance gen here.
    * Vue2 has no generation concept; disconnectVNC just cleans up "already established"
    * connections. But here disconnect() is called externally too (VM stop event, component
    * unmount's dispose()), and if a connect() is mid-await-getVNC() at that moment, without

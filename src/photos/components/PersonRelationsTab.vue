@@ -1,27 +1,27 @@
 <script setup lang="ts">
-// Task 13 (SP7-P5 people): PersonRelationsTab.vue — people detail page "relations" tab
+// PersonRelationsTab.vue — people detail page "relations" tab
 // (relation graph area + co-appearance list + Nimo's read insight card). Line-by-line port from
 // the Vue 2 panel's src/views/Photos/PhotosPersonDetail.vue:187-227 (entire v-if="tab==='graph'"
 // block), :530-536 (sortedRelations/relMax), :571-585 (nimoRead sentence assembly); styles from
 // photos-people.scss:502-568 (relation graph + co-appearance list) and :647-682 (insight card).
 //
-// Section title (coordinator decision, same as T12): Vue2's two .detail-section-title instances
+// Section title (same approach as the places tab): Vue2's two .detail-section-title instances
 // (:189-192 relation graph, :202 co-appearance) both live inside v-if="tab==='graph'" block,
-// are part of this tab itself, not container responsibility — container (T14) only switches tab.
+// are part of this tab itself, not container responsibility — the container only switches tab.
 //
-// Affordance complement (brief explicitly requires, not Vue2 behavior): PersonRelGraph's
+// Affordance complement (not Vue2 behavior): PersonRelGraph's
 // open-person (click satellite node to jump) passes through here to parent unchanged; Vue2
 // relation graph nodes are not clickable; this complement already recorded at top of PersonRelGraph.vue.
 //
 // nimoRead sentence assembly's pure function part already moved to peopleView.ts's nimoReadParts
-// (T13 new addition, see that file's comments); here only does t(key, params) resolution + space
+// (see that file's comments); here only does t(key, params) resolution + space
 // joining (follows :584 `parts.join(' ')`), plus v-html hardening (see escapeHtml comment below).
 //
-// Task 8 (Plan D): the insight card's bottom "Dig deeper" button (Vue2 :228-230 `.nimo-btn`,
-// $emit('ask-nimo', ...)) was previously deferred to SP8 and unrendered; now added back per Vue2.
-// The click is a no-op — wiring the real Ask Nimo call belongs to Plan G.
+// The insight card's bottom "Dig deeper" button (Vue2 :228-230 `.nimo-btn`,
+// $emit('ask-nimo', ...)) was previously deferred and left unrendered; now added back per Vue2.
+// The click is currently a no-op — wiring the real Ask Nimo call comes later.
 //
-// v-html security (tradeoff between two brief options, detailed in report): brief suggests "if low
+// v-html security (tradeoff between two possible approaches): one option was "if low
 // cost, switch to <i18n-t> named slots to make <b> a slot". Here using another lower-cost path
 // that equally closes the risk — before assembling sentence, HTML-escape each interpolation
 // parameter (person name / place name, both from backend / user input), then v-html the assembled
@@ -55,8 +55,8 @@ const { t } = useI18n()
 // (nimoReadParts needs to read original order's relations[0], see nimoReadHtml below).
 const sortedRelations = computed(() => [...props.relations].sort((a, b) => b.count - a.count))
 
-// Vue2 :533-536 relMax. Review-recorded correctness fix (not copying bug; per project "port
-// discipline" convention, correcting logic and recording in comment): Vue2 when relations is
+// Vue2 :533-536 relMax. Correctness fix (not copying the bug, correcting logic and recording it
+// here): Vue2 when relations is
 // non-empty but all count===0 computes Math.max(...[0,0])===0, leading to bar width `0/0*100%`
 // = NaN% (browser ignores this invalid inline style value, visually degrades to "no width set"
 // rather than crash, but still bad value). Here also add ,1 fallback in Math.max call, same
@@ -82,7 +82,7 @@ function escapeHtml(v: unknown): string {
 // (:572 `if (!this.person) return ''`).
 const nimoReadHtml = computed(() => {
   if (!props.person) return ''
-  // User acceptance new: unnamed people can now enter detail page, and insight card sentence
+  // Unnamed people can now enter the detail page, and insight card sentence
   // templates all have {name} placeholder; bare person.name would render as " photos not enough..."
   // with leading space artifact (Vue2 same issue, but it can't get here so unreachable). Fallback
   // language exactly matches same-period PersonPlacesTab.vue:51 — both use photosPersonThisPerson.
@@ -97,7 +97,7 @@ const nimoReadHtml = computed(() => {
     .join(' ')
 })
 
-// Plan G: opens the Ask Nimo popup with Vue2's exact canned prompt (PhotosPersonDetail.vue:228-230).
+// Opens the Ask Nimo popup with Vue2's exact canned prompt (PhotosPersonDetail.vue:228-230).
 function onDigDeeper(): void {
   const name = props.person?.name?.trim() || t('photosPersonThisPerson')
   useAskNimo().openWith(t('photosPersonDigDeeperPrompt', { name }))
@@ -131,7 +131,7 @@ function onDigDeeper(): void {
         >
           <PersonAvatar :person-id="r.personId" :name="r.name" :ver="r.coverFaceId" :size="36" />
           <div class="body">
-            <!-- Task 6 (Plan D, PR 137 gap-close): Vue2 PR 137 patch (PhotosPersonDetail.vue,
+            <!-- PR 137 gap-close: Vue2 PR 137 patch (PhotosPersonDetail.vue,
                  graph-tab rel-row) added `r.name || $t('Unnamed person')` here — this list row
                  was missing that fallback. -->
             <div class="nm">{{ r.name || t('photosPersonUnnamedTitle') }}</div>
@@ -147,8 +147,8 @@ function onDigDeeper(): void {
              individually in nimoReadHtml, remaining <b> can only come from translation template
              itself, see script section comment -->
         <p class="insight-text" data-test="insight-text" v-html="nimoReadHtml" />
-        <!-- Task 8 (Plan D): the "Dig deeper" button — Vue2 :228-230, click is a no-op
-             (onDigDeeper), wiring belongs to Plan G. -->
+        <!-- The "Dig deeper" button — Vue2 :228-230, click is currently a no-op
+             (onDigDeeper), wiring comes later. -->
         <button type="button" class="nimo-btn" data-test="rel-insight-dig-deeper" @click="onDigDeeper">
           {{ t('photosPersonDigDeeper') }}
         </button>
@@ -158,13 +158,12 @@ function onDigDeeper(): void {
 </template>
 
 <style scoped>
-/* Task 5 (Plan D) shadowing cleanup: `.rel-section`, `.detail-section-title`(+`.sub`),
+/* Shadowing cleanup: `.rel-section`, `.detail-section-title`(+`.sub`),
    `.rel-graph-wrap`(+`.legend` family), `.rel-list`/`.rel-row`(+`.body`/`.nm`/`.ct`/`.bar`/
    `.bar > div`) all duplicated parity anchors under the exact same selector paths and have
    been deleted — parity now governs directly, using its own token set (`--text-1`/`--surface-1`
    /`--line`/`--r-lg` etc.) rather than this app's theme.css tokens the comments here used to
-   explain as substitutes. See task-5-report.md's deviations table for the resulting value
-   changes (mostly cosmetic: parity's tokens resolve to Vue2's own pixel values inside
+   explain as substitutes (mostly cosmetic: parity's tokens resolve to Vue2's own pixel values inside
    `.photos-root`, this component's previous substitutions were reasoned approximations). */
 
 /* `.rel-insight-card` survives as a deliberate, already-reviewed deviation from both Vue2 and

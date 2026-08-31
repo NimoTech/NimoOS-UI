@@ -1,26 +1,25 @@
 <!--
-  SP7-P8a-T3: Settings page storage card.
+  Settings page storage card.
   Source coordinates: Vue2 PhotosSettings.vue:39-126 (template), :299-331 (capGB/freeGB/usedGB/
   prunableBytes/scanIntervalOptions/breakdown/pctOf), :382 (fmt), :405-457
   (fmtBytes/clearCache/rescanNow/setScanInterval).
 
-  Card doesn't emit toast itself — @toast event is uniformly received by the container (T5);
-  same as Vue2 placing toast state in the container PhotosSettings.vue, showToast() defined at
-  :487-491.
+  Card doesn't emit toast itself — @toast event is uniformly received by the container; same as
+  Vue2 placing toast state in the container PhotosSettings.vue, showToast() defined at :487-491.
 
-  Interface boundary record (brief's Consumes list doesn't name these, explicitly registered here
-  for T5/T4 implementers):
+  Interface boundary record (kept here for anyone implementing sibling components against this
+  one):
   - `about`/`deviceName` read directly from store.about?.deviceName, card doesn't call fetchAbout()
     — in Vue2 mounted(), loadAbout() and loadStorage() are two parallel calls in the same component;
-    after splitting, "who fetches about" has no mandatory owner; by sister component (T5 container,
-    footer also needs about.version) fetching once together saves one network round-trip. Before data
-    completes, show Vue2's same fallback 'NAS'.
+    after splitting, "who fetches about" has no mandatory owner; since the container component's
+    footer also needs about.version, fetching once together there saves one network round-trip.
+    Before data completes, show Vue2's same fallback 'NAS'.
   - retentionDays/scanIntervalMinutes similarly not called via fetchRetention()/fetchScanInterval()
-    in this card (brief's Consumes list doesn't name these two action names) — assume T5 fetches once
-    when mounting the whole page; before that read store defaults (30/1440); after data lands, update
-    reactively with store.
-  - fetchStorage() **is** named in Consumes list, so card calls it once on mounted (corresponds to
-    Vue2's loadStorage()), does not depend on T5.
+    in this card — these aren't part of this component's own data-fetching contract, so assume the
+    container fetches once when mounting the whole page; before that read store defaults (30/1440);
+    after data lands, update reactively with store.
+  - fetchStorage() **is** part of this component's own contract, so card calls it once on mounted
+    (corresponds to Vue2's loadStorage()), independent of the container.
 -->
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'

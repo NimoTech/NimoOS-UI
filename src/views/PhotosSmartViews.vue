@@ -1,10 +1,10 @@
 <script setup lang="ts">
-// SP7-P7a-T4: PhotosSmartViews.vue — the smart-view list page (shell + AI banner + hero +
+// PhotosSmartViews.vue — the smart-view list page (shell + AI banner + hero +
 // grid + create card). Ported section by section from the Vue 2 panel's
 // src/views/Photos/PhotosSmartViewsView.vue:14-38 (the list portion — the detail/dialog
-// portion belongs to other tasks), the inline banner :15-19, hero :22-30, grid :31-38.
+// portion belongs elsewhere), the inline banner :15-19, hero :22-30, grid :31-38.
 // Styles ported from photos-smartview.scss:4-25 (hero/create-btn/grid) + :118-145 (create-card).
-// Plan C Task 2 (shared re-shell): the shell moves from AreaShell + a `.photos-layout` flex row
+// Shared re-shell: the shell moves from AreaShell + a `.photos-layout` flex row
 // to Photos.vue's Vue2 structure `.photos-root[themeClass] > .app[data-collapsed] >
 // PhotosSidebar + main.main` — `collapsed` now comes from the shared composable
 // useSidebarCollapse(). This also cleared the EXEMPT entry photosLayoutHeightCap.test.ts had
@@ -19,9 +19,9 @@
 // source no longer contains the `.photos-layout` rule literal, so it drops out of that test
 // file's scan scope).
 //
-// SP15-P2b Task 5 (Vue2 939a7d3a:src/views/Photos/PhotosSmartViewsView.vue, the whole
+// As of Vue2 939a7d3a:src/views/Photos/PhotosSmartViewsView.vue (the whole
 // 317-line file): the smart-view grid, its hero, the create tile, and the create dialog all
-// moved to PhotosAlbums.vue in this branch's Tasks 3/4 — smart albums now live mixed into
+// moved to PhotosAlbums.vue — smart albums now live mixed into
 // the Albums grid. What is left on this route is Moments-only: a "For You" page. The
 // smart-view list store (usePhotosSmartViews) is no longer imported here at all; this file
 // no longer fetches or renders anything about smart views themselves.
@@ -31,14 +31,14 @@
 //  2) Moments · For You section -- the page's sole content. The section and its hero render
 //     UNCONDITIONALLY (Vue2 939a7d3a:PhotosSmartViewsView.vue:18-23 puts no v-if on either);
 //     only the card grid is gated by showMoments (Vue2 :24). Getting this wrong makes the
-//     whole page blank on a device with zero moments -- see the deviation registry note 5.
+//     whole page blank on a device with zero moments -- see the divergence registry note 5.
 //  3) Slim settings hint (v-else-if="aiSmartViewOff", Vue2 :31, a sibling of the grid INSIDE
 //     the section): with the grid hidden the page would otherwise be just a heading, so a
 //     one-line pointer to Settings replaces the old full AI banner (the banner moved to the
 //     Albums page along with the smart-view grid).
 //
-// Deviation registry:
-//  1) [P8a-T6 already wired, historical record] Vue 2 :15's original banner link was
+// Divergence registry:
+//  1) [Already wired, historical record] Vue 2 :15's original banner link was
 //     <a href="javascript:void(0)">, clicking it emitted $emit('open-settings', 'ai'). Once
 //     the settings page landed this became a real <RouterLink> -- that behavior has since
 //     been folded into the slim hint below and is no longer a standalone banner.
@@ -48,14 +48,14 @@
 //  3) The slim hint's amber reuses the --dem-fg/--dem-bg/--dem-bd family (grep of theme.css
 //     confirms both themes define values; PhotosTrash.vue's warn semantics are already an
 //     established precedent for this token family -- no new token added).
-//  4) [SP15-P1 final fix wave] A reorder drag no longer also opens the moment it dragged.
+//  4) A reorder drag no longer also opens the moment it dragged.
 //     Vue 2's Moments band has no such guard and does open it; the album grid's guard is
 //     copied here instead. Full rationale, including why Sortable's own `ignoreNextClick`
 //     does not cover the reordering case, sits above `onMomentOpen` below.
-//  5) [SP15-P2b final fix wave] Not a deviation, a corrected port: this file used to gate the
+//  5) Not a deviation, a corrected port: this file used to gate the
 //     whole `.mo-section` (hero included) on showMoments, carried over from P1 when the page
 //     still had its own `sv-hero` above it -- harmless then, a completely blank page once this
-//     phase deleted that hero, which is exactly the state the acceptance device is in
+//     phase deleted that hero, which is exactly the state a freshly-set-up device is in
 //     (moments table = 0 rows). Vue 2's target renders section + hero unconditionally and
 //     gates only the grid; the gate now sits where Vue 2 has it.
 import '../photos/styles/vue2-parity'
@@ -88,7 +88,7 @@ const settings = usePhotosSettingsStore()
 const moments = usePhotosMoments()
 const toast = useToast()
 
-// P8a-T6 (§7e-10): aiFeatures.smartview used to be a stopgap implementation where this page
+// (§7e-10): aiFeatures.smartview used to be a stopgap implementation where this page
 // read /photos/config directly once in its own onMounted (there was no shared store before
 // P8 landed). Now switched to reading T1's photosSettings store instead — the semantics are
 // unchanged:
@@ -97,7 +97,7 @@ const toast = useToast()
 // this line only consumes it.
 const aiSmartViewOff = computed(() => settings.aiFeatures.smartview === false)
 
-// SP15-P1-T5(Vue2 939a7d3a:PhotosSmartViewsView.vue:24 + :455) —— the Moments **grid** is
+// Vue2 939a7d3a:PhotosSmartViewsView.vue:24 + :455 —— the Moments **grid** is
 // hidden outright when there are no moments, and follows the same aiFeatures.smartview switch
 // as the settings hint below (reusing aiSmartViewOff, not a second computed). It gates the
 // grid only: the section and its hero render unconditionally, exactly as Vue 2 :18-23 does.
@@ -106,7 +106,7 @@ const aiSmartViewOff = computed(() => settings.aiFeatures.smartview === false)
 const showMoments = computed(() => !aiSmartViewOff.value && moments.moments.length > 0)
 const moGrid = ref<HTMLElement | null>(null)
 
-// SP15-P1-T6: drag-to-reorder for the Moments band, reusing the album detail page's
+// Drag-to-reorder for the Moments band, reusing the album detail page's
 // drag-sort composable instead of a second Sortable wrapper.
 //
 // This is the spot most likely to be copied wrong. Vue2 (899af59b:PhotosSmartViewsView.vue
@@ -136,7 +136,7 @@ async function persistOrder(ids: string[]): Promise<void> {
 // the album grid puts its own equivalent (PhotosAlbumDetail.vue:161-162, "must come first")
 // immediately after its `useAlbumDragSort` call for the same reason.
 //
-// Deviation from Vue 2 (registered here, not a port miss): Vue 2's Moments band has **no**
+// Divergence from Vue 2 (registered here, not a port miss): Vue 2's Moments band has **no**
 // such guard — 899af59b:PhotosSmartViewsView.vue:563-575 creates Sortable without an
 // onStart flag and :604-608 onOpenMoment only checks the AI switch — so a reorder there
 // also opens the moment. Vue 2's *album* grid does guard (:380-384 `_dragging`), and its
@@ -160,8 +160,8 @@ function onMomentOpen(id: string): void {
 // harmless to leave, since an item with its own explicit inline `grid-column`/`grid-row` is never
 // auto-placed regardless). Root cause + full algorithm are documented on packMasonry itself
 // (momentLayout.ts): CSS Grid's own dense heuristic can leave a column empty for several rows
-// when a same-row tie goes to a leftward column, producing the "void above a card" the owner
-// found — reproduced against this exact CSS in an isolated repro (see the acceptance report), not
+// when a same-row tie goes to a leftward column, producing the "void above a card" defect —
+// reproduced against this exact CSS in an isolated repro, not
 // a light/dark theme difference. `numColumns` mirrors `.sv-grid`'s own
 // `repeat(auto-fill, minmax(320px, 1fr))` formula (photos-smartview.scss:8) against the
 // container's REAL measured width, which is strictly more accurate than the CSS-only version's
@@ -275,7 +275,7 @@ onMounted(() => {
               The `??` fallbacks below can never actually fire: sizeMap (moments.ts) is a
               computed derived from this same `moments.moments` list via assignMomentSizes,
               keyed by m.id — every id rendered here is guaranteed to have a sizeMap entry in
-              the same tick. Kept only as belt-and-suspenders per the brief; do not mistake it
+              the same tick. Kept only as belt-and-suspenders; do not mistake it
               for a real code path — a genuinely absent entry would hand MomentCard 'T1' for a
               moment with fewer than 2 featured ids, which MomentCard documents itself as
               relying on never happening (see momentLayout.ts / MomentCard.vue's invariant
@@ -313,7 +313,7 @@ onMounted(() => {
 </template>
 
 <style scoped>
-/* Plan C Task 2: `.photos-layout` flex-row + the transitional `.sidebar { flex... }` width
+/* `.photos-layout` flex-row + the transitional `.sidebar { flex... }` width
    pin are gone — the `.app` CSS Grid (parity scss photos.scss:116-129) now owns both the
    sidebar's width and the height cap. `.photos-layout` no longer appears anywhere in this
    file's source — photosLayoutHeightCap.test.ts's EXEMPT entry for this page has been
@@ -322,28 +322,27 @@ onMounted(() => {
 .photos-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; min-height: 0; }
 
 /* ── Moments · For You band (Vue2 photos-smartview.scss:144-186, all globally imported via
-   Plan C Task 1's `import '../photos/styles/vue2-parity'`) ──
-   Plan C Task 6 cleanup: went through every selector below against the now-globally-imported
-   `photos-smartview.scss` (same doctrine as Task 3/4/5's own passes on the sibling pages) --
+   the `import '../photos/styles/vue2-parity'` above) ──
+   Cleanup pass: went through every selector below against the now-globally-imported
+   `photos-smartview.scss` (same doctrine applied on the sibling pages) --
    any selector whose text and values already match a parity rule exactly is deleted outright,
    parity now governs it directly; only genuine New-UI additions/overrides/token substitutions
-   survive, trimmed to just what parity doesn't already provide. See task-6-report.md for the
-   full deviation table.
-   Plan C Task 2: promoted to this page's scroll container (flex:1 1 auto + min-height:0 +
+   survive, trimmed to just what parity doesn't already provide.
+   Promoted to this page's scroll container (flex:1 1 auto + min-height:0 +
    overflow-y:auto) — same shape as PhotosAlbums.vue's `.albums-scroll`. Previously this page
    relied on AreaShell's `.area-body { overflow: auto }` for whole-page scroll; now that
    `.app`/`.main` cap height at 100vh with overflow:hidden (see header comment), something
    inside `.photos-main` has to own the scroll instead, and this is the only content block.
    (`margin-bottom: 36px` used to be restated here too -- deleted, parity's own
    `.photos-root .mo-section` rule already sets it identically.) */
-/* Owner report 2026-08-21: content hugged the right edge with zero gutter. Vue2 wrapped this
+/* Content hugged the right edge with zero gutter. Vue2 wrapped this
    page's content in `.sv-page` (photos-smartview.scss:4 — padding: 32px 32px 60px), but the
    re-skin made `.mo-section` the page's sole content block + scroll owner without inheriting
    that gutter (parity's own `.photos-root .mo-section` only sets margin-bottom). Same class of
-   bug as PhotosAlbums' Fix-1 (2026-08-13, `.albums-scroll` vs `.albums-body`): the scroll
+   bug as PhotosAlbums' own `.albums-scroll` vs `.albums-body` fix: the scroll
    container must carry the page padding itself. sv-page's values applied verbatim. */
 .mo-section { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 32px 32px 60px; }
-/* `.mo-hero`/`.mo-hero p` deleted outright (Task 6): parity's own `.photos-root .mo-hero`/
+/* `.mo-hero`/`.mo-hero p` deleted outright: parity's own `.photos-root .mo-hero`/
    `.photos-root .mo-hero p` already match these shapes property-for-property (the only
    difference is parity's own token names, `--text-3` etc., vs this repo's `--fg-muted` --
    same "tokens vs literals/token-family, identical shape -> deleted, parity wins" verdict
@@ -363,7 +362,7 @@ onMounted(() => {
    touches .sv-grid itself. Dense packing plus a fixed row height: a card's rendered height
    works out to its row span multiplied by 132px, plus its span minus one multiplied by the
    16px gap.
-   Task 6: `.mo-grid` itself and its three `.mo-card`/`.mo-card-wide`/`.mo-card-tall` span
+   `.mo-grid` itself and its three `.mo-card`/`.mo-card-wide`/`.mo-card-tall` span
    rules (plus the narrow-container media query) are deleted entirely -- parity's own
    `.photos-root .mo-grid .mo-card`/`-wide`/`.mo-card.mo-card-tall` rules (photos-smartview.scss
    :132-158) already match these values exactly and, being plain unscoped selectors, already
@@ -399,10 +398,10 @@ onMounted(() => {
    grow/shrink inside `.mo-section`, a New-UI structural addition unrelated to Vue2's layout). */
 .sv-grid { flex: 1 1 auto; }
 
-/* ── Slim settings hint (SP15-P2b Task 5, replaces the entire old .svs-banner) -- reuses
+/* ── Slim settings hint (replaces the entire old .svs-banner) -- reuses
    the same --dem-fg family as the banner (precedent: PhotosTrash.vue .arc-section-dot
    [data-tone="warn"]).
-   SP15-P2b final fix wave: geometry now matches Vue2's own slim hint (939a7d3a:
+   Geometry now matches Vue2's own slim hint (939a7d3a:
    PhotosSmartViewsView.vue:31 inline style -- padding:12px 14px, no margin, centred) instead
    of the deleted full banner's (24px/32px margin, 14px/16px padding, flex-start). The hint is
    one line of text, so it never needed the banner's icon-above-two-lines alignment, and the

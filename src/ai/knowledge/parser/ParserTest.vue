@@ -1,5 +1,5 @@
 <!--
-  SP8-P5c Task 7 — "Parser test sandbox" page (route `/ai/parser/test`), 1:1 ported from Vue2 blueprint
+  "Parser test sandbox" page (route `/ai/parser/test`), 1:1 ported from Vue2 blueprint
   the Vue 2 panel (main@7a6ee6b7) `src/views/AI/Parser/ParserTest.vue` (369 lines,
   read via `git show main:` — governance §1: that repo's working tree is old branch, not trustworthy).
 

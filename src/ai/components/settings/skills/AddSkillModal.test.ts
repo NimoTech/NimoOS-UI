@@ -6,7 +6,7 @@ import zh from '../../../../i18n/zh_cn'
 import AddSkillModal from './AddSkillModal.vue'
 import { SKILL_COLOR_IDS } from './SkillTile.vue'
 
-// SP8-P3b Task 5 — tests for AddSkillModal.vue. Mounting technique matches
+// Tests for AddSkillModal.vue. Mounting technique matches
 // ChannelsSection.test.ts / SkModal.test.ts: SkModal's DialogPortal defaults to portaling into
 // '.set-app', and the target element must already exist in the DOM before the component mounts.
 //

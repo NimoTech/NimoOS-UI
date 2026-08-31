@@ -1,14 +1,14 @@
 <script setup lang="ts">
-// Task 7 (SP7-P4 albums): the album list view — card grid + sort + the three new-album fill
-// modes (empty/recent/select; the Ask Nimo branch is deliberately not built per the brief) +
+// The album list view — card grid + sort + the three new-album fill
+// modes (empty/recent/select; the Ask Nimo branch is deliberately not built here) +
 // empty state. The structure follows the Vue 2 panel's
 // src/views/Photos/PhotosAlbumsView.vue:16-86 (banner+grid), :99-165 (new-album modal).
 // Route registration is left for T11.
 //
-// Plan C Task 2 (shared re-shell): the shell moves from AreaShell + a `.photos-layout` flex
+// Shared re-shell: the shell moves from AreaShell + a `.photos-layout` flex
 // row to Photos.vue's Vue2 structure `.photos-root[themeClass] > .app[data-collapsed] >
 // PhotosSidebar + main.main` (the Vue 2 panel's PhotosTimeline.vue:943-956) — `collapsed` now comes
-// from the shared composable useSidebarCollapse() introduced in Task 2, rather than state this
+// from the shared composable useSidebarCollapse(), rather than state this
 // page never had (the albums page had never persisted a collapsed state, so PhotosSidebar was
 // always eating the prop default of false, i.e. permanently expanded — a gap in its own right,
 // closed here along with the re-shell). These five Vue2 pages have no PhotosTopbar (that is
@@ -16,12 +16,12 @@
 // On dropping AreaShell: same conclusion as Photos.vue Task 3 — on desktop (≥769px)
 // `.area-bar` is indeed display:none, but `.area-body` still carries 20px of padding plus a
 // flex wrapper, which conflicts with the `.app` grid's own 100vh and zero padding, so it goes
-// too. Known leftover (not fixed in this task, see task-2-report.md): AreaShell's `.area-bar`
+// too. Known leftover (deliberately not fixed here): AreaShell's `.area-bar`
 // was this page's only way to open the sidebar drawer on ≤768px screens (the hamburger
 // button), and that entry point disappears with the shell — the same temporary gap Photos.vue
 // had between its Task 3 and Task 4 (it too lost the entry point until Task 4 wired the toggle
-// into PhotosTopbar). This page has no topbar to wire it into, and the brief states this task
-// "needs no extra wiring beyond :data-collapsed", so it is deliberately left alone — the
+// into PhotosTopbar). This page has no topbar to wire it into, and this task deliberately
+// adds no extra wiring beyond :data-collapsed, so it is left alone — the
 // sidebar drawer is temporarily unreachable on mobile, to be handled by a later task.
 //
 // Clicking a card navigates to a real route (Vue2 kept it as in-page openAlbumId state) —
@@ -60,7 +60,7 @@ import { albumToView, type AlbumView } from '../photos/util/albumView'
 import { buildMixedAlbums, sortMixed, type MixedSortId } from '../photos/util/mixedAlbums'
 import { isConflict } from '../photos/util/httpErrors'
 
-// SP15-P2b Task 4: 'nimo' is the fourth fill option (Vue2 939a7d3a:PhotosAlbumsView.vue
+// 'nimo' is the fourth fill option (Vue2 939a7d3a:PhotosAlbumsView.vue
 // :329-336's sourceOptions, 4th entry) -- picking it swaps the panel body for the
 // embedded smart-view creation form.
 type SourceId = 'empty' | 'recent' | 'select' | 'nimo'
@@ -104,7 +104,7 @@ const sourceOptions = computed(() => [
   { id: 'empty' as SourceId, label: t('photosAlbumFillEmpty'), hint: t('photosAlbumFillEmptyHint') },
   { id: 'recent' as SourceId, label: t('photosAlbumFillRecent'), hint: t('photosAlbumFillRecentHint') },
   { id: 'select' as SourceId, label: t('photosAlbumFillSelect'), hint: t('photosAlbumFillSelectHint') },
-  // SP15-P2b Task 4 (Vue2 :329-336, 4th entry): picking this swaps the panel body for the
+  // Vue2 :329-336, 4th entry: picking this swaps the panel body for the
   // embedded SmartViewCreateDialog instead of opening a second modal.
   { id: 'nimo' as SourceId, label: t('photosSvLetNimoDraft'), hint: t('photosSvLetNimoDraftHint') },
 ])
@@ -122,7 +122,7 @@ const topbarSub = computed(() => {
   return t('photosCountSummary', { photos: totalPhotos.toLocaleString(), videos: totalVideos.toLocaleString() })
 })
 
-// SP15-P2b (Vue2 939a7d3a:PhotosAlbumsView.vue:391-393): one grid for both kinds, ranked
+// Vue2 939a7d3a:PhotosAlbumsView.vue:391-393: one grid for both kinds, ranked
 // by the single Sort control -- smart albums are no longer pinned to the front.
 const mixedItems = computed(() =>
   sortMixed(
@@ -148,7 +148,7 @@ function coverUrl(view: AlbumView): string {
   return service.photos.thumbnailUrl(view.cover, 'large')
 }
 
-// SP15-P2c Task 10 (Vue2 9f7e941f:PhotosAlbumsView.vue's smartCoverUrl): a smart album card
+// Vue2 9f7e941f:PhotosAlbumsView.vue's smartCoverUrl: a smart album card
 // now shows a single cover, seeds[0], exactly like a manual album card -- not the old
 // three-image collage. Missing or empty seeds return '' so the template falls through to the
 // same .album-cover-fallback the manual card uses; it must never render an <img> with an
@@ -182,7 +182,7 @@ function closeCreate(): void {
   createOpen.value = false
 }
 
-// SP15-P2b Task 4 (Vue2 :521-524): clicking the disabled nimo option is a no-op, the same
+// Vue2 :521-524: clicking the disabled nimo option is a no-op, the same
 // defensive guard the old standalone New Smart Album button had. Reuses `aiSmartViewOff`
 // directly rather than a same-meaning synonym computed.
 function selectSource(s: { id: SourceId }): void {
@@ -190,7 +190,7 @@ function selectSource(s: { id: SourceId }): void {
   newAlbumSource.value = s.id
 }
 
-// SP15-P2b Task 4 (Vue2 :575-578): the embedded form reports success -- the store already
+// Vue2 :575-578: the embedded form reports success -- the store already
 // unshifted the new smart view into the list, so there is nothing to insert and nowhere to
 // navigate. Just close the shared panel and stay on the list.
 function onSmartAlbumCreated(): void {
@@ -200,7 +200,7 @@ function onSmartAlbumCreated(): void {
 // Follows Vue2 :309-358 (minus the nimo branch, Task 4 added back the short-circuit):
 // creation succeeds → branch on source → toast → finally close the modal.
 async function confirmCreate(): Promise<void> {
-  // SP15-P2b Task 4 (Vue2 :525-530): with nimo picked, the panel body *is* the smart form
+  // Vue2 :525-530: with nimo picked, the panel body *is* the smart form
   // and it owns its own submit (SmartViewCreateDialog's confirm()). Falling through here
   // used to create a throwaway empty manual album first before handing off -- Vue2's own
   // fix for that bug, ported here rather than reintroduced.
@@ -209,8 +209,8 @@ async function confirmCreate(): Promise<void> {
   if (!title || creating.value) return
   creating.value = true
   try {
-    // Deliberate deviation from Vue2 here (review Important verdict: a new defect, fixed this
-    // round): Vue2's album list was never a standalone route — it was a v-else-if sub-block
+    // Deliberately diverges from Vue2 here (Vue2's own behavior here was a defect, fixed in
+    // this port): Vue2's album list was never a standalone route — it was a v-else-if sub-block
     // inside PhotosTimeline.vue switched on activeNav (the Vue 2 panel's src/router/route.js:206-208
     // registers only a single /photos route), and PhotosTimeline.mounted() unconditionally
     // dispatches fetchTimeline regardless of activeNav, so under Vue2 "the timeline data is
@@ -222,7 +222,7 @@ async function confirmCreate(): Promise<void> {
     // plus a fake "created" success toast, with zero error signal. The guard added here only
     // fetches when the timeline hasn't been pulled yet (to avoid a pointless refetch when the
     // user navigates over from the timeline view).
-    // Final review Minor 5: unify the emptiness check on timeline.months (already the pattern
+    // Unify the emptiness check on timeline.months (already the pattern
     // in PhotosLibraryPicker.vue:114) — months is a 1:1 map of timelineGroups (timeline.ts:60),
     // so the two always have equal length and are always true/false together; unify on the
     // semantics the consumer actually cares about ("are there any months to show"), rather than
@@ -282,7 +282,7 @@ async function confirmCreate(): Promise<void> {
   }
 }
 
-// SP15-P1-T9 · Step 0: with PhotosLibraryPicker generalised, three things it used to do itself
+// With PhotosLibraryPicker generalised, three things it used to do itself
 // come back to the caller — the write, the success/failure toasts, and closing the panel (the
 // component now only picks photos and hands the ids over). Everything below reproduces its
 // previous behaviour one for one: the same addAssetsToAlbum, the same photosAlbumAddedToast
@@ -298,7 +298,7 @@ const pickerExistingIds = computed(
 )
 // The button label used to be photosAlbumPickerAdd (with the selected count) inside the
 // component; the caller supplies it now. Passing a function rather than a fixed string is what
-// keeps the count moving with the selection (see deviation b in the component's header).
+// keeps the count moving with the selection.
 function pickerSubmitLabel(count: number): string {
   return t('photosAlbumPickerAdd', { count })
 }
@@ -407,7 +407,7 @@ onUnmounted(() => {
                    doesn't follow the private photos-is-light toggle -- in photos light mode
                    `--chip-bg`'s dark-theme value (a translucent *white* glass gradient) sits on
                    the parity light page's own near-white background and effectively
-                   disappears, same for the border. The result the owner saw: bare text, no
+                   disappears, same for the border. The visible result: bare text, no
                    border, no background. `.btn` is theme-correct throughout (--surface-2/--line/
                    --text-1, all `.photos-root`-scoped and already correctly shadowed under
                    `.photos-root.is-light`) and is the button Vue2 itself actually uses here.
@@ -455,12 +455,12 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <!-- Final review Important 1: the failure state takes priority over the empty state —
+        <!-- The failure state takes priority over the empty state —
              once loadError is true, albumsLoaded still reads false (deliberate, see albums.ts's
              comment), so it must not fall into the empty-state branch and render an empty grid
              with no notice at all. Same shape already closed on
              PhotosFavorites.vue/PhotosAlbumDetail.vue.
-             SP15-P2b Task 3 fix round 1 (Important 3): the standalone "isEmpty" panel that
+             The standalone "isEmpty" panel that
              used to sit here (data-test="albums-empty") is gone -- it duplicated the section
              subtitle below with the exact same "还没有相册" copy once smart albums joined the
              grid, so a genuinely empty library showed the same message twice on screen at
@@ -479,7 +479,7 @@ onUnmounted(() => {
           >{{ t('photosRetry') }}</button>
         </div>
 
-        <!-- Final review must-fix 3: Vue2 PhotosAlbumsView.vue:52-58 unconditionally renders a
+        <!-- Vue2 PhotosAlbumsView.vue:52-58 unconditionally renders a
              section head above the grid ("My Albums / albums you created") — New-UI used to
              fall straight from the banner to the grid, missing this entire block, and along
              with it the two i18n keys prepared just for it (photosAlbumsMine/photosAlbumsMineHint)
@@ -494,16 +494,16 @@ onUnmounted(() => {
              80px, which also carries flex:1 + min-height:0 + overflow-y:auto). `.albums-scroll`
              is not a name it recognises, so the only rule that actually applied was a local
              `.albums-scroll` further down this file (padding of just `4px 4px 20px`) — which is
-             why the grid hugged the left edge, exactly what the owner's screenshot showed.
+             why the grid hugged the left edge, exactly the reported symptom.
              Renamed back to parity's real name, the local rule is deleted outright (parity
              takes over directly, with larger and more correct values), and the `scroll` class
              stays (the global hide-scrollbar rule keys off that class name, photos.scss:21). -->
         <div class="albums-body scroll">
-          <!-- SP15-P2b Task 3: AI-off banner, moved here from PhotosSmartViews.vue (Vue2
+          <!-- AI-off banner, moved here from PhotosSmartViews.vue (Vue2
                939a7d3a:PhotosAlbumsView.vue:79-85) now that smart albums live in this grid too.
                Markup/classes copied verbatim from PhotosSmartViews.vue's .svs-banner* (renamed
                .albums-ai-banner*) -- see the style block for the token-for-token rule copy.
-               fix round 1 (Minor 2): the two registered deviations on the source banner
+               The two registered deviations on the source banner
                (PhotosSmartViews.vue:177-178 -- the RouterLink replacing Vue2's non-clickable
                placeholder span, and not copying Vue2's bare trailing period after the link)
                still apply to this copy; see that file's own header comment for the full
@@ -524,13 +524,13 @@ onUnmounted(() => {
           <section class="albums-section">
             <div class="albums-section-head">
               <h2>{{ t('photosAlbumsMine') }}</h2>
-              <!-- SP15-P2b Task 3 fix round 1 (Important 3): this subtitle carries the empty
+              <!-- This subtitle carries the empty
                    state itself (Vue2 939a7d3a:PhotosAlbumsView.vue:91-93 has no separate empty
                    panel, this line is it). Gated on both `albums.albumsLoaded` AND
                    `smartViews.listLoaded` so it cannot flash the "none yet" copy while either
                    fetch is still in flight -- before both resolve, mixedItems.length is 0 for
-                   every library, not just an empty one. SP15-P2b Task 4 (fold-in from Task 3's
-                   incomplete guard, see progress.md): the grid is now mixed, so a library with
+                   every library, not just an empty one. This folds in a fix for an earlier
+                   incomplete guard: the grid is now mixed, so a library with
                    zero manual albums but pending/nonzero smart views needs the smart half's own
                    loaded flag too -- gating on the albums fetch alone left a window where the
                    smart half hadn't landed yet but the guard already read "loaded". -->
@@ -539,7 +539,7 @@ onUnmounted(() => {
               </span>
             </div>
             <div class="album-grid">
-              <!-- SP15-P2c Task 10 (Vue2 9f7e941f:PhotosAlbumsView.vue:96-107): the create
+              <!-- Vue2 9f7e941f:PhotosAlbumsView.vue:96-107: the create
                    tile matches an album card's total height -- the dashed frame narrows to a
                    cover-sized .album-create-cover, and two invisible lines of the same spec as
                    .album-title/.album-meta pad out the rest. Deliberately no hardcoded pixel
@@ -566,17 +566,17 @@ onUnmounted(() => {
               <!-- The kind prefix on :key is load-bearing, not decoration: a manual album's
                    numeric id and a smart album's string id can collide once they share a
                    grid (Vue2 :104/:111 uses the same 'sv-' + item.id / item.id split).
-                   SP15-P2c Task 10: it got teeth here. While the smart card was a component
+                   It got teeth here. While the smart card was a component
                    and the manual card a plain <div>, Vue's isSameVNodeType compared (type,
                    key) as a pair, so a raw-id collision could never be conflated whatever the
                    key said. Both kinds are plain <div>s now, so this prefix is the only thing
-                   separating them. Measured cost of dropping it (task-10-report.md): the
+                   separating them. Measured cost of dropping it: the
                    rendered text stays correct, but every re-sort tears both colliding cards
                    down and rebuilds them instead of moving them, so their cover images are
                    re-fetched and re-decoded. Guarded by PhotosAlbums.test.ts's "moves, rather
                    than rebuilds, a manual album and a smart view that share the same raw id". -->
               <template v-for="item in mixedItems" :key="item.kind + '-' + item.id">
-                <!-- SP15-P2c Task 10 (Vue2 9f7e941f:PhotosAlbumsView.vue:108-146): the smart
+                <!-- Vue2 9f7e941f:PhotosAlbumsView.vue:108-146: the smart
                      album card is rendered inline with the manual card's shape instead of the
                      standalone SmartViewCard box (deleted in this task). One cover from
                      seeds[0], a Smart badge and a Live/Paused breathing dot over it, then the
@@ -720,7 +720,7 @@ onUnmounted(() => {
         </button>
       </div>
 
-      <!-- SP15-P2b Task 4 (Vue2 :519-524's mirror on the panel body): source==='nimo'
+      <!-- Vue2 :519-524's mirror on the panel body: source==='nimo'
            swaps the panel body for the embedded smart form, owning its own submit --
            two submit entry points side by side would be ambiguous, so the host footer
            hides while it is shown. -->
@@ -765,7 +765,7 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-/* Plan C Task 2: `.photos-layout` flex-row + the transitional `.sidebar { flex... }` width
+/* Shared re-shell: `.photos-layout` flex-row + the transitional `.sidebar { flex... }` width
    pin are gone — the `.app` CSS Grid (parity scss photos.scss:116-129) now owns both the
    sidebar's width and the height cap (`height: 100vh; overflow: hidden`), same as
    Photos.vue since its own Task 3 re-skin. `.photos-layout` no longer appears anywhere in
@@ -777,7 +777,7 @@ onUnmounted(() => {
 .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 60px 20px 20px; color: var(--text-2); text-align: center; }
 .empty-state-title { font-size: 16px; font-weight: 600; color: var(--text-1); }
 .empty-state-desc { font-size: 13px; }
-/* Final review Important 1: align spacing with the same failure-state pattern in
+/* Aligns spacing with the same failure-state pattern in
    PhotosFavorites.vue/PhotosAlbumDetail.vue (both already have this rule), otherwise the
    three failure screens look visually inconsistent. */
 .empty-state .bar-btn { margin-top: 10px; }
@@ -811,11 +811,11 @@ onUnmounted(() => {
 .sort-text { flex: 1 1 auto; display: flex; flex-direction: column; }
 .sort-text .hint { font-size: 11px; color: var(--text-3); margin-top: 2px; }
 
-/* ── SP15-P2b Task 3: AI-off banner ── token values and inner sizes copied from
+/* ── AI-off banner ── token values and inner sizes copied from
    PhotosSmartViews.vue's old .svs-banner* (renamed .albums-ai-banner*); see that file's own
    header comment for why --dem-fg/--dem-bg/--dem-bd rather than the Vue2 source's inline amber
    literals.
-   Final fix wave -- the OUTER margin is not copied from there. The right reference for this
+   The OUTER margin is not copied from there, though. The right reference for this
    surface is Vue2's own Albums-page banner (939a7d3a:PhotosAlbumsView.vue:79,
    `margin:0 0 20px`): it sits flush with the section head and the grid below it. Inheriting the
    other page's `24px 32px 20px` indented this banner 32px further in than everything else on
@@ -838,10 +838,10 @@ onUnmounted(() => {
    The scroll container moved to this layer (per Vue2 photos.scss:3202-3206's .albums-body):
    the section head and the grid scroll together, and .album-grid itself is only responsible
    for the grid layout, no longer doubling as the scroll container.
-   SP15-P2b Task 3: minmax(220px, 1fr) below is deliberately NOT changed to the
+   minmax(220px, 1fr) below is deliberately NOT changed to the
    minmax(320px, 1fr) SmartViewCard was designed against (PhotosSmartViews.vue's old .sv-grid) --
    the two card kinds now share one grid, and a smart card is therefore narrower here than it
-   used to be on its own page. Final fix wave: this matches Vue 2 exactly and is not a cost to
+   used to be on its own page. This matches Vue 2 exactly and is not a cost to
    apologise for. Vue2 939a7d3a unified both kinds into a single `.album-grid-user` at
    minmax(220px, 1fr) (photos.scss:3190-3193) and renders smart-view-card inside it
    (:PhotosAlbumsView.vue:99-105) -- 220px IS the target's mixed-grid column width.
@@ -864,7 +864,7 @@ onUnmounted(() => {
 .album-grid {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 18px;
 }
-/* SP15-P2c Task 10 (Vue2 9f7e941f:photos.scss's .album-create split): the tile's outer box is
+/* Vue2 9f7e941f:photos.scss's .album-create split: the tile's outer box is
    now the same vertical flex column as .album-card, and the dashed frame moved inward to
    .album-create-cover so the two invisible text lines below it can pad the tile out to a
    card's total height. */
@@ -914,7 +914,7 @@ onUnmounted(() => {
    redefined inside `.photos-root`) in place of parity's `--text-1`/`--text-3`/`--text-4`, and
    the padding didn't match (`0 4px` vs parity's `2px 6px` / `0 6px`). */
 
-/* ── SP15-P2c Task 10: Smart badge + Live/Paused dot overlaid on a smart album's cover
+/* ── Smart badge + Live/Paused dot overlaid on a smart album's cover
    (Vue2 9f7e941f:photos.scss's .al-smart-badge / .al-live-dot).
    T3 shadow cleanup: both rules, plus `.al-live-dot .live-dot`/`[data-paused] .live-dot`, are
    deleted outright rather than value-patched -- they are name-identical to parity

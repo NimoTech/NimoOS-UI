@@ -7,8 +7,8 @@ import zh from '../../../../i18n/zh_cn'
 import SkillDetail from './SkillDetail.vue'
 import type { Skill } from '../../../types/skill'
 
-// SP8-P3a Task 5 — align with Vue2 src/views/AI/Skills/SkillDetail.vue (271 lines) read-only half.
-// SP8-P3b Task 6 — add write operations: switch + more menu (disable/copy/export/delete) + delete confirmation dialog.
+// Align with Vue2 src/views/AI/Skills/SkillDetail.vue (271 lines) read-only half.
+// Add write operations: switch + more menu (disable/copy/export/delete) + delete confirmation dialog.
 // Shared constraint §9: vi.mock skeleton use vi.hoisted() to avoid ESM hoisting TDZ ReferenceError.
 const { push } = vi.hoisted(() => ({ push: vi.fn() }))
 vi.mock('vue-router', () => ({
@@ -97,8 +97,8 @@ describe('SkillDetail (read-only half + P3b write operations half)', () => {
     expect(w.find('.sk-detail-bar').exists()).toBe(false)
   })
 
-  // [Reversal, SP8-P3b Task 6, shared constraint §9 explicitly requires "reversal not deletion"] P3a version asserts
-  // these three write control elements "must not appear at all"; after P3b lands `.sw`/`.sk-pill-more` must render,
+  // [Reversal, shared constraint §9 explicitly requires "reversal not deletion"] The read-only version asserts
+  // these three write control elements "must not appear at all"; after write operations landed, `.sw`/`.sk-pill-more` must render,
   // `.sk-menu` still false — but semantics changed from "never render" to "default collapsed" (menu expand
   // interaction covered by dedicated test cases below). Before/after original text pasted in task report.
   it('top bar: title / name code / try button / switch / more menu button all rendered (P3b write operations landed)', () => {
@@ -189,8 +189,8 @@ describe('SkillDetail (read-only half + P3b write operations half)', () => {
     expect(w.find('.sk-description').text()).toBe('一段自由文本描述,含标点。')
   })
 
-  // [Reversal, SP8-P3b Task 7, shared constraint §9 explicitly requires "reversal not deletion"] P3a version (before change original text
-  // in diff above) asserts TestPanel "completely not rendered"; T7 mounts it back to Vue2 :108-112 location,
+  // [Reversal, shared constraint §9 explicitly requires "reversal not deletion"] The read-only version (before the change shown
+  // in the diff above) asserts TestPanel "completely not rendered"; T7 mounts it back to Vue2 :108-112 location,
   // now must assert **exists and correct order** — not just "exists" (exists but at end of file still passes weak assertion,
   // cannot nail down "between description and SKILL.md" location requirement), so traverse all `.sk-section-title` by DOM
   // order, assert TestPanel's own section title exactly between "description" and "SKILL.md" titles.
@@ -232,7 +232,7 @@ describe('SkillDetail (read-only half + P3b write operations half)', () => {
     // `.exists()` hit is description, `filesHint` computed property (SkillDetail.vue:78)
     // zero coverage (hardcoding `n` as any constant still all green). Changed to precisely locate third hint and assert
     // its text (aiSkNFiles = '{n} files', 2 files → '2 files').
-    // [SP8-P3b Task 7 update] After TestPanel hangs back between description and SKILL.md sections, its own section header
+    // After TestPanel hangs back between description and SKILL.md sections, its own section header
     // also carries `.sk-section-hint` (aiSkTestHint), sequence changes from 3 to 4, "bundled files"
     // section's hint accordingly moves from index 2 to 3 — this is structural shift, not assertion weakened.
     const hints = w.findAll('.sk-section-hint')
@@ -273,7 +273,7 @@ describe('SkillDetail (read-only half + P3b write operations half)', () => {
     expect(push).toHaveBeenCalledWith({ path: '/ai/agent', query: { skill: 'sk-42' } })
   })
 
-  // ===== SP8-P3b Task 6 — top bar write operations + delete confirmation dialog =====
+  // ===== Top bar write operations + delete confirmation dialog =====
 
   it('switch: data-on/aria-checked reflects enabled, click emits toggle(id, !enabled)', async () => {
     const w = mountDetail(makeSkill({ id: 'sk-1', enabled: true }))
@@ -514,7 +514,7 @@ describe('SkillDetail (read-only half + P3b write operations half)', () => {
     expect(host.querySelector('.sk-confirm')).toBeNull()
   })
 
-  // ===== SP8-P3b Task 7 — D4 dialog (disabled skill "try in chat" prompt first) + TestPanel test forward =====
+  // ===== D4 dialog (disabled skill "try in chat" prompt first) + TestPanel test forward =====
   // D4 dialog uses SkModal (standard shell), not bare reka primitives from delete confirmation above, so assertions use
   // `.sk-modal-title`/`.sk-btn.primary`/`.sk-btn.ghost` SkModal existing precedent
   // (same as ChannelsSection.test.ts "3. genCode..." case to query `.sk-modal`), not

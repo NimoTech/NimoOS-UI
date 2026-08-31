@@ -356,7 +356,7 @@ export function nimoReadParts(
 }
 
 // ---------------------------------------------------------------------------
-// Favorites hero-stats three cards (Task 15A, SP7-P5). Ported from Vue2
+// Favorites hero-stats three cards. Ported from Vue2
 // PhotosFavoritesView.vue:369-385 (byPersonAll/byPlaceAll/byYearAll computed).
 //
 // The three cards' sort/slice rules genuinely differ (count-desc / count-desc /
@@ -413,8 +413,7 @@ export function byYear(photos: Photo[]): Array<[string, number]> {
 }
 
 // ---------------------------------------------------------------------------
-// Lightbox face-chip real-avatar resolution (Task 15B, SP7-P5). See
-// task-15-brief.md's "prerequisite fact correction": Photo.faces is a bare person-name
+// Lightbox face-chip real-avatar resolution. Photo.faces is a bare person-name
 // string[] (no personId), populated only by the favorites-list endpoint, and
 // there is no asset-scoped face-thumbnail endpoint — only the person-scoped
 // one. This is the best achievable mapping without a backend change: resolve

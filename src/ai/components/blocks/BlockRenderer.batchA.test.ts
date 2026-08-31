@@ -1,4 +1,4 @@
-// SP8-P1b Task 8 — Block renderer batch A smoke tests: 17 ported renderers
+// Block renderer batch A smoke tests: 17 ported renderers
 // (includes 4 confirmation cards + MaxTurnsCard store interaction) + full BLOCK_MAP dispatch.
 import { describe, expect, it, beforeEach, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'

@@ -1,4 +1,4 @@
-// SP8-P2b Task 9 — 1:1 taken from Vue2 src/views/AI/Settings/sections/McpTokensSection.vue
+// 1:1 taken from Vue2 src/views/AI/Settings/sections/McpTokensSection.vue
 // endpointUrl computed(:138-141) and buildInstruction/buildJson/fmtCreated/
 // fmtLastUsed four methods(:157-166, :209-216).
 //

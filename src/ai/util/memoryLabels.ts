@@ -1,4 +1,4 @@
-// SP8-P2b Task 6 — Extracted from Vue2 src/views/AI/Settings/sections/MemorySection.vue:78-79/98-99
+// Extracted from Vue2 src/views/AI/Settings/sections/MemorySection.vue:78-79/98-99
 // KIND_LABELS / SOURCE_LABELS mappings + kindLabel/sourceLabel methods. Extracted as pure
 // functions to enable isolated testing of the 'return unknown values unchanged' fallback
 // (brief Step 2 #14); <script setup> has no methods object to leverage, so unit tests

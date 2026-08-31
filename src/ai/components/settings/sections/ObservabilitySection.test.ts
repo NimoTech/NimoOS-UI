@@ -1,4 +1,4 @@
-// SP8-P2b Task 8 — ported from Vue2 sections/__tests__/ObservabilitySection.spec.js (5 cases),
+// Ported from Vue2 sections/__tests__/ObservabilitySection.spec.js (5 cases),
 // original test used `w.vm.turnOn()` / `w.vm.onToggle(...)` direct instance method calls,
 // mocked `$buefy.dialog.confirm`. `<script setup>` doesn't expose internal methods externally,
 // here changed to DOM-driven (toggle switch `.sw`, click confirm/cancel in AlertDialog),
@@ -400,7 +400,7 @@ describe('ObservabilitySection', () => {
     w.unmount()
   })
 
-  // SP8-P2b acceptance feedback (2026-07-30, a declared deviation signed off by the user) —
+  // Feedback from an earlier review (a declared deviation signed off by the user) —
   // Vue2 ObservabilitySection.vue:29 uses a `download` icon (down arrow + baseline) on this
   // button, whose semantics are "download", while the button's actual behavior is "open the
   // Phoenix UI in a new tab". At acceptance the user flagged that ① the icon reads as

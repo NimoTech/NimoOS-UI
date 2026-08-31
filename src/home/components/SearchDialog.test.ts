@@ -63,7 +63,7 @@ function seedDisks(): void {
   folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] })
 }
 
-// SearchDialog has used useRoute()/useRouter() to consume deep links ?q= since SP9-P8,
+// SearchDialog has used useRoute()/useRouter() to consume deep links ?q=,
 // so mounting must include the router plugin. Create a minimal router with memory history
 // containing only '/': this component doesn't use <RouterView>, just needs to support query.
 // ⚠️ Do not import the real src/router — that would pull the entire routing table

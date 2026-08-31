@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
-// SP8-P2a Task 4 — AI area (Agent page + Settings page) shared light/dark theme.
+// AI area (Agent page + Settings page) shared light/dark theme.
 //
 // [Why extract it] In Vue2, `Agent.vue` and `Settings.vue` each maintain a theme, aligned via
 // the same localStorage key; because Vue2 route switching destroys and recreates components,
@@ -12,7 +12,7 @@ import { computed, ref } from 'vue'
 // it. This is not a Vue2 bug, it's an inevitable behavior difference after replacing component-level
 // stores with singleton stores, must be solved at the architecture level.
 //
-// Approach is identical to SP8-P1c2 Task 7's `src/stores/userProfile.ts` (avatar version number
+// Approach is identical to `src/stores/userProfile.ts` (avatar version number
 // moved up): move state to the level where it truly should be, consumers each read the same one.
 //
 // localStorage key is verbatim consistent with Vue2 (`Agent.vue:80`, `Settings.vue:73`), so old
@@ -24,7 +24,7 @@ export type AiTheme = 'light' | 'dark'
 export const useAiTheme = defineStore('ai-theme', () => {
   const theme = ref<AiTheme>('light')
 
-  // [SP8-P2b acceptance round 3, 2026-07-30] 'Is AI area currently in foreground' — for `AppToast`.
+  // 'Is AI area currently in foreground' — for `AppToast`.
   //
   // Why needed: `AppToast` is mounted at the outermost layer of `App.vue`, **not within the
   // `.agent-app` theme scope**, so it reads the global blue-black theme's `--toast-bg` (semi-transparent
