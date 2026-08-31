@@ -1989,8 +1989,8 @@
   background: transparent;
   border: 0;
   border-radius: 6px;
-  /* font-size is provided by the .has-text-full-04 class (CLAUDE.md 8.3
-     forbids hardcoding it) */
+  /* font-size is provided by the .has-text-full-04 class (the theming
+     rules forbid hardcoding it, see docs/THEMING.md) */
   color: rgba(var(--ink), 0.95) !important;
   text-align: left;
   cursor: pointer;

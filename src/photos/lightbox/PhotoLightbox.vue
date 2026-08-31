@@ -570,7 +570,7 @@ onBeforeUnmount(() => {
   /* `--fg`/`--popup-bg` (global, app-theme-only) → `--text-1`/`--pop-bg` (this
      area's own is-light-aware tokens, same root cause as `.lb-icon-btn` above). `--blur` is left
      as the shared global structural token -- it's a blur radius, not a color, and this codebase's
-     convention is that non-color structural values stay shared (see CLAUDE.md's theming section). */
+     convention is that non-color structural values stay shared (see docs/THEMING.md). */
   color: var(--text-1);
   background: var(--pop-bg);
   backdrop-filter: var(--blur);
